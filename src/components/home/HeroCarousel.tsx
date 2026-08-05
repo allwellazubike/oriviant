@@ -8,17 +8,9 @@ import {
   Globe, 
   ShieldCheck, 
   BookOpen, 
-  ChevronLeft, 
-  ChevronRight, 
-  TrendingUp, 
-  Layers, 
-  RefreshCw, 
-  Lock, 
-  Award,
-  CheckCircle2,
-  DollarSign,
   BarChart2,
-  PieChart
+  RefreshCw, 
+  Award
 } from 'lucide-react';
 import { NavigationTab } from '../../types';
 
@@ -126,6 +118,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<number>(1);
   const [isPaused, setIsPaused] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const touchStartXRef = useRef<number | null>(null);
   const touchEndXRef = useRef<number | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -147,18 +140,19 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
 
   // Auto-play interval timer (every 4.5s)
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || isDragging) return;
 
     const timer = setInterval(() => {
       nextSlide();
     }, 4500);
 
     return () => clearInterval(timer);
-  }, [isPaused, nextSlide]);
+  }, [isPaused, isDragging, nextSlide]);
 
   // Touch Swipe Handlers for Mobile
   const handleTouchStart = (e: React.TouchEvent) => {
     setIsPaused(true);
+    setIsDragging(true);
     touchStartXRef.current = e.touches[0].clientX;
   };
 
@@ -169,7 +163,7 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
   const handleTouchEnd = () => {
     if (touchStartXRef.current !== null && touchEndXRef.current !== null) {
       const diffX = touchStartXRef.current - touchEndXRef.current;
-      const minSwipeDistance = 40;
+      const minSwipeDistance = 35;
 
       if (diffX > minSwipeDistance) {
         nextSlide();
@@ -179,6 +173,42 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
     }
     touchStartXRef.current = null;
     touchEndXRef.current = null;
+    setIsDragging(false);
+    setIsPaused(false);
+  };
+
+  // Mouse Drag Handlers for Desktop
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only drag on main button click
+    if (e.button !== 0) return;
+    setIsPaused(true);
+    setIsDragging(true);
+    touchStartXRef.current = e.clientX;
+    touchEndXRef.current = e.clientX;
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging) {
+      touchEndXRef.current = e.clientX;
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (isDragging) {
+      if (touchStartXRef.current !== null && touchEndXRef.current !== null) {
+        const diffX = touchStartXRef.current - touchEndXRef.current;
+        const minSwipeDistance = 35;
+
+        if (diffX > minSwipeDistance) {
+          nextSlide();
+        } else if (diffX < -minSwipeDistance) {
+          prevSlide();
+        }
+      }
+      touchStartXRef.current = null;
+      touchEndXRef.current = null;
+      setIsDragging(false);
+    }
     setIsPaused(false);
   };
 
@@ -446,11 +476,20 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onMouseLeave={() => {
+        if (isDragging) {
+          handleMouseUp();
+        } else {
+          setIsPaused(false);
+        }
+      }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r ${currentSlide.gradient} text-white border shadow-2xl transition-colors duration-700 outline-none select-none`}
+      className={`relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r ${currentSlide.gradient} text-white border shadow-2xl transition-colors duration-700 outline-none select-none cursor-grab active:cursor-grabbing`}
       aria-label="Promotional Carousel"
     >
       {/* Background Subtle Glows */}
@@ -526,10 +565,8 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
           </motion.div>
         </AnimatePresence>
 
-        {/* Navigation & Controls Bar (Bottom of Hero Card) */}
-        <div className="pt-2 sm:pt-4 mt-2 sm:mt-4 border-t border-white/10 flex items-center justify-between">
-          
-          {/* Pagination Dots */}
+        {/* Pagination Dots Bar (Bottom of Hero Card) */}
+        <div className="pt-2 sm:pt-4 mt-2 sm:mt-4 border-t border-white/10 flex items-center justify-start">
           <div className="flex items-center gap-1.5 sm:gap-2">
             {SLIDES.map((slide, index) => (
               <button
@@ -544,39 +581,6 @@ export const HeroCarousel: React.FC<HeroCarouselProps> = ({ onNavigate }) => {
               />
             ))}
           </div>
-
-          {/* Slide Indicator & Prev/Next Arrows */}
-          <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-xs text-slate-300 font-mono font-bold">
-            <span className="hidden sm:inline-block text-[11px] text-slate-400 font-sans font-medium mr-1">
-              {isPaused ? 'Paused' : 'Auto-playing'}
-            </span>
-
-            <span>
-              <span className="text-white font-black">{currentIndex + 1}</span>
-              <span className="text-slate-500"> / {SLIDES.length}</span>
-            </span>
-
-            <div className="flex items-center gap-1 ml-1 sm:ml-2">
-              <button
-                onClick={prevSlide}
-                className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 backdrop-blur-md transition-all cursor-pointer"
-                title="Previous Slide"
-                aria-label="Previous Slide"
-              >
-                <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </button>
-
-              <button
-                onClick={nextSlide}
-                className="p-1 sm:p-2 rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 backdrop-blur-md transition-all cursor-pointer"
-                title="Next Slide"
-                aria-label="Next Slide"
-              >
-                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              </button>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>

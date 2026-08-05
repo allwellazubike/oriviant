@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useOverlayRegistration } from '../utils/OverlayRegistry';
 import { WalletAsset } from '../types';
 import { INITIAL_WALLET_ASSETS } from '../mockData';
 import { useTrading } from './TradingContext';
@@ -191,6 +192,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const closeSignOutModal = () => {
     setIsSignOutModalOpen(false);
   };
+
+  useOverlayRegistration('auth-modal', isAuthModalOpen, closeAuthModal);
+  useOverlayRegistration('signout-modal', isSignOutModalOpen, closeSignOutModal);
 
   // Logout trigger (opens confirmation modal)
   const logout = () => {

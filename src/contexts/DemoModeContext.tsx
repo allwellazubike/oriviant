@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useOverlayRegistration } from '../utils/OverlayRegistry';
 import { VirtualLedgerEntry, DemoAnalytics } from '../types';
 
 interface DemoModeContextType {
@@ -51,6 +52,8 @@ export const DemoModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const openWelcomeModal = () => setShowWelcomeModal(true);
   const closeWelcomeModal = () => setShowWelcomeModal(false);
+
+  useOverlayRegistration('demo-welcome-modal', showWelcomeModal, closeWelcomeModal);
 
   const [demoBalance, setDemoBalance] = useState<number>(() => {
     const saved = localStorage.getItem('oriviant_demo_balance');

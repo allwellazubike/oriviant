@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   Zap, 
   RotateCcw, 
@@ -90,6 +91,10 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   const [stopLossPrice, setStopLossPrice] = useState('');
   const [isReduceOnly, setIsReduceOnly] = useState(false);
   const [showFuturesConfirmModal, setShowFuturesConfirmModal] = useState(false);
+
+  useOverlayRegistration('demo-reset-modal', isResetModalOpen, () => setIsResetModalOpen(false));
+  useOverlayRegistration('demo-spot-confirm-modal', showSpotConfirmModal, () => setShowSpotConfirmModal(false));
+  useOverlayRegistration('demo-futures-confirm-modal', showFuturesConfirmModal, () => setShowFuturesConfirmModal(false));
 
   // Active Open Orders & Positions (Practice Local State with Persistence)
   const [practiceOpenOrders, setPracticeOpenOrders] = useState<Array<{
@@ -207,6 +212,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   // Copy Trading Allocation State
   const [selectedTraderForCopy, setSelectedTraderForCopy] = useState<any | null>(null);
   const [copyAmountVirtual, setCopyAmountVirtual] = useState('1000');
+  useOverlayRegistration('copy-trader-modal', !!selectedTraderForCopy, () => setSelectedTraderForCopy(null));
 
   // Learning Center State
   const [learningPath, setLearningPath] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner');

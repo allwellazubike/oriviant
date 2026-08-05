@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { CryptoCoin, LeadTrader, AcademyArticle, GlobalSearchResult } from '../types';
 import { MOCK_LEAD_TRADERS, MOCK_ACADEMY_ARTICLES } from '../mockData';
 import { useTrading } from './TradingContext';
+import { useOverlayRegistration } from '../utils/OverlayRegistry';
 
 interface SearchContextType {
   isSearchOpen: boolean;
@@ -39,6 +40,8 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsSearchOpen(false);
     setQuery('');
   };
+
+  useOverlayRegistration('search-modal', isSearchOpen, closeSearch);
 
   const addRecentSearch = (term: string) => {
     if (!term.trim()) return;

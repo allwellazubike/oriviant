@@ -36,6 +36,7 @@ import { useDemoMode } from '../../contexts/DemoModeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useSearch } from '../../contexts/SearchContext';
 import { useUser } from '../../contexts/UserContext';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { NavigationTab } from '../../types';
 
 interface HeaderProps {
@@ -52,6 +53,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
 
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useOverlayRegistration('header-mobile-menu', isMobileMenuOpen, () => setIsMobileMenuOpen(false));
+  useOverlayRegistration('header-account-drawer', isAccountDrawerOpen, () => setIsAccountDrawerOpen(false));
 
   // Close drawers when activeTab changes or esc key pressed
   useEffect(() => {

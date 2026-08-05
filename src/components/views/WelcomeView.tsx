@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   Sparkles, 
   ArrowRight, 
@@ -51,6 +52,8 @@ export const WelcomeView: React.FC<WelcomeViewProps> = () => {
   const [downloadComplete, setDownloadComplete] = useState(false);
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] = useState(false);
   const [attemptedFeature, setAttemptedFeature] = useState<string>('');
+
+  useOverlayRegistration('welcome-login-modal', isLoginRequiredModalOpen, () => setIsLoginRequiredModalOpen(false));
 
   const handleDownloadApk = () => {
     setDownloading(true);

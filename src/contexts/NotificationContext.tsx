@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { NotificationItem, NavigationTab } from '../types';
 import { INITIAL_NOTIFICATIONS } from '../mockData';
+import { useOverlayRegistration } from '../utils/OverlayRegistry';
 
 interface NotificationContextType {
   notifications: NotificationItem[];
@@ -23,6 +24,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const openDrawer = () => setIsDrawerOpen(true);
   const closeDrawer = () => setIsDrawerOpen(false);
+
+  useOverlayRegistration('notification-drawer', isDrawerOpen, closeDrawer);
 
   const markAsRead = (id: string) => {
     setNotifications((prev) =>

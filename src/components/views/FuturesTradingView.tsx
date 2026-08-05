@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   Zap, 
   ChevronDown, 
@@ -40,6 +41,9 @@ export const FuturesTradingView: React.FC = () => {
   const [rightTab, setRightTab] = useState<'chart' | 'positions'>('chart');
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+
+  useOverlayRegistration('futures-leverage-modal', isLeverageModalOpen, () => setIsLeverageModalOpen(false));
+  useOverlayRegistration('futures-confirm-modal', isConfirmModalOpen, () => setIsConfirmModalOpen(false));
 
   const prec = activeCoin.precision;
   const currentPrice = activeCoin.price;

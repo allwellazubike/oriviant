@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   ChevronDown, 
   X,
@@ -38,6 +39,7 @@ export const SpotTradingView: React.FC = () => {
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  useOverlayRegistration('spot-confirm-modal', isConfirmModalOpen, () => setIsConfirmModalOpen(false));
 
   const prec = activeCoin.precision;
   const currentPrice = activeCoin.price;

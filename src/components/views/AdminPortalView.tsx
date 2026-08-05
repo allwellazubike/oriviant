@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { AdminLoginForm } from '../admin/AdminLoginForm';
 import { AdminSidebar, AdminTab } from '../admin/AdminSidebar';
 import { AdminHeader } from '../admin/AdminHeader';
@@ -43,6 +44,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatfo
 
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useOverlayRegistration('admin-mobile-menu', isMobileMenuOpen, () => setIsMobileMenuOpen(false));
 
   const handleLogout = () => {
     localStorage.removeItem('oriviant_admin_auth');

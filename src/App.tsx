@@ -6,6 +6,8 @@ import { UserProvider, useUser } from './contexts/UserContext';
 import { CopyTradingProvider } from './contexts/CopyTradingContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SearchProvider } from './contexts/SearchContext';
+import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
+import { useTrading } from './contexts/TradingContext';
 
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
@@ -34,14 +36,15 @@ import { NavigationTab } from './types';
 
 function AppContent() {
   const { isLoggedIn, openAuthModal } = useUser();
-  const [activeTab, setActiveTab] = useState<NavigationTab>(() => {
-    const auth = localStorage.getItem('oriviant_authenticated');
-    if (auth === 'false') return 'welcome';
-    if (window.location.hash === '#admin' || window.location.pathname === '/admin') {
-      return 'admin';
+  const { activeTab, activeSymbol, navigate } = useNavigation();
+  const { setActiveCoinSymbol } = useTrading();
+
+  // Sync active symbol with TradingContext when navigated
+  useEffect(() => {
+    if (activeSymbol) {
+      setActiveCoinSymbol(activeSymbol);
     }
-    return 'home';
-  });
+  }, [activeSymbol, setActiveCoinSymbol]);
 
   // Protected tabs list
   const protectedTabs: NavigationTab[] = [
@@ -61,57 +64,58 @@ function AppContent() {
   // Enforce redirection to Welcome screen if not logged in
   useEffect(() => {
     if (!isLoggedIn && protectedTabs.includes(activeTab)) {
-      setActiveTab('welcome');
+      navigate('welcome', { replace: true });
     }
-  }, [isLoggedIn, activeTab]);
+  }, [isLoggedIn, activeTab, navigate]);
 
   // Listen for custom logout events for instantaneous UI reaction
   useEffect(() => {
     const handleLogout = () => {
-      setActiveTab('welcome');
+      navigate('welcome', { replace: true });
     };
     window.addEventListener('oriviant_session_logout', handleLogout);
     return () => window.removeEventListener('oriviant_session_logout', handleLogout);
-  }, []);
+  }, [navigate]);
 
   // When user logs in, if currently on 'welcome', return directly to Dashboard ('home')
   const prevLoggedInRef = useRef(isLoggedIn);
   useEffect(() => {
     if (!prevLoggedInRef.current && isLoggedIn) {
       if (activeTab === 'welcome') {
-        setActiveTab('home');
+        navigate('home', { replace: true });
       }
     }
     prevLoggedInRef.current = isLoggedIn;
-  }, [isLoggedIn, activeTab]);
+  }, [isLoggedIn, activeTab, navigate]);
 
   useEffect(() => {
     const handleHashChange = () => {
       if (window.location.hash === '#admin' || window.location.pathname === '/admin') {
         if (isLoggedIn) {
-          setActiveTab('admin');
+          navigate('admin');
         } else {
           openAuthModal('login');
-          setActiveTab('welcome');
+          navigate('welcome');
         }
       }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isLoggedIn, openAuthModal]);
+  }, [isLoggedIn, openAuthModal, navigate]);
 
-  const handleNavigate = (tab: NavigationTab) => {
+  const handleNavigate = (tab: NavigationTab, options?: { subTab?: string; symbol?: string }) => {
     if (!isLoggedIn && protectedTabs.includes(tab)) {
       openAuthModal('login');
-      setActiveTab('welcome');
+      navigate('welcome');
       return;
     }
 
-    setActiveTab(tab);
+    navigate(tab, options);
     if (tab !== 'admin' && window.location.hash === '#admin') {
-      window.history.replaceState(null, '', window.location.pathname);
+      try {
+        window.history.replaceState(null, '', window.location.pathname);
+      } catch (e) { /* ignore */ }
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const isStandaloneAdmin = activeTab === 'admin';
@@ -163,7 +167,9 @@ export default function App() {
             <CopyTradingProvider>
               <NotificationProvider>
                 <SearchProvider>
-                  <AppContent />
+                  <NavigationProvider>
+                    <AppContent />
+                  </NavigationProvider>
                 </SearchProvider>
               </NotificationProvider>
             </CopyTradingProvider>

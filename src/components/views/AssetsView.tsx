@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   Wallet, 
   ArrowUpRight, 
@@ -60,6 +61,12 @@ export const AssetsView: React.FC = () => {
   
   const [selectedSymbol, setSelectedSymbol] = useState<string>('USDT');
   const [selectedTx, setSelectedTx] = useState<{ record: DepositRecord | WithdrawalRecord; type: 'deposit' | 'withdrawal' } | null>(null);
+
+  useOverlayRegistration('deposit-modal', isDepositOpen, () => setIsDepositOpen(false));
+  useOverlayRegistration('withdraw-modal', isWithdrawOpen, () => setIsWithdrawOpen(false));
+  useOverlayRegistration('transfer-modal', isTransferOpen, () => setIsTransferOpen(false));
+  useOverlayRegistration('addressbook-modal', isAddressBookOpen, () => setIsAddressBookOpen(false));
+  useOverlayRegistration('txdetail-modal', !!selectedTx, () => setSelectedTx(null));
 
   // Transaction History Filters
   const [historyTab, setHistoryTab] = useState<'all' | 'deposits' | 'withdrawals' | 'transfers'>('all');
