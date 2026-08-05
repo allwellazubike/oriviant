@@ -11,8 +11,8 @@ export const HelpCenterView: React.FC = () => {
 
   const faqs = [
     {
-      q: 'How does the $100,000 USDT Demo Balance work?',
-      a: 'Every Oriviant account receives $100,000 in virtual funds upon registration. You can practice spot trading or 125x perp futures with 1:1 real orderbook depth. You can refill demo balance anytime from the header or Demo Workspace.'
+      q: 'How does the $10,000 USDT Demo Balance work?',
+      a: 'Every Oriviant account receives $10,000 in virtual funds upon registration. You can practice spot trading or 125x perp futures with 1:1 real orderbook depth. You can refill demo balance anytime from the header or Demo Workspace.'
     },
     {
       q: 'What is the difference between Isolated and Cross Margin in Futures?',

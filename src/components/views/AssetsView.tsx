@@ -176,11 +176,11 @@ export const AssetsView: React.FC = () => {
           <div className="md:col-span-2 space-y-1">
             <span className="text-xs font-semibold text-app-sec">Total Estimated Net Value</span>
             <div className="text-2xl sm:text-4xl font-black text-app font-mono">
-              ${activeWalletTab === 'demo' ? demoBalance.toLocaleString() : totalValueUsdt.toLocaleString()}{' '}
+              ${isDemoMode ? demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : totalValueUsdt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
               <span className="text-xs sm:text-sm font-semibold text-app-sec">USDT</span>
             </div>
             <p className="text-xs text-app-sec font-mono">
-              ≈ {((activeWalletTab === 'demo' ? demoBalance : totalValueUsdt) / 92450.8).toFixed(4)} BTC
+              ≈ {((isDemoMode ? demoBalance : totalValueUsdt) / 92450.8).toFixed(4)} BTC
             </p>
           </div>
 

@@ -153,7 +153,7 @@ export const AdminDashboardTab: React.FC = () => {
             <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app space-y-1">
               <span className="text-app-sec font-semibold block text-[11px]">Simulator Demo Accounts</span>
               <span className="text-lg font-black text-app">112,400</span>
-              <span className="text-[10px] text-accent font-bold block">$100k Virtual Funds</span>
+              <span className="text-[10px] text-accent font-bold block">$10k Virtual Funds</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app space-y-1">
@@ -228,7 +228,7 @@ export const AdminDashboardTab: React.FC = () => {
           <div className="space-y-2.5 text-xs">
             {[
               { time: '2 mins ago', action: 'Lead Trader Approved', detail: 'Approved Lead Trader application for CryptoSatoshi (+184.2% ROI)', type: 'success' },
-              { time: '14 mins ago', action: 'Demo Balance Reset', detail: 'Demo funds refilled to $100,000 USDT for user ID #892014', type: 'info' },
+              { time: '14 mins ago', action: 'Demo Balance Reset', detail: 'Demo funds refilled to $10,000 USDT for user ID #892014', type: 'info' },
               { time: '45 mins ago', action: 'Security Audit Logged', detail: 'Admin session authenticated from IP 185.220.101.5', type: 'warning' },
               { time: '1 hour ago', action: 'Market Status Updated', detail: 'BTC/USDT Futures leverage tier updated to 125x', type: 'info' },
             ].map((item, idx) => (

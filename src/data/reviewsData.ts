@@ -126,7 +126,7 @@ export const MOCK_PLATFORM_REVIEWS: PlatformReview[] = [
     tradingExperience: '1 Year',
     category: 'Demo Trading',
     date: 'Jul 25, 2026',
-    title: 'The $100K Demo Workspace allowed me to build confidence safely',
+    title: 'The $10K Demo Workspace allowed me to build confidence safely',
     reviewText: 'Before risking real money, I spent 3 weeks in the Demo Workspace testing risk-to-reward ratios and limit order strategies. The simulated orderbook matches live orderbook depth perfectly.',
     helpfulCount: 264,
     verifiedTradeVolume: '$150,000 USDT',

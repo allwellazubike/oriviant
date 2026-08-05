@@ -60,7 +60,7 @@ export const AuthModal: React.FC = () => {
             </h3>
             <p className="text-xs text-app-sec mt-1">
               {tab === 'login' && 'Access institutional liquidity & 125x perp futures'}
-              {tab === 'signup' && 'Claim your $100,000 USDT Demo Balance immediately'}
+              {tab === 'signup' && 'Claim your $10,000 USDT Demo Balance immediately'}
               {tab === 'forgot' && 'Enter your email to receive recovery instructions'}
               {tab === 'otp' && 'Enter the 6-digit verification code sent to your device'}
               {tab === 'pin' && 'Set a 4-digit security PIN for biometric quick sign-in'}

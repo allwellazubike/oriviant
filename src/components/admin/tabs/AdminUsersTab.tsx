@@ -36,12 +36,12 @@ export const AdminUsersTab: React.FC = () => {
   const { refillDemoFunds } = useDemoMode();
 
   const [usersList, setUsersList] = useState<MockUser[]>([
-    { id: '892014', name: 'Alex Thompson', email: 'alex.t@oriviant.io', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 100000, realBalance: 24500, lastLogin: '2 mins ago', ip: '185.220.101.5' },
-    { id: '741290', name: 'Sarah Jenkins', email: 's.jenkins@gmail.com', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 100000, realBalance: 112000, lastLogin: '1 hour ago', ip: '82.165.197.1' },
-    { id: '652811', name: 'David Kim', email: 'dkim_trader@yahoo.com', accountType: 'Demo', kycLevel: 'Level 1', status: 'Active', demoBalance: 45000, realBalance: 0, lastLogin: '3 hours ago', ip: '198.51.100.42' },
-    { id: '910243', name: 'Elena Rostova', email: 'elena.rostova@proton.me', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 100000, realBalance: 580000, lastLogin: '5 mins ago', ip: '194.26.29.12' },
+    { id: '892014', name: 'Alex Thompson', email: 'alex.t@oriviant.io', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 24500, lastLogin: '2 mins ago', ip: '185.220.101.5' },
+    { id: '741290', name: 'Sarah Jenkins', email: 's.jenkins@gmail.com', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 112000, lastLogin: '1 hour ago', ip: '82.165.197.1' },
+    { id: '652811', name: 'David Kim', email: 'dkim_trader@yahoo.com', accountType: 'Demo', kycLevel: 'Level 1', status: 'Active', demoBalance: 10000, realBalance: 0, lastLogin: '3 hours ago', ip: '198.51.100.42' },
+    { id: '910243', name: 'Elena Rostova', email: 'elena.rostova@proton.me', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 580000, lastLogin: '5 mins ago', ip: '194.26.29.12' },
     { id: '310922', name: 'Marcus Vance', email: 'marcus.vance@corp.net', accountType: 'Demo', kycLevel: 'Level 1', status: 'Suspended', demoBalance: 1200, realBalance: 0, lastLogin: '3 days ago', ip: '203.0.113.88' },
-    { id: '552109', name: 'Chloe Dubois', email: 'chloe.dubois@free.fr', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 100000, realBalance: 84200, lastLogin: '12 mins ago', ip: '51.15.222.10' },
+    { id: '552109', name: 'Chloe Dubois', email: 'chloe.dubois@free.fr', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 84200, lastLogin: '12 mins ago', ip: '51.15.222.10' },
   ]);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -66,9 +66,9 @@ export const AdminUsersTab: React.FC = () => {
   };
 
   const handleResetDemoBalance = (user: MockUser) => {
-    refillDemoFunds(100000);
-    setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, demoBalance: 100000 } : u));
-    showToast(`Refilled demo balance for ${user.name} to $100,000 USDT.`);
+    refillDemoFunds(10000);
+    setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, demoBalance: 10000 } : u));
+    showToast(`Refilled demo balance for ${user.name} to $10,000 USDT.`);
   };
 
   const handleDeleteUser = (id: string, name: string) => {
@@ -217,7 +217,7 @@ export const AdminUsersTab: React.FC = () => {
                       <button
                         onClick={() => handleResetDemoBalance(u)}
                         className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                        title="Reset Demo Funds to $100k"
+                        title="Reset Demo Funds to $10k"
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
@@ -379,7 +379,7 @@ export const AdminUsersTab: React.FC = () => {
                 }}
                 className="px-4 py-2.5 rounded-xl bg-emerald-500 text-white font-bold text-xs"
               >
-                Reset Demo Funds to $100k
+                Reset Demo Funds to $10k
               </button>
 
               <button

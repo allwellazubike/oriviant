@@ -37,7 +37,6 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { useSearch } from '../../contexts/SearchContext';
 import { useUser } from '../../contexts/UserContext';
 import { NavigationTab } from '../../types';
-import { ApkDownloadModal } from './ApkDownloadModal';
 
 interface HeaderProps {
   activeTab: NavigationTab;
@@ -53,7 +52,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
 
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isApkModalOpen, setIsApkModalOpen] = useState(false);
 
   // Close drawers when activeTab changes or esc key pressed
   useEffect(() => {
@@ -180,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 }`}
               >
                 <Zap className="w-3.5 h-3.5 text-emerald-500" />
-                Demo 100K
+                Demo 10K
               </button>
             </nav>
           </div>
@@ -216,8 +214,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
             {/* Quick Demo Refill Icon Button */}
             {isDemoMode && (
               <button
-                onClick={() => refillDemoFunds(100000)}
-                title="Refill Demo Balance to $100,000 USDT"
+                onClick={() => refillDemoFunds(10000)}
+                title="Refill Demo Balance to $10,000 USDT"
                 className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20 flex items-center gap-1 text-xs font-medium"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -402,14 +400,14 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               }`}
             >
               <Zap className="w-3 h-3 text-white" />
-              <span>DEMO $100K</span>
+              <span>DEMO $10K</span>
             </button>
           </div>
 
           {/* Quick Demo Refill if active */}
           {isDemoMode && (
             <button
-              onClick={() => refillDemoFunds(100000)}
+              onClick={() => refillDemoFunds(10000)}
               title="Refill Demo Balance"
               className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors shrink-0 flex items-center justify-center"
             >
@@ -691,27 +689,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={() => {
                     setIsAccountDrawerOpen(false);
-                    setIsApkModalOpen(true);
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors text-emerald-500 text-xs cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-emerald-500/20">
-                      <Smartphone className="w-4 h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold">Download Android APK</p>
-                      <p className="text-[10px] text-emerald-500/80">Install native mobile app v2.4.0</p>
-                    </div>
-                  </div>
-                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-500 text-white rounded-lg">
-                    v2.4.0
-                  </span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsAccountDrawerOpen(false);
                     onNavigate('help');
                   }}
                   className="w-full flex items-center justify-between p-3 rounded-2xl bg-app-sec/40 border border-app hover:bg-app-sec transition-colors text-app text-xs cursor-pointer"
@@ -878,7 +855,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       : 'bg-app-sec text-app-sec border border-app'
                   }`}
                 >
-                  {isDemoMode ? 'Active ($100K)' : 'Enable'}
+                  {isDemoMode ? 'Active ($10K)' : 'Enable'}
                 </button>
               </div>
             </div>
@@ -985,7 +962,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     <span>Demo Practice Mode</span>
                   </div>
                   <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-500/10 text-emerald-500 rounded">
-                    $100K
+                    $10K
                   </span>
                 </button>
               </div>
@@ -1035,29 +1012,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     <span>Platform Reviews & Ratings</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
-                </button>
-              </div>
-
-              {/* CATEGORY 3: MOBILE APP DOWNLOAD */}
-              <div className="space-y-1 pt-2 border-t border-app">
-                <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
-                  MOBILE APP
-                </div>
-
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    setIsApkModalOpen(true);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors min-h-[44px]"
-                >
-                  <div className="flex items-center gap-3">
-                    <Smartphone className="w-4 h-4 text-emerald-500" />
-                    <span>Download Android APK</span>
-                  </div>
-                  <span className="px-1.5 py-0.5 text-[9px] font-extrabold bg-emerald-500 text-white rounded">
-                    v2.4.0
-                  </span>
                 </button>
               </div>
 
@@ -1145,11 +1099,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
         </div>
       )}
 
-      {/* APK Download Modal */}
-      <ApkDownloadModal 
-        isOpen={isApkModalOpen} 
-        onClose={() => setIsApkModalOpen(false)} 
-      />
     </>
   );
 };

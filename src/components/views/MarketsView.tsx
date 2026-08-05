@@ -17,13 +17,21 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
 
   const categories = [
     { id: 'all', label: 'All Markets' },
-    { id: 'favorites', label: '★ Favorites' },
-    { id: 'spot', label: 'Spot' },
-    { id: 'futures', label: 'Futures 125x' },
-    { id: 'layer1', label: 'Layer 1' },
-    { id: 'ai', label: 'AI & Data' },
-    { id: 'meme', label: 'Meme' },
-    { id: 'defi', label: 'DeFi' },
+    { id: 'watchlist', label: '★ Watchlist' },
+    { id: 'crypto', label: 'Crypto' },
+    { id: 'forex', label: 'Forex' },
+    { id: 'stocks', label: 'Stocks' },
+    { id: 'etfs', label: 'ETFs' },
+    { id: 'indices', label: 'Indices' },
+    { id: 'commodities', label: 'Commodities' },
+    { id: 'metals', label: 'Metals' },
+    { id: 'energy', label: 'Energy' },
+    { id: 'bonds', label: 'Bonds' },
+    { id: 'trending', label: '🔥 Trending' },
+    { id: 'gainers', label: '📈 Top Gainers' },
+    { id: 'losers', label: '📉 Top Losers' },
+    { id: 'new', label: '✨ New Listings' },
+    { id: 'traded', label: '⚡ Most Traded' },
   ];
 
   const handleSort = (field: 'name' | 'price' | 'change24h' | 'volume24h') => {
@@ -40,11 +48,22 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
       coin.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
       coin.name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    if (selectedCategory === 'favorites') return matchesSearch && favorites.includes(coin.symbol);
-    if (selectedCategory === 'spot' || selectedCategory === 'futures') return matchesSearch;
-    if (selectedCategory !== 'all') return matchesSearch && coin.category === selectedCategory;
+    if (!matchesSearch) return false;
 
-    return matchesSearch;
+    if (selectedCategory === 'watchlist' || selectedCategory === 'favorites') {
+      return favorites.includes(coin.symbol);
+    }
+    if (selectedCategory === 'trending') return Boolean(coin.isTrending);
+    if (selectedCategory === 'gainers') return coin.change24h > 0;
+    if (selectedCategory === 'losers') return coin.change24h < 0;
+    if (selectedCategory === 'new') return Boolean(coin.isNew);
+    if (selectedCategory === 'traded') return Boolean(coin.isMostTraded);
+
+    if (selectedCategory !== 'all') {
+      return coin.assetClass === selectedCategory || coin.category === selectedCategory;
+    }
+
+    return true;
   });
 
   const sortedCoins = [...filteredCoins].sort((a, b) => {
@@ -64,18 +83,18 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
       {/* Markets Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-app tracking-tight">Crypto Markets</h1>
-          <p className="text-xs text-app-sec">Real-time prices, 24h volume analytics & high-leverage perpetuals.</p>
+          <h1 className="text-2xl font-black text-app tracking-tight">Multi-Asset Marketplace</h1>
+          <p className="text-xs text-app-sec">Real-time quotes across Crypto, Forex, Stocks, ETFs, Indices, Commodities & Bonds.</p>
         </div>
 
         {/* Search Bar */}
-        <div className="relative w-full sm:w-72">
+        <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search coin name or symbol (e.g. BTC)"
+            placeholder="Search symbol, name or market (e.g. AAPL, EUR/USD, Gold)"
             className="w-full bg-app-card border border-app rounded-xl pl-10 pr-4 py-2 text-xs text-app placeholder-app-sec focus:outline-none focus:border-accent"
           />
         </div>

@@ -66,7 +66,7 @@ export const AdminAnalyticsTab: React.FC = () => {
             <div>
               <div className="flex justify-between font-bold mb-1">
                 <span className="flex items-center gap-2 text-app">
-                  <Smartphone className="w-4 h-4 text-emerald-500" /> Android APK App
+                  <Smartphone className="w-4 h-4 text-emerald-500" /> Mobile Web Client
                 </span>
                 <span className="text-emerald-500">54% (77,160 users)</span>
               </div>

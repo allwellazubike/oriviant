@@ -25,7 +25,7 @@ export const AdminSystemLogsTab: React.FC = () => {
     { id: '103', time: '15:33:10.891', level: 'WARN', service: 'CopyRouter', message: 'High volatility detected on SOL/USDT pair; slippage auto-adjusted to +0.05%' },
     { id: '104', time: '15:30:04.002', level: 'INFO', service: 'WebsocketFeed', message: 'Heartbeat ping ACK from Tokyo node (latency: 12ms)' },
     { id: '105', time: '15:25:40.510', level: 'ERROR', service: 'PaymentAPI', message: 'Third-party fiat gateway timeout on EUR deposit attempt (ref #98124)' },
-    { id: '106', time: '15:20:11.200', level: 'INFO', service: 'DemoRefill', message: 'Demo account #892014 refilled balance to $100,000 USDT' },
+    { id: '106', time: '15:20:11.200', level: 'INFO', service: 'DemoRefill', message: 'Demo account #892014 refilled balance to $10,000 USDT' },
   ]);
 
   const [filterLevel, setFilterLevel] = useState<'ALL' | 'INFO' | 'WARN' | 'ERROR'>('ALL');

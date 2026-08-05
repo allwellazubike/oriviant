@@ -21,6 +21,17 @@ export type OrderSide = 'buy' | 'sell';
 export type MarginMode = 'cross' | 'isolated';
 export type PositionSide = 'long' | 'short';
 
+export type AssetClass = 
+  | 'crypto' 
+  | 'forex' 
+  | 'stocks' 
+  | 'etfs' 
+  | 'indices' 
+  | 'commodities' 
+  | 'metals' 
+  | 'energy' 
+  | 'bonds';
+
 export interface CryptoCoin {
   id: string;
   symbol: string;
@@ -31,12 +42,22 @@ export interface CryptoCoin {
   low24h: number;
   volume24h: number;
   marketCap: number;
-  category: 'spot' | 'futures' | 'layer1' | 'defi' | 'meme' | 'ai' | 'trending';
+  category: string;
+  assetClass?: AssetClass;
   sparkline: number[];
   precision: number;
   fundingRate?: number;
   nextFundingIn?: string;
   openInterest?: number;
+  isTrending?: boolean;
+  isNew?: boolean;
+  isMostTraded?: boolean;
+}
+
+export interface WatchlistGroup {
+  id: string;
+  name: string;
+  symbols: string[];
 }
 
 export interface OrderBookRow {

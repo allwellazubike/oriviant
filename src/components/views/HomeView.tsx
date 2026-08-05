@@ -20,7 +20,6 @@ import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
 import { useCopyTrading } from '../../contexts/CopyTradingContext';
 import { NavigationTab } from '../../types';
-import { ApkDownloadModal } from '../layout/ApkDownloadModal';
 
 interface HomeViewProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -30,7 +29,6 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   const { coins, setActiveCoinSymbol, favorites, toggleFavorite } = useTrading();
   const { demoBalance, refillDemoFunds, isDemoMode } = useDemoMode();
   const { traders } = useCopyTrading();
-  const [isApkModalOpen, setIsApkModalOpen] = useState(false);
 
   const topGainers = [...coins].sort((a, b) => b.change24h - a.change24h).slice(0, 4);
   const topLosers = [...coins].sort((a, b) => a.change24h - b.change24h).slice(0, 4);
@@ -55,7 +53,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 font-medium max-w-xl">
-            Access deep liquidity, up to 125x leverage, automated copy trading, and practice risk-free with a $100,000 USDT demo account.
+            Access deep liquidity, up to 125x leverage, automated copy trading, and practice risk-free with a $10,000 USDT demo account.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -72,21 +70,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
             >
               <span>Explore Futures 125x</span>
             </button>
-            <button
-              onClick={() => setIsApkModalOpen(true)}
-              className="px-5 py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs border border-emerald-500/40 backdrop-blur-md transition-all flex items-center gap-2"
-            >
-              <Smartphone className="w-4 h-4 text-emerald-400" />
-              <span>Download Android App</span>
-            </button>
           </div>
         </div>
       </div>
-
-      <ApkDownloadModal 
-        isOpen={isApkModalOpen} 
-        onClose={() => setIsApkModalOpen(false)} 
-      />
 
       {/* Demo Balance Highlight Bar */}
       <div className="p-4 sm:p-5 rounded-2xl bg-app-card border border-emerald-500/30 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-500/5 via-transparent to-blue-500/5">
@@ -110,11 +96,11 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => refillDemoFunds(100000)}
+            onClick={() => refillDemoFunds(10000)}
             className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refill $100K</span>
+            <span>Refill $10K</span>
           </button>
           <button
             onClick={() => onNavigate('demo-workspace')}
