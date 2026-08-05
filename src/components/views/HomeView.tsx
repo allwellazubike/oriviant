@@ -20,6 +20,7 @@ import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
 import { useCopyTrading } from '../../contexts/CopyTradingContext';
 import { NavigationTab } from '../../types';
+import { HeroCarousel } from '../home/HeroCarousel';
 
 interface HomeViewProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -37,43 +38,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   return (
     <div className="space-y-6 pb-12">
       
-      {/* Hero Banner Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-6 sm:p-10 border border-blue-500/20 shadow-2xl">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-10 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-            <span>Next-Gen Crypto Trading Engine</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
-            Trade Spot, Futures & Copy Top Traders.
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-300 font-medium max-w-xl">
-            Access deep liquidity, up to 125x leverage, automated copy trading, and practice risk-free with a dedicated 10,000 USDT practice account.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              onClick={() => onNavigate('spot')}
-              className="px-6 py-3 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-lg shadow-accent/30 transition-all flex items-center gap-2"
-            >
-              <span>Start Trading Spot</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onNavigate('futures')}
-              className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 backdrop-blur-md transition-all flex items-center gap-2"
-            >
-              <span>Explore Futures 125x</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Hero Carousel */}
+      <HeroCarousel onNavigate={onNavigate} />
 
       {/* Quick Action Buttons Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

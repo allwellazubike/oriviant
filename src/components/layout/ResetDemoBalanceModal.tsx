@@ -28,17 +28,17 @@ export const ResetDemoBalanceModal: React.FC<ResetDemoBalanceModalProps> = ({ is
             <RefreshCw className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-lg font-black text-app">Reset Demo Balance</h3>
-            <p className="text-xs text-app-sec">Restore virtual funds</p>
+            <h3 className="text-lg font-black text-app">Reset Demo Account</h3>
+            <p className="text-xs text-app-sec">Restore $10,000 default virtual funds</p>
           </div>
         </div>
 
         <div className="p-4 rounded-2xl bg-app-sec/50 border border-app space-y-2">
           <p className="text-xs font-bold text-app leading-snug">
-            Reset your Demo Account back to 10,000 USDT?
+            Reset your Demo Practice account to the default $10,000 balance? All demo positions and history will be erased.
           </p>
           <p className="text-[11px] text-app-sec">
-            This action will set your virtual trading balance back to exactly 10,000.00 USDT. Your live account balance will not be affected.
+            Your live trading account, real balances, and live positions remain completely unaffected.
           </p>
         </div>
 

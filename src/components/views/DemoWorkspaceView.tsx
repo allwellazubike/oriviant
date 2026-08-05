@@ -61,7 +61,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     addLedgerEntry 
   } = useDemoMode();
 
-  const { coins, activeCoin, setActiveCoin } = useTrading();
+  const { coins, activeCoin, setActiveCoinSymbol } = useTrading();
   const { traders } = useCopyTrading();
 
   // Navigation Sub-Tab State
@@ -91,7 +91,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   const [isReduceOnly, setIsReduceOnly] = useState(false);
   const [showFuturesConfirmModal, setShowFuturesConfirmModal] = useState(false);
 
-  // Active Open Orders & Positions (Practice Local State)
+  // Active Open Orders & Positions (Practice Local State with Persistence)
   const [practiceOpenOrders, setPracticeOpenOrders] = useState<Array<{
     id: string;
     pair: string;
@@ -101,18 +101,24 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     amount: number;
     total: number;
     timestamp: string;
-  }>>([
-    {
-      id: 'ord-demo-101',
-      pair: 'BTC/USDT',
-      type: 'limit',
-      side: 'buy',
-      price: 88500,
-      amount: 0.25,
-      total: 22125,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
+  }>>(() => {
+    const saved = localStorage.getItem('oriviant_demo_open_orders');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
-  ]);
+    return [
+      {
+        id: 'ord-demo-101',
+        pair: 'BTC/USDT',
+        type: 'limit',
+        side: 'buy',
+        price: 88500,
+        amount: 0.25,
+        total: 22125,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
+      }
+    ];
+  });
 
   const [practicePositions, setPracticePositions] = useState<Array<{
     id: string;
@@ -129,29 +135,74 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     roe: number;
     tp?: string;
     sl?: string;
-  }>>([
-    {
-      id: 'pos-demo-201',
-      pair: 'BTC/USDT',
-      side: 'long',
-      marginMode: 'cross',
-      leverage: 20,
-      margin: 500,
-      entryPrice: 91850,
-      markPrice: activeCoin.price,
-      liquidationPrice: 87250,
-      size: 10000,
-      pnl: 142.50,
-      roe: 28.5,
-      tp: '98,000',
-      sl: '89,500'
+  }>>(() => {
+    const saved = localStorage.getItem('oriviant_demo_positions');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
-  ]);
+    return [
+      {
+        id: 'pos-demo-201',
+        pair: 'BTC/USDT',
+        side: 'long',
+        marginMode: 'cross',
+        leverage: 20,
+        margin: 500,
+        entryPrice: 91850,
+        markPrice: activeCoin.price,
+        liquidationPrice: 87250,
+        size: 10000,
+        pnl: 142.50,
+        roe: 28.5,
+        tp: '98,000',
+        sl: '89,500'
+      }
+    ];
+  });
 
-  // Watchlist Favorites State
-  const [favorites, setFavorites] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'EUR/USD', 'XAU/USD']);
+  // Watchlist Favorites State with Persistence
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    const saved = localStorage.getItem('oriviant_demo_favorites');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'EUR/USD', 'XAU/USD'];
+  });
+
+  React.useEffect(() => {
+    localStorage.setItem('oriviant_demo_open_orders', JSON.stringify(practiceOpenOrders));
+  }, [practiceOpenOrders]);
+
+  React.useEffect(() => {
+    localStorage.setItem('oriviant_demo_positions', JSON.stringify(practicePositions));
+  }, [practicePositions]);
+
+  React.useEffect(() => {
+    localStorage.setItem('oriviant_demo_favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  React.useEffect(() => {
+    const handleReset = () => {
+      setPracticeOpenOrders([]);
+      setPracticePositions([]);
+    };
+    window.addEventListener('oriviant_demo_reset', handleReset);
+    return () => window.removeEventListener('oriviant_demo_reset', handleReset);
+  }, []);
+
   const [watchlistCategory, setWatchlistCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const handleTradeAsset = (coin: CryptoCoin, preferredType?: 'spot' | 'futures') => {
+    setActiveCoinSymbol(coin.symbol);
+    const isFutures = preferredType === 'futures' || coin.category === 'futures' || coin.symbol.endsWith('PERP');
+    if (isFutures) {
+      setFuturesSymbol(coin.symbol);
+      setActiveTab('futures');
+    } else {
+      setActiveTab('spot');
+    }
+  };
 
   // Copy Trading Allocation State
   const [selectedTraderForCopy, setSelectedTraderForCopy] = useState<any | null>(null);
@@ -740,7 +791,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                 return (
                   <button
                     key={sym}
-                    onClick={() => setActiveCoin(coinObj)}
+                    onClick={() => setActiveCoinSymbol(coinObj.symbol)}
                     className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shrink-0 cursor-pointer ${
                       isSelected
                         ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
@@ -769,10 +820,28 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
 
       {/* TAB 3: PRACTICE SPOT TRADING */}
       {activeTab === 'spot' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
+        <div className="space-y-6 animate-in fade-in duration-200">
           
-          {/* Order Placement Form */}
-          <div className="lg:col-span-2 p-6 rounded-2xl bg-app-card border border-app space-y-4">
+          {/* Live Chart Container */}
+          <div className="p-4 rounded-3xl bg-app-card border border-app shadow-sm min-h-[380px]">
+            <div className="flex items-center justify-between pb-3 border-b border-app mb-3">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-app font-mono">{activeCoin.symbol} SPOT</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[10px] font-black uppercase">
+                  PRACTICE SPOT
+                </span>
+              </div>
+              <div className="text-xs font-mono font-bold text-emerald-500">
+                ${activeCoin.price.toLocaleString()} USDT ({activeCoin.change24h >= 0 ? '+' : ''}{activeCoin.change24h}%)
+              </div>
+            </div>
+            <TradingChart coin={activeCoin} height={360} showToolbar={true} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Order Placement Form */}
+            <div className="lg:col-span-2 p-6 rounded-2xl bg-app-card border border-app space-y-4">
             <div className="flex items-center justify-between border-b border-app pb-3">
               <h3 className="text-base font-bold text-app flex items-center gap-2">
                 <Layers className="w-5 h-5 text-emerald-500" />
@@ -879,7 +948,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               {coins.slice(0, 6).map(c => (
                 <div
                   key={c.symbol}
-                  onClick={() => setActiveCoin(c)}
+                  onClick={() => setActiveCoinSymbol(c.symbol)}
                   className={`p-3 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition-all ${
                     activeCoin.symbol === c.symbol ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-app-sec/40 border-app/60 hover:bg-app-sec/80'
                   }`}
@@ -898,22 +967,40 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               ))}
             </div>
           </div>
-
         </div>
+      </div>
       )}
 
       {/* TAB 4: PRACTICE FUTURES TRADING */}
       {activeTab === 'futures' && (
-        <div className="p-6 rounded-2xl bg-app-card border border-app space-y-6 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between border-b border-app pb-3">
-            <h3 className="text-base font-bold text-app flex items-center gap-2">
-              <Zap className="w-5 h-5 text-red-500" />
-              <span>Practice Futures 125x Simulator</span>
-            </h3>
-            <span className="px-3 py-1 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-[10px] font-black uppercase">
-              UP TO 125X LEVERAGE
-            </span>
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Live Chart Container */}
+          <div className="p-4 rounded-3xl bg-app-card border border-app shadow-sm min-h-[380px]">
+            <div className="flex items-center justify-between pb-3 border-b border-app mb-3">
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-sm text-app font-mono">{futuresSymbol} PERP</span>
+                <span className="px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-[10px] font-black uppercase">
+                  125X FUTURES PRACTICE
+                </span>
+              </div>
+              <div className="text-xs font-mono font-bold text-red-500">
+                ${(coins.find(c => c.symbol === futuresSymbol) || activeCoin).price.toLocaleString()} USDT
+              </div>
+            </div>
+            <TradingChart coin={coins.find(c => c.symbol === futuresSymbol) || activeCoin} height={360} showToolbar={true} />
           </div>
+
+          <div className="p-6 rounded-2xl bg-app-card border border-app space-y-6">
+            <div className="flex items-center justify-between border-b border-app pb-3">
+              <h3 className="text-base font-bold text-app flex items-center gap-2">
+                <Zap className="w-5 h-5 text-red-500" />
+                <span>Practice Futures 125x Simulator</span>
+              </h3>
+              <span className="px-3 py-1 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-[10px] font-black uppercase">
+                UP TO 125X LEVERAGE
+              </span>
+            </div>
 
           <form onSubmit={(e) => { e.preventDefault(); setShowFuturesConfirmModal(true); }} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
@@ -1096,6 +1183,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             )}
           </div>
         </div>
+      </div>
       )}
 
       {/* TAB 5: WATCHLIST & ORDERBOOK */}
@@ -1176,12 +1264,20 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                         {coin.change24h >= 0 ? '+' : ''}{coin.change24h}%
                       </td>
                       <td className="py-3 text-right">
-                        <button
-                          onClick={() => { setActiveCoin(coin); setActiveTab('spot'); }}
-                          className="px-3 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 font-bold text-xs border border-emerald-500/20 transition-all cursor-pointer"
-                        >
-                          Trade
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => handleTradeAsset(coin, 'spot')}
+                            className="px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 font-bold text-xs border border-emerald-500/20 transition-all cursor-pointer whitespace-nowrap"
+                          >
+                            Trade Spot
+                          </button>
+                          <button
+                            onClick={() => handleTradeAsset(coin, 'futures')}
+                            className="px-2.5 py-1 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold text-xs border border-red-500/20 transition-all cursor-pointer whitespace-nowrap"
+                          >
+                            Futures
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

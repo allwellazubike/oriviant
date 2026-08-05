@@ -788,24 +788,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   </div>
                 </div>
               )}
-
-              {/* Demo Mode Quick Switcher in Drawer */}
-              <div className="p-2.5 rounded-xl bg-app-card border border-app flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5 font-medium text-app-sec">
-                  <Zap className={`w-4 h-4 ${isDemoMode ? 'text-emerald-500' : 'text-app-sec'}`} />
-                  <span>Practice Demo Mode</span>
-                </div>
-                <button
-                  onClick={toggleDemoMode}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                    isDemoMode
-                      ? 'bg-emerald-500 text-white shadow-sm'
-                      : 'bg-app-sec text-app-sec border border-app'
-                  }`}
-                >
-                  {isDemoMode ? 'Active ($10K)' : 'Enable'}
-                </button>
-              </div>
             </div>
 
             {/* Drawer Categorized Navigation List */}

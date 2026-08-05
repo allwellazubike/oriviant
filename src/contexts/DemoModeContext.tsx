@@ -151,15 +151,47 @@ export const DemoModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const resetDemoBalance = () => {
     const targetBalance = 10000;
     setDemoBalance(targetBalance);
-    const newLedgerEntry: VirtualLedgerEntry = {
-      id: `ledg-${Date.now()}`,
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-      type: 'refill',
-      amount: targetBalance,
-      description: 'Reset Demo Account Balance to 10,000 USDT',
-      balanceAfter: targetBalance
+    
+    const initLedger: VirtualLedgerEntry[] = [
+      {
+        id: `ledg-${Date.now()}`,
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        type: 'refill',
+        amount: targetBalance,
+        description: 'Reset Demo Account Balance to 10,000 USDT',
+        balanceAfter: targetBalance
+      }
+    ];
+    setVirtualLedger(initLedger);
+
+    const initAnalytics: DemoAnalytics = {
+      totalRefills: 10000,
+      totalTradesCount: 0,
+      winningTrades: 0,
+      losingTrades: 0,
+      totalProfit: 0,
+      totalLoss: 0,
+      winRate: 0,
+      lossRate: 0,
+      avgProfit: 0,
+      avgLoss: 0,
+      largestWin: 0,
+      largestLoss: 0,
+      profitFactor: 1,
+      riskRewardRatio: 1,
+      currentStreak: 0,
+      longestWinStreak: 0,
+      bestTradePnL: 0
     };
-    setVirtualLedger((ledgers) => [newLedgerEntry, ...ledgers]);
+    setAnalytics(initAnalytics);
+
+    localStorage.removeItem('oriviant_demo_positions');
+    localStorage.removeItem('oriviant_demo_open_orders');
+    localStorage.setItem('oriviant_demo_balance', '10000');
+    localStorage.setItem('oriviant_demo_ledger', JSON.stringify(initLedger));
+    localStorage.setItem('oriviant_demo_analytics', JSON.stringify(initAnalytics));
+
+    window.dispatchEvent(new Event('oriviant_demo_reset'));
   };
 
   const setDemoBalanceDirect = (amount: number) => {
