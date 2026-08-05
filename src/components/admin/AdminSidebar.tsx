@@ -3,6 +3,8 @@ import {
   LayoutDashboard, 
   Users, 
   TrendingUp, 
+  Radio,
+  Zap,
   UserCheck, 
   Star, 
   GraduationCap, 
@@ -14,21 +16,34 @@ import {
   LogOut, 
   X,
   Lock,
-  ArrowLeft
+  ArrowLeft,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Megaphone,
+  Gift,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export type AdminTab = 
   | 'dashboard' 
   | 'users' 
   | 'markets' 
+  | 'market-feeds'
+  | 'practice'
   | 'copy-trading' 
+  | 'deposits'
+  | 'withdrawals'
   | 'reviews' 
   | 'academy' 
+  | 'announcements'
+  | 'promotions'
   | 'analytics' 
   | 'notifications' 
+  | 'reports'
   | 'settings' 
   | 'security' 
-  | 'system-logs';
+  | 'system-logs'
+  | 'audit-log';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -51,14 +66,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'dashboard' as AdminTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users' as AdminTab, label: 'User Directory', icon: Users, badge: '142.8k' },
     { id: 'markets' as AdminTab, label: 'Market Controls', icon: TrendingUp },
+    { id: 'market-feeds' as AdminTab, label: 'Real-Time Market Feeds', icon: Radio, badge: 'Live' },
+    { id: 'practice' as AdminTab, label: 'Practice Mode Desk', icon: Zap, badge: 'Simulator' },
     { id: 'copy-trading' as AdminTab, label: 'Lead Traders Desk', icon: UserCheck, badge: '2 Pending' },
+    { id: 'deposits' as AdminTab, label: 'Deposit Inflows', icon: ArrowDownLeft, badge: '3 Req' },
+    { id: 'withdrawals' as AdminTab, label: 'Withdrawal Approvals', icon: ArrowUpRight, badge: '5 Pending' },
     { id: 'reviews' as AdminTab, label: 'Reviews Moderation', icon: Star },
     { id: 'academy' as AdminTab, label: 'Academy & Content', icon: GraduationCap },
+    { id: 'announcements' as AdminTab, label: 'Announcements', icon: Megaphone },
+    { id: 'promotions' as AdminTab, label: 'Promotions & Bonuses', icon: Gift },
     { id: 'analytics' as AdminTab, label: 'Analytics & Traffic', icon: BarChart3 },
     { id: 'notifications' as AdminTab, label: 'Broadcast Banners', icon: Bell },
+    { id: 'reports' as AdminTab, label: 'Reports & Export', icon: FileSpreadsheet },
     { id: 'settings' as AdminTab, label: 'Platform Settings', icon: Settings },
     { id: 'security' as AdminTab, label: 'Security Center', icon: ShieldCheck, badge: 'High' },
-    { id: 'system-logs' as AdminTab, label: 'System Audit Stream', icon: FileCode },
+    { id: 'system-logs' as AdminTab, label: 'System Logs', icon: FileCode },
+    { id: 'audit-log' as AdminTab, label: 'Executive Audit Trail', icon: FileCode },
   ];
 
   const content = (

@@ -555,7 +555,7 @@ export const AcademyView: React.FC = () => {
                         <button
                           onClick={() => setActivePracticeLesson(lesson)}
                           className="px-3 py-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 font-bold text-xs border border-emerald-500/20 transition-colors flex items-center gap-1"
-                          title="Practice Mode"
+                          title="Practice Demo Mode"
                         >
                           <Zap className="w-3.5 h-3.5" />
                           <span>Sim</span>

@@ -26,7 +26,7 @@ const INITIAL_DEMO_BALANCE = 10000;
 export const DemoModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isDemoMode, setIsDemoMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('oriviant_demo_mode');
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : false;
   });
 
   const [hasSeenWelcome, setHasSeenWelcome] = useState<boolean>(() => {

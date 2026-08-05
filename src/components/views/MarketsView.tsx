@@ -8,7 +8,7 @@ interface MarketsViewProps {
 }
 
 export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
-  const { coins, setActiveCoinSymbol, favorites, toggleFavorite, priceFlashes } = useTrading();
+  const { coins, setActiveCoinSymbol, favorites, toggleFavorite, priceFlashes, feedStatus, manualRefreshFeed } = useTrading();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -87,17 +87,43 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
           <p className="text-xs text-app-sec">Real-time quotes across Crypto, Forex, Stocks, ETFs, Indices, Commodities & Bonds.</p>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search symbol, name or market (e.g. AAPL, EUR/USD, Gold)"
-            className="w-full bg-app-card border border-app rounded-xl pl-10 pr-4 py-2 text-xs text-app placeholder-app-sec focus:outline-none focus:border-accent"
-          />
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Search Bar */}
+          <div className="relative w-full sm:w-72">
+            <Search className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search symbol, name or market (e.g. AAPL, EUR/USD, Gold)"
+              className="w-full bg-app-card border border-app rounded-xl pl-10 pr-4 py-2 text-xs text-app placeholder-app-sec focus:outline-none focus:border-accent"
+            />
+          </div>
         </div>
+      </div>
+
+      {/* Live Market Data Feed Status Banner */}
+      <div className="p-3.5 rounded-2xl bg-app-card border border-app shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-bold text-[11px]">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>LIVE DATA FEED CONNECTED</span>
+          </div>
+
+          <div className="flex items-center gap-4 text-app-sec text-[11px] font-medium">
+            <span>Latency: <strong className="text-app font-bold">{feedStatus.latencyMs}ms</strong></span>
+            <span>Streaming: <strong className="text-app font-bold">{feedStatus.activeFeedsCount} Markets</strong></span>
+            <span>Sync Engine: <strong className="text-emerald-500 font-bold">{feedStatus.isWsConnected ? 'Binance WS + FX Stream' : 'REST Stream'}</strong></span>
+            <span>Last Sync: <strong className="text-app font-bold">{feedStatus.lastUpdated}</strong></span>
+          </div>
+        </div>
+
+        <button
+          onClick={manualRefreshFeed}
+          className="px-3 py-1.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app text-xs font-semibold border border-app transition-colors flex items-center gap-1.5 cursor-pointer ml-auto"
+        >
+          <span>Sync Feed Now</span>
+        </button>
       </div>
 
       {/* Category Tabs */}

@@ -20,14 +20,22 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     dashboard: { title: 'Executive Overview', subtitle: 'Real-time platform metrics, volume & user growth' },
     users: { title: 'User Management Suite', subtitle: 'Search, audit, suspend & manage user balances' },
     markets: { title: 'Market & Pair Controls', subtitle: 'Configure spot/futures pairs, fees & availability' },
+    'market-feeds': { title: 'Real-Time Market Feeds', subtitle: 'Live pricing providers, status & WebSocket controls' },
+    practice: { title: 'Practice Mode & Simulator Desk', subtitle: 'Manage virtual balances, reset accounts & monitor leaderboard' },
     'copy-trading': { title: 'Lead Traders Desk', subtitle: 'Review applications, manage rankings & copiers' },
+    deposits: { title: 'Crypto & Fiat Deposits Inflows', subtitle: 'Review deposit requests, proofs & TX hashes' },
+    withdrawals: { title: 'Withdrawal Approvals Desk', subtitle: 'Compliance review & automated withdrawal signatures' },
     reviews: { title: 'Reviews Moderation', subtitle: 'Approve, feature or remove platform feedback' },
     academy: { title: 'Academy & Content Hub', subtitle: 'Manage courses, tutorials & weekly challenges' },
+    announcements: { title: 'Announcements & News Desk', subtitle: 'Publish breaking updates, news & banners' },
+    promotions: { title: 'Promotions & Deposit Bonuses', subtitle: 'Configure user vouchers, referral bonuses & promos' },
     analytics: { title: 'Analytics & Traffic', subtitle: 'User trajectory, device statistics & revenue' },
     notifications: { title: 'Broadcast Alerts', subtitle: 'Dispatch platform banners, maintenance & alerts' },
+    reports: { title: 'Reports & Data Export', subtitle: 'Generate compliance exports in CSV, Excel or PDF' },
     settings: { title: 'Platform Configuration', subtitle: 'Branding, email gateway & maintenance toggles' },
     security: { title: 'Security Center', subtitle: 'Audit logs, admin sessions & threat monitoring' },
     'system-logs': { title: 'System Event Stream', subtitle: 'Live API logs, heartbeats & execution traces' },
+    'audit-log': { title: 'Executive Audit Trail', subtitle: 'Immutable administrative action & state ledger' },
   };
 
   const currentInfo = titleMap[activeTab] || { title: 'Admin Portal', subtitle: 'Platform Administration' };

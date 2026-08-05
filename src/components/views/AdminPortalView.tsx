@@ -6,14 +6,22 @@ import { AdminHeader } from '../admin/AdminHeader';
 import { AdminDashboardTab } from '../admin/tabs/AdminDashboardTab';
 import { AdminUsersTab } from '../admin/tabs/AdminUsersTab';
 import { AdminMarketsTab } from '../admin/tabs/AdminMarketsTab';
+import { MarketFeedsManagementView } from '../admin/MarketFeedsManagementView';
+import { AdminPracticeTab } from '../admin/tabs/AdminPracticeTab';
 import { AdminCopyTradingTab } from '../admin/tabs/AdminCopyTradingTab';
+import { AdminDepositsTab } from '../admin/tabs/AdminDepositsTab';
+import { AdminWithdrawalsTab } from '../admin/tabs/AdminWithdrawalsTab';
 import { AdminReviewsTab } from '../admin/tabs/AdminReviewsTab';
 import { AdminAcademyTab } from '../admin/tabs/AdminAcademyTab';
+import { AdminAnnouncementsTab } from '../admin/tabs/AdminAnnouncementsTab';
+import { AdminPromotionsTab } from '../admin/tabs/AdminPromotionsTab';
 import { AdminAnalyticsTab } from '../admin/tabs/AdminAnalyticsTab';
 import { AdminNotificationsTab } from '../admin/tabs/AdminNotificationsTab';
+import { AdminReportsTab } from '../admin/tabs/AdminReportsTab';
 import { AdminSettingsTab } from '../admin/tabs/AdminSettingsTab';
 import { AdminSecurityTab } from '../admin/tabs/AdminSecurityTab';
 import { AdminSystemLogsTab } from '../admin/tabs/AdminSystemLogsTab';
+import { AdminAuditLogTab } from '../admin/tabs/AdminAuditLogTab';
 
 interface AdminPortalViewProps {
   onExitToPlatform?: () => void;
@@ -87,14 +95,22 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatfo
           {activeTab === 'dashboard' && <AdminDashboardTab />}
           {activeTab === 'users' && <AdminUsersTab />}
           {activeTab === 'markets' && <AdminMarketsTab />}
+          {activeTab === 'market-feeds' && <MarketFeedsManagementView />}
+          {activeTab === 'practice' && <AdminPracticeTab />}
           {activeTab === 'copy-trading' && <AdminCopyTradingTab />}
+          {activeTab === 'deposits' && <AdminDepositsTab />}
+          {activeTab === 'withdrawals' && <AdminWithdrawalsTab />}
           {activeTab === 'reviews' && <AdminReviewsTab />}
           {activeTab === 'academy' && <AdminAcademyTab />}
+          {activeTab === 'announcements' && <AdminAnnouncementsTab />}
+          {activeTab === 'promotions' && <AdminPromotionsTab />}
           {activeTab === 'analytics' && <AdminAnalyticsTab />}
           {activeTab === 'notifications' && <AdminNotificationsTab />}
+          {activeTab === 'reports' && <AdminReportsTab />}
           {activeTab === 'settings' && <AdminSettingsTab />}
           {activeTab === 'security' && <AdminSecurityTab />}
           {activeTab === 'system-logs' && <AdminSystemLogsTab />}
+          {activeTab === 'audit-log' && <AdminAuditLogTab />}
         </main>
 
       </div>

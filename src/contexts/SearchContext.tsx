@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { CryptoCoin, LeadTrader, AcademyArticle, GlobalSearchResult } from '../types';
-import { INITIAL_COINS, MOCK_LEAD_TRADERS, MOCK_ACADEMY_ARTICLES } from '../mockData';
+import { MOCK_LEAD_TRADERS, MOCK_ACADEMY_ARTICLES } from '../mockData';
+import { useTrading } from './TradingContext';
 
 interface SearchContextType {
   isSearchOpen: boolean;
@@ -17,6 +18,7 @@ interface SearchContextType {
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
 
 export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { coins } = useTrading();
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
   const [recentSearches, setRecentSearches] = useState<string[]>(['BTC', 'Alex Vance', 'Futures Guide', 'SOL']);
@@ -45,7 +47,9 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const clearRecentSearches = () => setRecentSearches([]);
 
-  const filteredCoins = INITIAL_COINS.filter(
+  const currentCoins = coins && coins.length > 0 ? coins : [];
+
+  const filteredCoins = currentCoins.filter(
     (c) =>
       c.symbol.toLowerCase().includes(query.toLowerCase()) ||
       c.name.toLowerCase().includes(query.toLowerCase())
@@ -64,7 +68,7 @@ export const SearchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const results: GlobalSearchResult = {
-    coins: query ? filteredCoins : INITIAL_COINS.slice(0, 4),
+    coins: query ? filteredCoins : currentCoins.slice(0, 4),
     traders: query ? filteredTraders : MOCK_LEAD_TRADERS.slice(0, 3),
     articles: query ? filteredArticles : MOCK_ACADEMY_ARTICLES.slice(0, 2)
   };

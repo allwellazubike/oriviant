@@ -1,7 +1,28 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { CryptoCoin, ActiveOrder, FuturesPosition, OrderSide, OrderType, PositionSide, MarginMode, RecentTrade, OrderBookRow } from '../types';
 import { INITIAL_COINS } from '../mockData';
 import { useDemoMode } from './DemoModeContext';
+
+export interface MarketFeedStatus {
+  status: 'connected' | 'reconnecting' | 'delayed' | 'offline';
+  latencyMs: number;
+  lastUpdated: string;
+  activeFeedsCount: number;
+  isWsConnected: boolean;
+  totalTicksReceived: number;
+}
+
+export interface MarketCategoryConfig {
+  crypto: boolean;
+  forex: boolean;
+  stocks: boolean;
+  etfs: boolean;
+  indices: boolean;
+  commodities: boolean;
+  metals: boolean;
+  energy: boolean;
+  bonds: boolean;
+}
 
 interface TradingContextType {
   coins: CryptoCoin[];
@@ -38,6 +59,12 @@ interface TradingContextType {
   orderBookBids: OrderBookRow[];
   orderBookAsks: OrderBookRow[];
   recentTrades: RecentTrade[];
+  
+  // Real-Time Feed Controls & Metrics
+  feedStatus: MarketFeedStatus;
+  categoryConfig: MarketCategoryConfig;
+  toggleCategoryFeed: (category: keyof MarketCategoryConfig) => void;
+  manualRefreshFeed: () => void;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
@@ -48,6 +75,31 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [activeSymbol, setActiveSymbol] = useState<string>('BTC/USDT');
   const [favorites, setFavorites] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
   const [priceFlashes, setPriceFlashes] = useState<Record<string, 'up' | 'down' | null>>({});
+
+  // Market Category Toggles (Controlled via Admin)
+  const [categoryConfig, setCategoryConfig] = useState<MarketCategoryConfig>({
+    crypto: true,
+    forex: true,
+    stocks: true,
+    etfs: true,
+    indices: true,
+    commodities: true,
+    metals: true,
+    energy: true,
+    bonds: true,
+  });
+
+  // Feed Status
+  const [feedStatus, setFeedStatus] = useState<MarketFeedStatus>({
+    status: 'connected',
+    latencyMs: 18,
+    lastUpdated: new Date().toLocaleTimeString(),
+    activeFeedsCount: INITIAL_COINS.length,
+    isWsConnected: true,
+    totalTicksReceived: 1420
+  });
+
+  const wsRef = useRef<WebSocket | null>(null);
 
   const [rawOpenOrders, setRawOpenOrders] = useState<ActiveOrder[]>([
     {
@@ -182,46 +234,240 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Active Coin helper
   const activeCoin = coins.find((c) => c.symbol === activeSymbol) || coins[0];
 
-  // Real-time simulated price ticks
+  // Helper to trigger price flash
+  const triggerFlash = (symbol: string, direction: 'up' | 'down') => {
+    setPriceFlashes((flashes) => ({ ...flashes, [symbol]: direction }));
+    setTimeout(() => {
+      setPriceFlashes((flashes) => ({ ...flashes, [symbol]: null }));
+    }, 600);
+  };
+
+  // 1. Fetch Binance Live REST Tickers for Crypto Assets
+  const fetchBinanceCryptoTickers = async () => {
+    if (!categoryConfig.crypto) return;
+    const startTime = performance.now();
+    try {
+      const res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+      if (!res.ok) throw new Error('Binance REST failed');
+      const data = await res.json();
+      const latency = Math.round(performance.now() - startTime);
+
+      setCoins((prevCoins) =>
+        prevCoins.map((coin) => {
+          if (coin.assetClass !== 'crypto' && coin.category !== 'crypto') return coin;
+
+          const rawSymbol = coin.symbol.replace('/', '');
+          const binanceMatch = data.find((d: any) => d.symbol === rawSymbol);
+          if (!binanceMatch) return coin;
+
+          const newPrice = parseFloat(binanceMatch.lastPrice);
+          if (isNaN(newPrice) || newPrice <= 0) return coin;
+
+          const oldPrice = coin.price;
+          const direction = newPrice > oldPrice ? 'up' : newPrice < oldPrice ? 'down' : null;
+          if (direction) triggerFlash(coin.symbol, direction);
+
+          const change24h = parseFloat(parseFloat(binanceMatch.priceChangePercent).toFixed(2));
+          const high24h = parseFloat(binanceMatch.highPrice);
+          const low24h = parseFloat(binanceMatch.lowPrice);
+          const volume24h = parseFloat(binanceMatch.quoteVolume) || coin.volume24h;
+
+          // Update sparkline
+          const sparkline = [...coin.sparkline.slice(1), newPrice];
+
+          return {
+            ...coin,
+            price: newPrice,
+            change24h,
+            high24h,
+            low24h,
+            volume24h,
+            sparkline
+          };
+        })
+      );
+
+      setFeedStatus((prev) => ({
+        ...prev,
+        status: 'connected',
+        latencyMs: Math.max(8, latency),
+        lastUpdated: new Date().toLocaleTimeString(),
+        totalTicksReceived: prev.totalTicksReceived + 1
+      }));
+    } catch (err) {
+      // Fallback silently if network fails
+    }
+  };
+
+  // 2. Fetch Live Forex Rates
+  const fetchForexRates = async () => {
+    if (!categoryConfig.forex) return;
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/USD');
+      if (!res.ok) return;
+      const data = await res.json();
+      const rates = data?.rates;
+      if (!rates) return;
+
+      setCoins((prevCoins) =>
+        prevCoins.map((coin) => {
+          if (coin.assetClass !== 'forex' && coin.category !== 'forex') return coin;
+
+          let newPrice = coin.price;
+          if (coin.symbol === 'EUR/USD' && rates.EUR) newPrice = parseFloat((1 / rates.EUR).toFixed(4));
+          if (coin.symbol === 'GBP/USD' && rates.GBP) newPrice = parseFloat((1 / rates.GBP).toFixed(4));
+          if (coin.symbol === 'USD/JPY' && rates.JPY) newPrice = parseFloat((rates.JPY).toFixed(2));
+          if (coin.symbol === 'USD/CHF' && rates.CHF) newPrice = parseFloat((rates.CHF).toFixed(4));
+          if (coin.symbol === 'AUD/USD' && rates.AUD) newPrice = parseFloat((1 / rates.AUD).toFixed(4));
+          if (coin.symbol === 'NZD/USD' && rates.NZD) newPrice = parseFloat((1 / rates.NZD).toFixed(4));
+          if (coin.symbol === 'USD/CAD' && rates.CAD) newPrice = parseFloat((rates.CAD).toFixed(4));
+
+          if (newPrice !== coin.price) {
+            const direction = newPrice > coin.price ? 'up' : 'down';
+            triggerFlash(coin.symbol, direction);
+            return {
+              ...coin,
+              price: newPrice,
+              sparkline: [...coin.sparkline.slice(1), newPrice]
+            };
+          }
+          return coin;
+        })
+      );
+    } catch {
+      // Fallback
+    }
+  };
+
+  // Connect WebSocket to Binance Streaming
+  useEffect(() => {
+    fetchBinanceCryptoTickers();
+    fetchForexRates();
+
+    // Setup Binance WebSocket Stream
+    try {
+      const ws = new WebSocket('wss://stream.binance.com:9443/ws/!ticker@arr');
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setFeedStatus((prev) => ({ ...prev, isWsConnected: true, status: 'connected' }));
+      };
+
+      ws.onmessage = (event) => {
+        if (!categoryConfig.crypto) return;
+        try {
+          const rawData = JSON.parse(event.data);
+          if (!Array.isArray(rawData)) return;
+
+          setCoins((prevCoins) =>
+            prevCoins.map((coin) => {
+              if (coin.assetClass !== 'crypto' && coin.category !== 'crypto') return coin;
+              const rawSym = coin.symbol.replace('/', '');
+              const item = rawData.find((d: any) => d.s === rawSym);
+              if (!item) return coin;
+
+              const newPrice = parseFloat(item.c);
+              if (isNaN(newPrice) || newPrice <= 0) return coin;
+
+              const oldPrice = coin.price;
+              if (Math.abs(newPrice - oldPrice) > 0.00000001) {
+                const direction = newPrice > oldPrice ? 'up' : 'down';
+                triggerFlash(coin.symbol, direction);
+              }
+
+              const change24h = parseFloat(parseFloat(item.P).toFixed(2));
+              const high24h = parseFloat(item.h);
+              const low24h = parseFloat(item.l);
+              const volume24h = parseFloat(item.q) || coin.volume24h;
+
+              return {
+                ...coin,
+                price: newPrice,
+                change24h,
+                high24h,
+                low24h,
+                volume24h,
+                sparkline: [...coin.sparkline.slice(1), newPrice]
+              };
+            })
+          );
+
+          setFeedStatus((prev) => ({
+            ...prev,
+            lastUpdated: new Date().toLocaleTimeString(),
+            totalTicksReceived: prev.totalTicksReceived + 1
+          }));
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.onerror = () => {
+        setFeedStatus((prev) => ({ ...prev, isWsConnected: false, status: 'delayed' }));
+      };
+
+      ws.onclose = () => {
+        setFeedStatus((prev) => ({ ...prev, isWsConnected: false }));
+      };
+    } catch {
+      // WS error fallback
+    }
+
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, []);
+
+  // Real-Time High-Frequency Micro-Tick Generator for All Enabled Asset Classes
   useEffect(() => {
     const interval = setInterval(() => {
       setCoins((prevCoins) =>
         prevCoins.map((coin) => {
-          // 40% chance to tick this coin
-          if (Math.random() > 0.4) return coin;
+          const cat = (coin.assetClass || coin.category || 'crypto') as keyof MarketCategoryConfig;
+          if (!categoryConfig[cat]) return coin;
 
-          const changeFactor = (Math.random() - 0.48) * 0.004; // small fluctuation
+          // 35% chance to tick this asset per interval
+          if (Math.random() > 0.35) return coin;
+
+          // Micro fluctuation calculation
+          const volatility = cat === 'crypto' ? 0.0018 : cat === 'forex' ? 0.0003 : 0.0008;
+          const changeFactor = (Math.random() - 0.49) * volatility;
           const oldPrice = coin.price;
           const newPrice = Math.max(0.000001, parseFloat((oldPrice * (1 + changeFactor)).toFixed(coin.precision)));
           const direction = newPrice > oldPrice ? 'up' : newPrice < oldPrice ? 'down' : null;
 
           if (direction) {
-            setPriceFlashes((flashes) => ({ ...flashes, [coin.symbol]: direction }));
-            setTimeout(() => {
-              setPriceFlashes((flashes) => ({ ...flashes, [coin.symbol]: null }));
-            }, 600);
+            triggerFlash(coin.symbol, direction);
           }
 
           const priceDiffPercent = ((newPrice - oldPrice) / oldPrice) * 100;
-          const newChange24h = parseFloat((coin.change24h + priceDiffPercent * 0.1).toFixed(2));
+          const newChange24h = parseFloat((coin.change24h + priceDiffPercent * 0.05).toFixed(2));
           const newHigh = Math.max(coin.high24h, newPrice);
           const newLow = Math.min(coin.low24h, newPrice);
+          const newSpark = [...coin.sparkline.slice(1), newPrice];
 
           return {
             ...coin,
             price: newPrice,
             change24h: newChange24h,
             high24h: newHigh,
-            low24h: newLow
+            low24h: newLow,
+            sparkline: newSpark
           };
         })
       );
-    }, 2000);
+
+      setFeedStatus((prev) => ({
+        ...prev,
+        lastUpdated: new Date().toLocaleTimeString(),
+        totalTicksReceived: prev.totalTicksReceived + 1
+      }));
+    }, 1500);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [categoryConfig]);
 
-  // Update position mark prices and live PnLs dynamically
+  // Sync positions mark prices and PnL live
   useEffect(() => {
     setRawPositions((prevPositions) =>
       prevPositions.map((pos) => {
@@ -255,6 +501,15 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
+  const toggleCategoryFeed = (cat: keyof MarketCategoryConfig) => {
+    setCategoryConfig((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const manualRefreshFeed = () => {
+    fetchBinanceCryptoTickers();
+    fetchForexRates();
+  };
+
   const placeOrder = (order: {
     pair: string;
     side: OrderSide;
@@ -282,7 +537,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (isDemoMode) {
         addLedgerEntry({
           type: 'trade_profit',
-          amount: -0.0005 * total, // trading fee
+          amount: -0.0005 * total,
           description: `Market ${order.side.toUpperCase()} Order Fee (${order.pair})`
         });
       }
@@ -310,8 +565,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const entryPrice = targetCoin.price;
     const size = (pos.amountUsdt * pos.leverage) / entryPrice;
 
-    // Liquidation estimate: 100 / leverage % away
-    const liqFactor = (100 / pos.leverage) * 0.9; // 90% liquidation boundary
+    const liqFactor = (100 / pos.leverage) * 0.9;
     let liqPrice = entryPrice * (1 - liqFactor / 100);
     if (pos.side === 'short') {
       liqPrice = entryPrice * (1 + liqFactor / 100);
@@ -370,18 +624,18 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
-  // Generated Order Book data relative to activeCoin
+  // Order Book Bids & Asks based on activeCoin live price
   const basePrice = activeCoin.price;
   const prec = activeCoin.precision;
 
   const orderBookAsks: OrderBookRow[] = Array.from({ length: 8 }).map((_, i) => {
-    const price = parseFloat((basePrice * (1 + (8 - i) * 0.0005)).toFixed(prec));
+    const price = parseFloat((basePrice * (1 + (8 - i) * 0.0004)).toFixed(prec));
     const size = parseFloat((Math.random() * 2 + 0.1).toFixed(3));
     return { price, size, total: price * size, depthPercent: Math.min(100, Math.max(15, (8 - i) * 12)) };
   });
 
   const orderBookBids: OrderBookRow[] = Array.from({ length: 8 }).map((_, i) => {
-    const price = parseFloat((basePrice * (1 - (i + 1) * 0.0005)).toFixed(prec));
+    const price = parseFloat((basePrice * (1 - (i + 1) * 0.0004)).toFixed(prec));
     const size = parseFloat((Math.random() * 2 + 0.1).toFixed(3));
     return { price, size, total: price * size, depthPercent: Math.min(100, Math.max(15, (i + 1) * 12)) };
   });
@@ -389,9 +643,9 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Recent Trades
   const recentTrades: RecentTrade[] = Array.from({ length: 12 }).map((_, i) => ({
     id: `rt-${i}`,
-    price: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.002)).toFixed(prec)),
+    price: parseFloat((basePrice * (1 + (Math.random() - 0.5) * 0.0015)).toFixed(prec)),
     size: parseFloat((Math.random() * 1.5 + 0.05).toFixed(3)),
-    time: new Date(Date.now() - i * 1400).toTimeString().substring(0, 8),
+    time: new Date(Date.now() - i * 1200).toTimeString().substring(0, 8),
     side: Math.random() > 0.5 ? 'buy' : 'sell'
   }));
 
@@ -417,7 +671,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         reversePosition,
         orderBookBids,
         orderBookAsks,
-        recentTrades
+        recentTrades,
+        feedStatus,
+        categoryConfig,
+        toggleCategoryFeed,
+        manualRefreshFeed
       }}
     >
       {children}
@@ -432,3 +690,4 @@ export const useTrading = () => {
   }
   return context;
 };
+

@@ -53,7 +53,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-300 font-medium max-w-xl">
-            Access deep liquidity, up to 125x leverage, automated copy trading, and practice risk-free with a $10,000 USDT demo account.
+            Access deep liquidity, up to 125x leverage, automated copy trading, and practice risk-free with a dedicated 10,000 USDT practice account.
           </p>
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -69,46 +69,9 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               className="px-6 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/20 backdrop-blur-md transition-all flex items-center gap-2"
             >
               <span>Explore Futures 125x</span>
+              <ArrowUpRight className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Demo Balance Highlight Bar */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-app-card border border-emerald-500/30 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-500/5 via-transparent to-blue-500/5">
-        <div className="flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shrink-0">
-            <Zap className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-app-sec uppercase tracking-wider">Demo Virtual Capital</span>
-              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-500">
-                RISK-FREE
-              </span>
-            </div>
-            <div className="text-xl sm:text-2xl font-black text-app">
-              ${demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-              <span className="text-xs font-semibold text-app-sec">USDT</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refillDemoFunds(10000)}
-            className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refill $10K</span>
-          </button>
-          <button
-            onClick={() => onNavigate('demo-workspace')}
-            className="px-4 py-2 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app font-bold text-xs border border-app transition-all flex items-center gap-1"
-          >
-            <span>Demo Workspace</span>
-            <ChevronRight className="w-4 h-4 text-app-sec" />
-          </button>
         </div>
       </div>
 

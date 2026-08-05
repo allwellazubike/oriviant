@@ -8,7 +8,8 @@ import {
   CheckCircle2, 
   X, 
   Lock,
-  Palette
+  Palette,
+  Zap
 } from 'lucide-react';
 
 export const AdminSettingsTab: React.FC = () => {
@@ -99,6 +100,48 @@ export const AdminSettingsTab: React.FC = () => {
               >
                 <span>{allowRegistrations ? 'Registrations OPEN' : 'Registrations PAUSED'}</span>
                 <CheckCircle2 className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Practice Demo Mode Module Configuration */}
+        <div className="p-6 rounded-3xl bg-app-card border border-emerald-500/30 shadow-sm space-y-4">
+          <h3 className="text-sm font-extrabold text-app flex items-center gap-2">
+            <Zap className="w-4 h-4 text-emerald-500" />
+            <span>Practice Demo Mode Module Settings & Management</span>
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label className="block font-bold text-app-sec mb-1">Default Practice Allocation</label>
+              <input
+                type="text"
+                value="10,000 USDT"
+                disabled
+                className="w-full bg-app-sec border border-app rounded-xl px-4 py-2.5 font-bold text-emerald-500"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-app-sec mb-1">Practice Demo Mode Module Status</label>
+              <span className="w-full py-2.5 px-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 text-xs font-bold flex items-center justify-between">
+                <span>ACTIVE (Independent)</span>
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+            </div>
+
+            <div>
+              <label className="block font-bold text-app-sec mb-1">Global Balance Reset</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setToastMsg('Reset practice balances for active demo sessions back to 10,000 USDT.');
+                  setTimeout(() => setToastMsg(null), 3500);
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+              >
+                Reset Default Balances
               </button>
             </div>
           </div>

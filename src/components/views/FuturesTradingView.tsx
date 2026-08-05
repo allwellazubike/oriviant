@@ -98,36 +98,6 @@ export const FuturesTradingView: React.FC = () => {
         }}
       />
 
-      {/* Demo Account Indicator Banner */}
-      {isDemoMode && (
-        <div className="p-3 sm:p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-sm animate-in fade-in">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-            <span className="font-black text-xs uppercase tracking-wider">
-              🟢 DEMO ACCOUNT - Trading with Virtual Funds
-            </span>
-          </div>
-          <span className="text-xs font-bold text-emerald-400 font-mono">
-            Virtual Margin Balance: ${demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT
-          </span>
-        </div>
-      )}
-
-      {/* Demo Mode Education Card */}
-      {isDemoMode && (
-        <div className="p-4 rounded-2xl bg-app-card border border-app shadow-sm flex items-start gap-3">
-          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 mt-0.5 shrink-0">
-            <BookOpen className="w-4 h-4" />
-          </div>
-          <div className="space-y-0.5">
-            <h4 className="text-xs font-bold text-app">Futures Leverage Demo Trading</h4>
-            <p className="text-[11px] text-app-sec leading-relaxed">
-              Test high-leverage positions (up to 125x) using virtual funds. Simulated PnL and order liquidations calculate in real-time with zero risk to capital.
-            </p>
-          </div>
-        </div>
-      )}
-      
       {/* Pair Header & Funding Ticker Bar */}
       <div className="p-3.5 sm:p-4 rounded-2xl bg-app-card border border-app shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
         <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">

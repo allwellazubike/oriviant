@@ -1,6 +1,7 @@
 export type ThemeMode = 'dark' | 'light';
 
 export type NavigationTab = 
+  | 'welcome'
   | 'home'
   | 'markets'
   | 'spot'
@@ -8,6 +9,7 @@ export type NavigationTab =
   | 'assets'
   | 'copy-trading'
   | 'demo-workspace'
+  | 'practice-mode'
   | 'academy'
   | 'referral'
   | 'help'

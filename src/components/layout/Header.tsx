@@ -88,334 +88,282 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
     <>
       <header className="sticky top-0 z-40 bg-app-card border-b border-app backdrop-blur-md transition-colors duration-200">
         
-        {/* ========================================== */}
-        {/* DESKTOP HEADER (MD & UP)                   */}
-        {/* ========================================== */}
-        <div className="hidden md:flex max-w-7xl mx-auto px-6 lg:px-8 h-16 items-center justify-between gap-4">
-          
-          {/* Desktop Left: Logo & Nav */}
-          <div className="flex items-center gap-6">
+        {!isLoggedIn ? (
+          /* ========================================== */
+          /* GUEST MODE HEADER (DESKTOP & MOBILE)       */
+          /* ========================================== */
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            
+            {/* Guest Logo */}
             <button 
-              onClick={() => onNavigate('home')}
-              className="flex items-center gap-2 group text-left focus:outline-none"
+              onClick={() => onNavigate('welcome')}
+              className="flex items-center gap-2.5 group text-left focus:outline-none cursor-pointer"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform duration-200 shrink-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform shrink-0">
                 <div className="w-full h-full bg-app-card rounded-[10px] flex items-center justify-center font-bold text-xl text-accent">
                   <Sparkles className="w-5 h-5 text-accent animate-pulse" />
                 </div>
               </div>
               <div>
                 <div className="flex items-center gap-1">
-                  <span className="font-extrabold text-xl tracking-tight text-app">ORIVIANT</span>
+                  <span className="font-extrabold text-base sm:text-xl tracking-tight text-app">ORIVIANT</span>
                 </div>
-                <p className="text-[10px] text-app-sec font-medium tracking-wide">TRADE • INVEST • GROW</p>
+                <p className="text-[9px] sm:text-[10px] text-app-sec font-medium tracking-wide hidden sm:block">TRADE • INVEST • GROW</p>
               </div>
             </button>
 
-            {/* Desktop Navigation Links */}
-            <nav className="flex items-center gap-1 ml-4">
+            {/* Guest Actions (Theme toggle on far right) */}
+            <div className="flex items-center">
+              {/* Theme Toggle Button */}
               <button
-                onClick={() => onNavigate('home')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === 'home' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
+                onClick={toggleTheme}
+                className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
+                aria-label="Toggle Theme"
               >
-                Home
-              </button>
-              <button
-                onClick={() => onNavigate('markets')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === 'markets' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                Markets
-              </button>
-              <button
-                onClick={() => onNavigate('spot')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                  activeTab === 'spot' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                Spot
-              </button>
-              <button
-                onClick={() => onNavigate('futures')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                  activeTab === 'futures' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                Futures
-                <span className="px-1 text-[9px] bg-red-500/15 text-red-500 rounded font-bold">125x</span>
-              </button>
-              <button
-                onClick={() => onNavigate('copy-trading')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                  activeTab === 'copy-trading' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                Copy Trading
-              </button>
-              <button
-                onClick={() => onNavigate('academy')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                  activeTab === 'academy' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                Academy
-              </button>
-              <button
-                onClick={() => onNavigate('reviews')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                  activeTab === 'reviews' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                Reviews
-              </button>
-              <button
-                onClick={() => onNavigate('demo-workspace')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                  activeTab === 'demo-workspace' ? 'bg-emerald-500/10 text-emerald-500 font-semibold border border-emerald-500/20' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-emerald-500" />
-                Demo 10K
-              </button>
-            </nav>
-          </div>
-
-          {/* Desktop Right: Live/Demo Toggle, Search, Notifs, Theme, Profile */}
-          <div className="flex items-center gap-3">
-
-            {/* Live / Demo Mode Pill Toggle */}
-            <div className="flex items-center bg-app-sec p-1 rounded-xl border border-app shrink-0">
-              <button
-                onClick={() => { if (isDemoMode) toggleDemoMode(); }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                  !isDemoMode
-                    ? 'bg-accent text-white shadow-sm'
-                    : 'text-app-sec hover:text-app'
-                }`}
-              >
-                LIVE
-              </button>
-              <button
-                onClick={() => { if (!isDemoMode) toggleDemoMode(); }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1 ${
-                  isDemoMode
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-app-sec hover:text-app'
-                }`}
-              >
-                <span>DEMO</span>
-                <span className="text-[10px] opacity-90">${(demoBalance / 1000).toFixed(0)}k</span>
+                {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
               </button>
             </div>
 
-            {/* Quick Demo Refill Icon Button */}
-            {isDemoMode && (
-              <button
-                onClick={() => refillDemoFunds(10000)}
-                title="Refill Demo Balance to $10,000 USDT"
-                className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors border border-emerald-500/20 flex items-center gap-1 text-xs font-medium"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">Refill</span>
-              </button>
-            )}
-
-            {/* Global Search Button */}
-            <button
-              onClick={openSearch}
-              className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app flex items-center gap-2"
-              title="Search markets, coins, traders (Ctrl+K)"
-            >
-              <Search className="w-4 h-4" />
-              <span className="hidden xl:inline text-xs font-medium text-app-sec">Search...</span>
-            </button>
-
-            {/* Notifications Trigger */}
-            <button
-              onClick={openDrawer}
-              className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-
-            {/* Theme Toggle Button */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center"
-              title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
-            >
-              {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
-            </button>
-
-            {/* Profile Avatar Button (Toggles Right-Side Account Drawer) */}
-            {isLoggedIn ? (
-              <button
-                onClick={() => setIsAccountDrawerOpen(!isAccountDrawerOpen)}
-                className="p-1 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app transition-all focus:outline-none min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 group"
-                title="Account Profile & Settings"
-                aria-label="User Account Profile"
-              >
-                <img
-                  src={user.avatar}
-                  alt={user.nickname}
-                  className="w-7 h-7 rounded-lg object-cover ring-2 ring-accent/30 group-hover:ring-accent transition-all shrink-0"
-                />
-              </button>
-            ) : (
-              <button
-                onClick={() => openAuthModal('login')}
-                className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-accent hover:bg-accent/90 text-white shadow-md shadow-accent/20 transition-all shrink-0"
-              >
-                Sign In
-              </button>
-            )}
-
           </div>
-        </div>
+        ) : (
+          <>
+            {/* ========================================== */}
+            {/* DESKTOP HEADER (MD & UP)                   */}
+            {/* ========================================== */}
+            <div className="hidden md:flex max-w-7xl mx-auto px-6 lg:px-8 h-16 items-center justify-between gap-4">
+              
+              {/* Desktop Left: Logo & Nav */}
+              <div className="flex items-center gap-6">
+                <button 
+                  onClick={() => onNavigate('home')}
+                  className="flex items-center gap-2 group text-left focus:outline-none cursor-pointer"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform duration-200 shrink-0">
+                    <div className="w-full h-full bg-app-card rounded-[10px] flex items-center justify-center font-bold text-xl text-accent">
+                      <Sparkles className="w-5 h-5 text-accent animate-pulse" />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1">
+                      <span className="font-extrabold text-xl tracking-tight text-app">ORIVIANT</span>
+                    </div>
+                    <p className="text-[10px] text-app-sec font-medium tracking-wide">TRADE • INVEST • GROW</p>
+                  </div>
+                </button>
 
-        {/* ========================================== */}
-        {/* MOBILE TOP HEADER ROW (< MD)                */}
-        {/* LEFT: Logo ONLY                            */}
-        {/* RIGHT ORDER: Search | Notification | Theme | Profile | Hamburger */}
-        {/* ========================================== */}
-        <div className="flex md:hidden h-14 px-3 items-center justify-between gap-1.5 border-b border-app/60">
-          
-          {/* LEFT: Oriviant Logo ONLY */}
-          <div className="flex items-center shrink-0">
-            <button 
-              onClick={() => onNavigate('home')}
-              className="flex items-center gap-1.5 group text-left focus:outline-none"
-            >
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-md shadow-blue-500/20 shrink-0">
-                <div className="w-full h-full bg-app-card rounded-[8px] flex items-center justify-center font-bold text-accent">
-                  <Sparkles className="w-4 h-4 text-accent animate-pulse" />
-                </div>
+                {/* Desktop Navigation Links */}
+                <nav className="flex items-center gap-1 ml-4">
+                  <button
+                    onClick={() => onNavigate('home')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                      activeTab === 'home' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Home
+                  </button>
+                  <button
+                    onClick={() => onNavigate('markets')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                      activeTab === 'markets' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Markets
+                  </button>
+                  <button
+                    onClick={() => onNavigate('spot')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+                      activeTab === 'spot' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Spot
+                  </button>
+                  <button
+                    onClick={() => onNavigate('futures')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                      activeTab === 'futures' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Futures
+                    <span className="px-1 text-[9px] bg-red-500/15 text-red-500 rounded font-bold">125x</span>
+                  </button>
+                  <button
+                    onClick={() => onNavigate('copy-trading')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                      activeTab === 'copy-trading' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Copy Trading
+                  </button>
+                  <button
+                    onClick={() => onNavigate('academy')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                      activeTab === 'academy' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Academy
+                  </button>
+                  <button
+                    onClick={() => onNavigate('reviews')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 cursor-pointer ${
+                      activeTab === 'reviews' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    Reviews
+                  </button>
+                  <button
+                    onClick={() => onNavigate('demo-workspace')}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
+                      activeTab === 'demo-workspace' || activeTab === 'practice-mode' ? 'bg-emerald-500/10 text-emerald-500 font-bold border border-emerald-500/20' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
+                    }`}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>Practice Demo Mode</span>
+                  </button>
+                </nav>
               </div>
-              <span className="font-extrabold text-sm tracking-tight text-app">ORIVIANT</span>
-            </button>
-          </div>
 
-          {/* RIGHT: Search -> Notification -> Theme Toggle -> Profile -> Hamburger */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            
-            {/* 1. Search Icon */}
-            <button
-              onClick={openSearch}
-              className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center"
-              title="Search"
-              aria-label="Search"
-            >
-              <Search className="w-4 h-4" />
-            </button>
+              {/* Desktop Right: Search, Notifs, Theme, Profile */}
+              <div className="flex items-center gap-3">
 
-            {/* 2. Notification Bell */}
-            <button
-              onClick={openDrawer}
-              className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center"
-              title="Notifications"
-              aria-label="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
+                {/* Global Search Button */}
+                <button
+                  onClick={openSearch}
+                  className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app flex items-center gap-2 cursor-pointer"
+                  title="Search markets, coins, traders (Ctrl+K)"
+                >
+                  <Search className="w-4 h-4" />
+                  <span className="hidden xl:inline text-xs font-medium text-app-sec">Search...</span>
+                </button>
 
-            {/* 3. Theme Toggle */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center"
-              title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
-              aria-label="Toggle Theme"
-            >
-              {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
-            </button>
+                {/* Notifications Trigger */}
+                <button
+                  onClick={openDrawer}
+                  className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
+                  title="Notifications"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
 
-            {/* 4. Profile Avatar */}
-            <button
-              onClick={handleProfileClick}
-              className="p-0.5 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center"
-              title="Profile & Account"
-              aria-label="User Account Profile"
-            >
-              {isLoggedIn ? (
-                <img
-                  src={user.avatar}
-                  alt={user.nickname}
-                  className="w-6 h-6 rounded-lg object-cover ring-1 ring-accent/30"
-                />
-              ) : (
-                <User className="w-4 h-4 text-app-sec" />
-              )}
-            </button>
+                {/* Theme Toggle Button */}
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
+                  title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
+                >
+                  {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+                </button>
 
-            {/* 5. Hamburger Menu (Far Right Edge) */}
-            <button
-              onClick={() => setIsMobileMenuOpen(true)}
-              className="p-2 rounded-xl bg-app-sec text-app hover:text-accent border border-app transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none"
-              aria-label="Open Mobile Menu"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
+                {/* Profile Avatar Button (Toggles Right-Side Account Drawer) */}
+                <button
+                  onClick={() => setIsAccountDrawerOpen(!isAccountDrawerOpen)}
+                  className="p-1 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app transition-all focus:outline-none min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 group cursor-pointer"
+                  title="Account Profile & Settings"
+                  aria-label="User Account Profile"
+                >
+                  <img
+                    src={user.avatar}
+                    alt={user.nickname}
+                    className="w-7 h-7 rounded-lg object-cover ring-2 ring-accent/30 group-hover:ring-accent transition-all shrink-0"
+                  />
+                </button>
 
-          </div>
+              </div>
+            </div>
 
-        </div>
+            {/* ========================================== */}
+            {/* MOBILE TOP HEADER ROW (< MD)                */}
+            {/* LEFT: Logo ONLY                            */}
+            {/* RIGHT ORDER: Search | Notification | Theme | Profile | Hamburger */}
+            {/* ========================================== */}
+            <div className="flex md:hidden h-14 px-3 items-center justify-between gap-1.5 border-b border-app/60">
+              
+              {/* LEFT: Oriviant Logo ONLY */}
+              <div className="flex items-center shrink-0">
+                <button 
+                  onClick={() => onNavigate('home')}
+                  className="flex items-center gap-1.5 group text-left focus:outline-none cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 p-0.5 shadow-md shadow-blue-500/20 shrink-0">
+                    <div className="w-full h-full bg-app-card rounded-[8px] flex items-center justify-center font-bold text-accent">
+                      <Sparkles className="w-4 h-4 text-accent animate-pulse" />
+                    </div>
+                  </div>
+                  <span className="font-extrabold text-sm tracking-tight text-app">ORIVIANT</span>
+                </button>
+              </div>
 
-        {/* ========================================== */}
-        {/* MOBILE STICKY SUB-HEADER BAR (< MD)        */}
-        {/* Segmented Control for Live vs Demo Mode    */}
-        {/* ========================================== */}
-        <div className="flex md:hidden px-3 py-1.5 items-center justify-between gap-2 bg-app-card/95 backdrop-blur-md">
-          
-          {/* Full-width Segmented Control for Live vs Demo */}
-          <div className="flex-1 flex items-center bg-app-sec p-0.5 rounded-xl border border-app shadow-inner">
-            <button
-              onClick={() => { if (isDemoMode) toggleDemoMode(); }}
-              className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all text-center ${
-                !isDemoMode
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-app-sec hover:text-app'
-              }`}
-            >
-              LIVE
-            </button>
-            <button
-              onClick={() => { if (!isDemoMode) toggleDemoMode(); }}
-              className={`flex-1 py-1 text-xs font-bold rounded-lg transition-all text-center flex items-center justify-center gap-1 ${
-                isDemoMode
-                  ? 'bg-emerald-500 text-white shadow-sm'
-                  : 'text-app-sec hover:text-app'
-              }`}
-            >
-              <Zap className="w-3 h-3 text-white" />
-              <span>DEMO $10K</span>
-            </button>
-          </div>
+              {/* RIGHT: Search -> Notification -> Theme Toggle -> Profile -> Hamburger */}
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                
+                {/* 1. Search Icon */}
+                <button
+                  onClick={openSearch}
+                  className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                  title="Search"
+                  aria-label="Search"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
 
-          {/* Quick Demo Refill if active */}
-          {isDemoMode && (
-            <button
-              onClick={() => refillDemoFunds(10000)}
-              title="Refill Demo Balance"
-              className="p-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors shrink-0 flex items-center justify-center"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          )}
+                {/* 2. Notification Bell */}
+                <button
+                  onClick={openDrawer}
+                  className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                  title="Notifications"
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
 
-        </div>
+                {/* 3. Theme Toggle */}
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                  title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
+                  aria-label="Toggle Theme"
+                >
+                  {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
+                </button>
+
+                {/* 4. Profile Avatar */}
+                <button
+                  onClick={handleProfileClick}
+                  className="p-0.5 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
+                  title="Profile & Account"
+                  aria-label="User Account Profile"
+                >
+                  <img
+                    src={user.avatar}
+                    alt={user.nickname}
+                    className="w-6 h-6 rounded-lg object-cover ring-1 ring-accent/30"
+                  />
+                </button>
+
+                {/* 5. Hamburger Menu (Far Right Edge) */}
+                <button
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="p-2 rounded-xl bg-app-sec text-app hover:text-accent border border-app transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none cursor-pointer"
+                  aria-label="Open Mobile Menu"
+                >
+                  <Menu className="w-4 h-4" />
+                </button>
+
+              </div>
+
+            </div>
+          </>
+        )}
 
       </header>
 
@@ -845,7 +793,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               <div className="p-2.5 rounded-xl bg-app-card border border-app flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5 font-medium text-app-sec">
                   <Zap className={`w-4 h-4 ${isDemoMode ? 'text-emerald-500' : 'text-app-sec'}`} />
-                  <span>Demo Practice Mode</span>
+                  <span>Practice Demo Mode</span>
                 </div>
                 <button
                   onClick={toggleDemoMode}
@@ -954,15 +902,15 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={() => handleMobileNavigate('demo-workspace')}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium transition-colors min-h-[44px] ${
-                    activeTab === 'demo-workspace' ? 'bg-emerald-500/10 text-emerald-500 font-bold border border-emerald-500/20' : 'text-app hover:bg-app-sec'
+                    activeTab === 'demo-workspace' || activeTab === 'practice-mode' ? 'bg-emerald-500/10 text-emerald-500 font-bold border border-emerald-500/20' : 'text-app hover:bg-app-sec'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <RefreshCw className="w-4 h-4 text-emerald-500" />
-                    <span>Demo Practice Mode</span>
+                    <Zap className="w-4 h-4 text-emerald-500" />
+                    <span>Practice Demo Mode</span>
                   </div>
-                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-500/10 text-emerald-500 rounded">
-                    $10K
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-500/15 text-emerald-500 rounded">
+                    10,000 USDT
                   </span>
                 </button>
               </div>
