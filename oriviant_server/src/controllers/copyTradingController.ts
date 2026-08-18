@@ -1,0 +1,114 @@
+import { Request, Response } from 'express';
+import {
+  listTraders,
+  traderPerformance,
+  traderTrades,
+  followTrader,
+  stopCopying,
+  listSubscriptions,
+  listPositions,
+  CopyTradeError,
+} from '../services/copyTradingService.js';
+
+const handle = (error: unknown, res: Response, context: string) => {
+  if (error instanceof CopyTradeError) {
+    return res.status(error.status).json({ success: false, error: error.message });
+  }
+  console.error(`Error ${context}:`, error);
+  res.status(500).json({ success: false, error: 'Internal server error' });
+};
+
+export const getTraders = async (_req: Request, res: Response) => {
+  try {
+    const traders = await listTraders();
+
+    // Each card shows a sparkline, so the curves come back with the list rather
+    // than as N follow-up requests from the browser.
+    const withCurves = await Promise.all(
+      traders.map(async (t) => ({ ...t, performance_chart: await traderPerformance(t.id) }))
+    );
+
+    res.status(200).json({ success: true, data: withCurves });
+  } catch (error) {
+    handle(error, res, 'listing traders');
+  }
+};
+
+export const getTrader = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid trader id.' });
+    }
+
+    const traders = await listTraders();
+    const trader = traders.find((t) => t.id === id);
+    if (!trader) return res.status(404).json({ success: false, error: 'Trader not found.' });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        ...trader,
+        performance_chart: await traderPerformance(id, 90),
+        trades: await traderTrades(id),
+      },
+    });
+  } catch (error) {
+    handle(error, res, 'loading trader');
+  }
+};
+
+export const postFollow = async (req: Request, res: Response) => {
+  try {
+    const { trader_id, allocated, stop_loss_pct } = req.body ?? {};
+    const sub = await followTrader(
+      req.user!.id,
+      Number(trader_id),
+      Number(allocated),
+      stop_loss_pct === undefined ? undefined : Number(stop_loss_pct)
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'You are now copying this trader. New positions they open will be mirrored to your account.',
+      data: sub,
+    });
+  } catch (error) {
+    handle(error, res, 'following trader');
+  }
+};
+
+export const deleteFollow = async (req: Request, res: Response) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid subscription id.' });
+    }
+
+    const { closed } = await stopCopying(req.user!.id, id);
+    res.status(200).json({
+      success: true,
+      message: closed > 0
+        ? `Stopped copying. ${closed} open position${closed === 1 ? '' : 's'} closed at market.`
+        : 'Stopped copying.',
+    });
+  } catch (error) {
+    handle(error, res, 'stopping copy');
+  }
+};
+
+export const getSubscriptions = async (req: Request, res: Response) => {
+  try {
+    res.status(200).json({ success: true, data: await listSubscriptions(req.user!.id) });
+  } catch (error) {
+    handle(error, res, 'listing subscriptions');
+  }
+};
+
+export const getPositions = async (req: Request, res: Response) => {
+  try {
+    res.status(200).json({ success: true, data: await listPositions(req.user!.id) });
+  } catch (error) {
+    handle(error, res, 'listing positions');
+  }
+};
