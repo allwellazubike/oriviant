@@ -10,9 +10,11 @@ import {
 } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
+import { useUser } from '../../contexts/UserContext';
 import { OrderSide, OrderType } from '../../types';
 import { TradingChart } from '../trading/TradingChart';
 import { TradeConfirmationModal } from '../layout/TradeConfirmationModal';
+import { tradingApi } from '../../api/trading';
 
 export const SpotTradingView: React.FC = () => {
   const { 
@@ -28,6 +30,7 @@ export const SpotTradingView: React.FC = () => {
   } = useTrading();
 
   const { isDemoMode, demoBalance } = useDemoMode();
+  const { fetchLiveWallets } = useUser();
 
   const [orderSide, setOrderSide] = useState<OrderSide>('buy');
   const [orderType, setOrderType] = useState<OrderType>('limit');
@@ -73,20 +76,45 @@ export const SpotTradingView: React.FC = () => {
     }
   };
 
-  const executeOrderInternal = () => {
+  const executeOrderInternal = async () => {
     const numAmount = parseFloat(amount);
     const numPrice = orderType === 'market' ? currentPrice : parseFloat(limitPrice);
 
-    const res = placeOrder({
-      pair: activeCoin.symbol,
-      side: orderSide,
-      type: orderType,
-      price: numPrice,
-      amount: numAmount
-    });
+    if (isDemoMode) {
+      const res = placeOrder({
+        pair: activeCoin.symbol,
+        side: orderSide,
+        type: orderType,
+        price: numPrice,
+        amount: numAmount
+      });
 
-    setNotificationMsg(res.message);
-    setTimeout(() => setNotificationMsg(null), 3500);
+      setNotificationMsg(res.message);
+      setTimeout(() => setNotificationMsg(null), 3500);
+      setIsConfirmModalOpen(false);
+      return;
+    }
+
+    try {
+      const res = await tradingApi.placeOrder({
+        market_symbol: activeCoin.symbol,
+        type: orderType.toUpperCase() as 'MARKET' | 'LIMIT',
+        side: orderSide.toUpperCase() as 'BUY' | 'SELL',
+        amount: numAmount,
+        price: orderType === 'market' ? undefined : numPrice
+      });
+
+      setNotificationMsg(res.message || 'Order placed successfully!');
+      
+      // Dynamically sync updated balances from the backend
+      await fetchLiveWallets();
+
+    } catch (err: any) {
+      setNotificationMsg(err.message || 'Failed to execute order.');
+    } finally {
+      setTimeout(() => setNotificationMsg(null), 3500);
+      setIsConfirmModalOpen(false);
+    }
   };
 
   return (

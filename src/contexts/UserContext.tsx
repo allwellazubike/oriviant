@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useOverlayRegistration } from '../utils/OverlayRegistry';
 import { WalletAsset } from '../types';
 import { INITIAL_WALLET_ASSETS } from '../mockData';
 import { useTrading } from './TradingContext';
 import { authApi } from '../api/auth';
+import { walletApi } from '../api/wallet';
 import {
   WalletAssetDetail,
   DepositRecord,
@@ -49,6 +50,9 @@ interface UserContextType {
   securityState: UserSecurityState;
   auditLogs: AdminAuditRecord[];
   
+  // Live Backend Sync
+  fetchLiveWallets: () => Promise<void>;
+
   // Fund Operations
   submitDeposit: (assetSymbol: string, amount: number, network: string) => DepositRecord;
   submitWithdrawal: (
@@ -134,6 +138,36 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [walletAssets, setWalletAssets] = useState<WalletAsset[]>(INITIAL_WALLET_ASSETS);
   const [walletDetails, setWalletDetails] = useState<WalletAssetDetail[]>(INITIAL_WALLET_ASSETS_DETAIL);
 
+  // Fetch live wallet balances from backend
+  const fetchLiveWallets = useCallback(async () => {
+    try {
+      const res = await walletApi.getWallets();
+      
+      // Safely bypass strict typing to check for either 'data' or 'wallets'
+      const walletsData = (res as any).data || res.wallets; 
+      
+      if (res.success && walletsData) {
+        // Map backend balances to frontend details
+        setWalletDetails((prev: WalletAssetDetail[]) =>
+          prev.map((asset: WalletAssetDetail) => {
+            const found = walletsData.find((w: any) => w.asset_symbol === asset.symbol);
+            if (found) {
+              return {
+                ...asset,
+                spotBalance: Number(found.balance) || 0,
+                lockedBalance: Number(found.locked) || 0,
+                availableBalance: Number(found.available) || (Number(found.balance) - Number(found.locked)) || 0
+              };
+            }
+            return asset;
+          })
+        );
+      }
+    } catch (err) {
+      console.error('Failed to load live wallets from backend:', err);
+    }
+  }, []);
+
   // Validate session with backend on mount
   useEffect(() => {
     const validateSession = async () => {
@@ -149,6 +183,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               nickname: res.user!.nickname
             }));
             setIsLoggedIn(true);
+            await fetchLiveWallets();
           } else {
             confirmLogout();
           }
@@ -158,7 +193,18 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     validateSession();
-  }, []);
+  }, [fetchLiveWallets]);
+
+  // Automated polling to catch admin approvals/rejections in real-time
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    
+    const interval = setInterval(() => {
+      fetchLiveWallets();
+    }, 10000); // Check for balance updates every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [isLoggedIn, fetchLiveWallets]);
 
   // Synchronize walletDetails prices with live market data from TradingContext
   useEffect(() => {
@@ -270,9 +316,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(updatedProfile);
         setIsLoggedIn(true);
 
-        // Restore default wallet structures on login
-        setWalletAssets(INITIAL_WALLET_ASSETS);
-        setWalletDetails(INITIAL_WALLET_ASSETS_DETAIL);
+        // Fetch live balances from backend ledger
+        await fetchLiveWallets();
+
         setDeposits(INITIAL_DEPOSIT_RECORDS);
         setWithdrawals(INITIAL_WITHDRAWAL_RECORDS);
         setAddressBook(INITIAL_ADDRESS_BOOK);
@@ -310,8 +356,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(updatedProfile);
         setIsLoggedIn(true);
 
-        setWalletAssets(INITIAL_WALLET_ASSETS);
-        setWalletDetails(INITIAL_WALLET_ASSETS_DETAIL);
+        await fetchLiveWallets();
         setDeposits(INITIAL_DEPOSIT_RECORDS);
         setWithdrawals(INITIAL_WITHDRAWAL_RECORDS);
         setAddressBook(INITIAL_ADDRESS_BOOK);
@@ -689,6 +734,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addressBook,
         securityState,
         auditLogs,
+        fetchLiveWallets,
         submitDeposit,
         submitWithdrawal,
         executeInternalTransfer,
