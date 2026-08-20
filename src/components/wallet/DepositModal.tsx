@@ -14,6 +14,7 @@ import {
   Share2
 } from 'lucide-react';
 import { WalletAssetDetail, DepositNetworkInfo, DepositRecord } from '../../types/wallet';
+import { depositApi } from '../../api/deposits';
 
 interface DepositModalProps {
   isOpen: boolean;
@@ -36,6 +37,8 @@ export const DepositModal: React.FC<DepositModalProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [depositAmount, setDepositAmount] = useState<string>('500');
   const [submittedRecord, setSubmittedRecord] = useState<DepositRecord | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
   if (!isOpen) return null;
 
@@ -62,10 +65,33 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     setStep(3);
   };
 
-  const handleSimulateDepositSubmit = () => {
+  const handleSimulateDepositSubmit = async () => {
     const amount = parseFloat(depositAmount) || 100;
-    const rec = onConfirmDeposit(selectedSymbol, amount, selectedNetwork);
-    setSubmittedRecord(rec);
+    setIsSubmitting(true);
+    setErrorMsg('');
+
+    try {
+      // Dispatch real deposit payload to backend API
+      const fakeTxHash = `0x${Math.random().toString(16).substring(2, 18)}${Math.random().toString(16).substring(2, 10)}`;
+      const res = await depositApi.submitDeposit({
+        asset: selectedSymbol,
+        amount_expected: amount,
+        tx_hash: fakeTxHash,
+        network: selectedNetwork
+      });
+
+      if (res.success) {
+        const rec = onConfirmDeposit(selectedSymbol, amount, selectedNetwork);
+        setSubmittedRecord(rec);
+      } else {
+        setErrorMsg('Deposit submission was rejected by the server.');
+      }
+    } catch (err: any) {
+      console.error('Deposit API Error:', err);
+      setErrorMsg(err.message || 'Failed to submit deposit.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const generateQrUrl = (address: string) => {
@@ -124,7 +150,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               <div>
                 <h3 className="text-lg font-black text-app">Deposit Request Broadcasted</h3>
                 <p className="text-xs text-app-sec max-w-sm mx-auto mt-1">
-                  Your deposit of <strong className="text-app">{submittedRecord.amount} {submittedRecord.asset}</strong> on <strong className="text-app">{submittedRecord.network}</strong> is currently confirming on the blockchain.
+                  Your deposit of <strong className="text-app">{submittedRecord.amount} {submittedRecord.asset}</strong> on <strong className="text-app">{submittedRecord.network}</strong> has been logged to the database as PENDING.
                 </p>
               </div>
 
@@ -300,11 +326,18 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                 </div>
               </div>
 
+              {/* Error Message Display */}
+              {errorMsg && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold">
+                  {errorMsg}
+                </div>
+              )}
+
               {/* Simulation Amount Trigger for testing */}
               <div className="p-4 rounded-2xl bg-app-card border border-app space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-app-sec">Simulate On-Chain Deposit Credit:</span>
-                  <span className="text-[10px] text-emerald-500 font-bold">Instant Sandbox Test</span>
+                  <span className="font-bold text-app-sec">Submit On-Chain Deposit Request:</span>
+                  <span className="text-[10px] text-emerald-500 font-bold">Sends to Backend DB</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -312,14 +345,19 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                     value={depositAmount}
                     onChange={(e) => setDepositAmount(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-xl bg-app-sub border border-app text-xs font-mono font-bold text-app focus:outline-none focus:border-accent"
-                    placeholder="Amount to credit"
+                    placeholder="Amount to deposit"
                   />
                   <button
                     onClick={handleSimulateDepositSubmit}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Confirm Deposit</span>
+                    {isSubmitting ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isSubmitting ? 'Submitting...' : 'Confirm Deposit'}</span>
                   </button>
                 </div>
               </div>

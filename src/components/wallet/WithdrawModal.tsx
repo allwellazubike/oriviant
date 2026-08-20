@@ -12,7 +12,8 @@ import {
   Mail, 
   Smartphone, 
   Info,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { 
   WalletAssetDetail, 
@@ -21,6 +22,7 @@ import {
   AddressBookItem, 
   UserSecurityState 
 } from '../../types/wallet';
+import { withdrawalApi } from '../../api/withdrawals';
 
 interface WithdrawModalProps {
   isOpen: boolean;
@@ -65,6 +67,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   const [emailSent, setEmailSent] = useState<boolean>(false);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [completedRecord, setCompletedRecord] = useState<WithdrawalRecord | null>(null);
 
   if (!isOpen) return null;
@@ -102,7 +105,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
     }, 1500);
   };
 
-  const handleFinalWithdrawalSubmit = () => {
+  const handleFinalWithdrawalSubmit = async () => {
     setErrorMsg(null);
 
     if (!recipientAddress || recipientAddress.length < 10) {
@@ -134,19 +137,61 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       return;
     }
 
-    const result = onSubmitWithdrawal(
-      selectedSymbol, 
-      amountNum, 
-      selectedNetwork, 
-      recipientAddress, 
-      addressNickname,
-      twoFactorCode
-    );
+    setIsSubmitting(true);
 
-    if (result.success && result.record) {
-      setCompletedRecord(result.record);
-    } else {
-      setErrorMsg(result.error || 'Failed to submit withdrawal.');
+    try {
+      // Connect to real backend endpoint
+      const res = await withdrawalApi.requestWithdrawal({
+        asset: selectedSymbol,
+        amount: amountNum,
+        network: selectedNetwork,
+        recipient_address: recipientAddress,
+        nickname: addressNickname
+      });
+
+      if (res.success && res.withdrawal) {
+        // Fallback sync with local context updater
+        const result = onSubmitWithdrawal(
+          selectedSymbol, 
+          amountNum, 
+          selectedNetwork, 
+          recipientAddress, 
+          addressNickname,
+          twoFactorCode
+        );
+
+        if (result.success && result.record) {
+          setCompletedRecord(result.record);
+        } else {
+          // Construct fallback record from backend response if needed
+          setCompletedRecord({
+            id: `WTH-${res.withdrawal.id}`,
+            userId: 'USER',
+            userName: 'Trader',
+            userEmail: '',
+            asset: res.withdrawal.asset,
+            amount: Number(res.withdrawal.amount),
+            fee: Number(res.withdrawal.fee),
+            receiveAmount: Number(res.withdrawal.receive_amount),
+            usdValue: Number(res.withdrawal.receive_amount),
+            network: res.withdrawal.network,
+            recipientAddress: res.withdrawal.recipient_address,
+            addressNickname: res.withdrawal.address_nickname || '',
+            isWhitelisted: false,
+            status: res.withdrawal.status as any,
+            createdAt: res.withdrawal.created_at,
+            updatedAt: res.withdrawal.created_at,
+            notes: res.withdrawal.notes || 'Successfully dispatched to backend'
+          });
+        }
+      } else {
+        setErrorMsg('Failed to process withdrawal request on server.');
+      }
+    } catch (err: any) {
+      console.error('Withdrawal API submission error:', err);
+      setErrorMsg(err.message || 'An error occurred during withdrawal submission.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -523,10 +568,20 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
               <button
                 onClick={handleFinalWithdrawalSubmit}
-                className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                disabled={isSubmitting}
+                className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Confirm & Submit Withdrawal</span>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Broadcasting Withdrawal...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Confirm & Submit Withdrawal</span>
+                  </>
+                )}
               </button>
             </div>
           )}
