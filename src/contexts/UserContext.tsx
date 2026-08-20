@@ -3,6 +3,7 @@ import { useOverlayRegistration } from '../utils/OverlayRegistry';
 import { WalletAsset } from '../types';
 import { INITIAL_WALLET_ASSETS } from '../mockData';
 import { useTrading } from './TradingContext';
+import { authApi } from '../api/auth';
 import {
   WalletAssetDetail,
   DepositRecord,
@@ -94,21 +95,21 @@ interface UserContextType {
   closeSignOutModal: () => void;
   confirmLogout: () => void;
   logout: () => void;
-  login: (email: string, rememberMe?: boolean) => void;
+  login: (email: string, password?: string, rememberMe?: boolean) => Promise<boolean>;
+  registerAccount: (userData: Record<string, string>) => Promise<boolean>;
   triggerSessionExpired: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }: { children: React.ReactNode }) => {
   // Initialize session state based on Remember Me & Auth Token
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     const auth = localStorage.getItem('oriviant_authenticated');
     const remember = localStorage.getItem('oriviant_remember_me');
     if (auth === 'false') return false;
-    // If remember me was active or token exists
     if (auth === 'true' || remember === 'true') return true;
-    return true; // Default active state for dev preview, can be toggled by sign out
+    return false; 
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -133,14 +134,40 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [walletAssets, setWalletAssets] = useState<WalletAsset[]>(INITIAL_WALLET_ASSETS);
   const [walletDetails, setWalletDetails] = useState<WalletAssetDetail[]>(INITIAL_WALLET_ASSETS_DETAIL);
 
+  // Validate session with backend on mount
+  useEffect(() => {
+    const validateSession = async () => {
+      const token = localStorage.getItem('oriviant_token');
+      if (token) {
+        try {
+          const res = await authApi.getMe();
+          if (res.success && res.user) {
+            setUser((prev: UserProfile) => ({
+              ...prev,
+              id: res.user!.id.toString(),
+              email: res.user!.email,
+              nickname: res.user!.nickname
+            }));
+            setIsLoggedIn(true);
+          } else {
+            confirmLogout();
+          }
+        } catch (err) {
+          confirmLogout();
+        }
+      }
+    };
+    validateSession();
+  }, []);
+
   // Synchronize walletDetails prices with live market data from TradingContext
   useEffect(() => {
     if (!coins || coins.length === 0) return;
-    setWalletDetails((prev) =>
-      prev.map((asset) => {
+    setWalletDetails((prev: WalletAssetDetail[]) =>
+      prev.map((asset: WalletAssetDetail) => {
         if (asset.symbol === 'USDT') return asset; // Stablecoin
         const match = coins.find(
-          (c) =>
+          (c: any) =>
             c.symbol === `${asset.symbol}/USDT` ||
             c.symbol === asset.symbol ||
             c.id.toLowerCase() === asset.symbol.toLowerCase()
@@ -230,32 +257,76 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Login handler
-  const login = (email: string, rememberMe = true) => {
-    const updatedProfile = {
-      ...user,
-      email: email || 'trader.alex@oriviant.io',
-      nickname: email ? email.split('@')[0] : 'Alex_Vance_Oriviant'
-    };
-    setUser(updatedProfile);
-    setIsLoggedIn(true);
+  const login = async (email: string, password?: string, rememberMe = true): Promise<boolean> => {
+    try {
+      const res = await authApi.login({ email, password: password || '' });
+      if (res.success && res.token && res.user) {
+        const updatedProfile = {
+          ...user,
+          id: res.user.id.toString(),
+          email: res.user.email,
+          nickname: res.user.nickname
+        };
+        setUser(updatedProfile);
+        setIsLoggedIn(true);
 
-    // Restore default wallet structures on login
-    setWalletAssets(INITIAL_WALLET_ASSETS);
-    setWalletDetails(INITIAL_WALLET_ASSETS_DETAIL);
-    setDeposits(INITIAL_DEPOSIT_RECORDS);
-    setWithdrawals(INITIAL_WITHDRAWAL_RECORDS);
-    setAddressBook(INITIAL_ADDRESS_BOOK);
+        // Restore default wallet structures on login
+        setWalletAssets(INITIAL_WALLET_ASSETS);
+        setWalletDetails(INITIAL_WALLET_ASSETS_DETAIL);
+        setDeposits(INITIAL_DEPOSIT_RECORDS);
+        setWithdrawals(INITIAL_WITHDRAWAL_RECORDS);
+        setAddressBook(INITIAL_ADDRESS_BOOK);
 
-    // Save tokens and Remember Me preference
-    localStorage.setItem('oriviant_authenticated', 'true');
-    localStorage.setItem('oriviant_token', `orv_token_${Date.now()}`);
-    if (rememberMe) {
-      localStorage.setItem('oriviant_remember_me', 'true');
-    } else {
-      localStorage.removeItem('oriviant_remember_me');
+        // Save tokens and Remember Me preference
+        localStorage.setItem('oriviant_authenticated', 'true');
+        localStorage.setItem('oriviant_token', res.token);
+        if (rememberMe) {
+          localStorage.setItem('oriviant_remember_me', 'true');
+        } else {
+          localStorage.removeItem('oriviant_remember_me');
+        }
+
+        closeAuthModal();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
+  };
 
-    closeAuthModal();
+  // Register handler
+  const registerAccount = async (userData: Record<string, string>): Promise<boolean> => {
+    try {
+      const res = await authApi.register(userData);
+      if (res.success && res.token && res.user) {
+        const updatedProfile = {
+          ...user,
+          id: res.user.id.toString(),
+          email: res.user.email,
+          nickname: res.user.nickname
+        };
+        setUser(updatedProfile);
+        setIsLoggedIn(true);
+
+        setWalletAssets(INITIAL_WALLET_ASSETS);
+        setWalletDetails(INITIAL_WALLET_ASSETS_DETAIL);
+        setDeposits(INITIAL_DEPOSIT_RECORDS);
+        setWithdrawals(INITIAL_WITHDRAWAL_RECORDS);
+        setAddressBook(INITIAL_ADDRESS_BOOK);
+
+        localStorage.setItem('oriviant_authenticated', 'true');
+        localStorage.setItem('oriviant_token', res.token);
+        
+        closeAuthModal();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Registration error:', error);
+      return false;
+    }
   };
 
   // Session Expired helper
@@ -265,8 +336,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Submit new Deposit
   const submitDeposit = (assetSymbol: string, amount: number, network: string): DepositRecord => {
-    const asset = walletDetails.find(a => a.symbol === assetSymbol) || walletDetails[0];
-    const netInfo = asset.depositNetworks.find(n => n.network === network) || asset.depositNetworks[0];
+    const asset = walletDetails.find((a: WalletAssetDetail) => a.symbol === assetSymbol) || walletDetails[0];
+    const netInfo = asset.depositNetworks.find((n: any) => n.network === network) || asset.depositNetworks[0];
 
     const newDep: DepositRecord = {
       id: `DEP-${Math.floor(10000 + Math.random() * 90000)}`,
@@ -288,11 +359,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notes: `User initiated ${network} deposit`
     };
 
-    setDeposits(prev => [newDep, ...prev]);
+    setDeposits((prev: DepositRecord[]) => [newDep, ...prev]);
 
     // Simulate deposit confirmation after 12 seconds
     setTimeout(() => {
-      setDeposits(prev => prev.map(d => d.id === newDep.id ? {
+      setDeposits((prev: DepositRecord[]) => prev.map((d: DepositRecord) => d.id === newDep.id ? {
         ...d,
         status: 'Completed',
         confirmations: d.requiredConfirmations,
@@ -300,7 +371,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } : d));
 
       // Credit Spot Balance
-      setWalletDetails(prev => prev.map(a => a.symbol === assetSymbol ? {
+      setWalletDetails((prev: WalletAssetDetail[]) => prev.map((a: WalletAssetDetail) => a.symbol === assetSymbol ? {
         ...a,
         spotBalance: a.spotBalance + amount
       } : a));
@@ -326,10 +397,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, error: 'Withdrawals are currently locked on your account.' };
     }
 
-    const asset = walletDetails.find(a => a.symbol === assetSymbol);
+    const asset = walletDetails.find((a: WalletAssetDetail) => a.symbol === assetSymbol);
     if (!asset) return { success: false, error: 'Invalid asset.' };
 
-    const netInfo = asset.withdrawalNetworks.find(n => n.network === network) || asset.withdrawalNetworks[0];
+    const netInfo = asset.withdrawalNetworks.find((n: any) => n.network === network) || asset.withdrawalNetworks[0];
     const fee = netInfo?.fee || 1.0;
     const totalRequired = amount;
 
@@ -338,10 +409,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const receiveAmt = Math.max(0, amount - fee);
-    const isWhitelisted = addressBook.some(item => item.address.toLowerCase() === recipientAddress.toLowerCase() && item.isWhitelisted);
+    const isWhitelisted = addressBook.some((item: AddressBookItem) => item.address.toLowerCase() === recipientAddress.toLowerCase() && item.isWhitelisted);
 
     // Lock balance
-    setWalletDetails(prev => prev.map(a => a.symbol === assetSymbol ? {
+    setWalletDetails((prev: WalletAssetDetail[]) => prev.map((a: WalletAssetDetail) => a.symbol === assetSymbol ? {
       ...a,
       spotBalance: a.spotBalance - totalRequired,
       lockedBalance: a.lockedBalance + totalRequired
@@ -367,7 +438,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notes: isWhitelisted ? 'Whitelisted destination auto-cleared 2FA' : 'Standard security audit pending'
     };
 
-    setWithdrawals(prev => [newWth, ...prev]);
+    setWithdrawals((prev: WithdrawalRecord[]) => [newWth, ...prev]);
     return { success: true, record: newWth };
   };
 
@@ -379,13 +450,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     to: WalletSubAccount
   ): boolean => {
     if (from === to) return false;
-    const asset = walletDetails.find(a => a.symbol === assetSymbol);
+    const asset = walletDetails.find((a: WalletAssetDetail) => a.symbol === assetSymbol);
     if (!asset) return false;
 
     const currentBalFrom = from === 'spot' ? asset.spotBalance : from === 'futures' ? asset.futuresBalance : asset.fundingBalance;
     if (currentBalFrom < amount) return false;
 
-    setWalletDetails(prev => prev.map(a => {
+    setWalletDetails((prev: WalletAssetDetail[]) => prev.map((a: WalletAssetDetail) => {
       if (a.symbol !== assetSymbol) return a;
       let spot = a.spotBalance;
       let futures = a.futuresBalance;
@@ -418,7 +489,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
     };
 
-    setInternalTransfers(prev => [rec, ...prev]);
+    setInternalTransfers((prev: InternalTransferRecord[]) => [rec, ...prev]);
     return true;
   };
 
@@ -434,36 +505,36 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isFavorite: false,
       createdAt: new Date().toISOString().substring(0, 10)
     };
-    setAddressBook(prev => [newItem, ...prev]);
+    setAddressBook((prev: AddressBookItem[]) => [newItem, ...prev]);
   };
 
   const deleteAddressBookItem = (id: string) => {
-    setAddressBook(prev => prev.filter(item => item.id !== id));
+    setAddressBook((prev: AddressBookItem[]) => prev.filter((item: AddressBookItem) => item.id !== id));
   };
 
   const toggleAddressWhitelist = (id: string) => {
-    setAddressBook(prev => prev.map(item => item.id === id ? { ...item, isWhitelisted: !item.isWhitelisted } : item));
+    setAddressBook((prev: AddressBookItem[]) => prev.map((item: AddressBookItem) => item.id === id ? { ...item, isWhitelisted: !item.isWhitelisted } : item));
   };
 
   const toggleAddressFavorite = (id: string) => {
-    setAddressBook(prev => prev.map(item => item.id === id ? { ...item, isFavorite: !item.isFavorite } : item));
+    setAddressBook((prev: AddressBookItem[]) => prev.map((item: AddressBookItem) => item.id === id ? { ...item, isFavorite: !item.isFavorite } : item));
   };
 
   // Security Updates
   const updateAntiPhishingCode = (code: string) => {
-    setSecurityState(prev => ({ ...prev, antiPhishingCode: code }));
+    setSecurityState((prev: UserSecurityState) => ({ ...prev, antiPhishingCode: code }));
   };
 
   const removeTrustedDevice = (deviceId: string) => {
-    setSecurityState(prev => ({
+    setSecurityState((prev: UserSecurityState) => ({
       ...prev,
-      trustedDevices: prev.trustedDevices.filter(d => d.id !== deviceId)
+      trustedDevices: prev.trustedDevices.filter((d: any) => d.id !== deviceId)
     }));
   };
 
   const toggleWalletFreeze = (freeze: boolean, adminReason = 'Administrative compliance check') => {
-    setSecurityState(prev => ({ ...prev, isWalletFrozen: freeze }));
-    setAuditLogs(prev => [{
+    setSecurityState((prev: UserSecurityState) => ({ ...prev, isWalletFrozen: freeze }));
+    setAuditLogs((prev: AdminAuditRecord[]) => [{
       id: `AUD-${Math.floor(1000 + Math.random() * 9000)}`,
       adminEmail: 'admin.compliance@oriviant.io',
       actionType: 'WALLET_FREEZE',
@@ -477,25 +548,25 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const toggleWithdrawalsLock = (lock: boolean, adminReason = 'Withdrawal limit restriction') => {
-    setSecurityState(prev => ({ ...prev, areWithdrawalsLocked: lock }));
+    setSecurityState((prev: UserSecurityState) => ({ ...prev, areWithdrawalsLocked: lock }));
   };
 
   // Admin Actions
   const updateDepositStatus = (id: string, newStatus: DepositStatus, notes?: string, adminEmail = 'admin@oriviant.io') => {
-    setDeposits(prev => prev.map(dep => {
+    setDeposits((prev: DepositRecord[]) => prev.map((dep: DepositRecord) => {
       if (dep.id !== id) return dep;
       const oldStatus = dep.status;
 
       // Credit balance if changing from non-completed to Completed
       if (oldStatus !== 'Completed' && newStatus === 'Completed') {
-        setWalletDetails(wb => wb.map(a => a.symbol === dep.asset ? {
+        setWalletDetails((wb: WalletAssetDetail[]) => wb.map((a: WalletAssetDetail) => a.symbol === dep.asset ? {
           ...a,
           spotBalance: a.spotBalance + dep.amount
         } : a));
       }
 
       // Record Audit
-      setAuditLogs(logs => [{
+      setAuditLogs((logs: AdminAuditRecord[]) => [{
         id: `AUD-${Math.floor(1000 + Math.random() * 9000)}`,
         adminEmail,
         actionType: 'DEPOSIT_STATUS_CHANGE',
@@ -523,14 +594,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     notes?: string, 
     adminEmail = 'admin@oriviant.io'
   ) => {
-    setWithdrawals(prev => prev.map(wth => {
+    setWithdrawals((prev: WithdrawalRecord[]) => prev.map((wth: WithdrawalRecord) => {
       if (wth.id !== id) return wth;
       const oldStatus = wth.status;
 
       // If rejected or cancelled, release locked balance back to spot balance
       if ((newStatus === 'Rejected' || newStatus === 'Cancelled' || newStatus === 'Failed') &&
           oldStatus !== 'Rejected' && oldStatus !== 'Cancelled' && oldStatus !== 'Failed') {
-        setWalletDetails(wb => wb.map(a => a.symbol === wth.asset ? {
+        setWalletDetails((wb: WalletAssetDetail[]) => wb.map((a: WalletAssetDetail) => a.symbol === wth.asset ? {
           ...a,
           spotBalance: a.spotBalance + wth.amount,
           lockedBalance: Math.max(0, a.lockedBalance - wth.amount)
@@ -539,14 +610,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // If completed, remove from locked balance
       if (newStatus === 'Completed' && oldStatus !== 'Completed') {
-        setWalletDetails(wb => wb.map(a => a.symbol === wth.asset ? {
+        setWalletDetails((wb: WalletAssetDetail[]) => wb.map((a: WalletAssetDetail) => a.symbol === wth.asset ? {
           ...a,
           lockedBalance: Math.max(0, a.lockedBalance - wth.amount)
         } : a));
       }
 
       // Audit Record
-      setAuditLogs(logs => [{
+      setAuditLogs((logs: AdminAuditRecord[]) => [{
         id: `AUD-${Math.floor(1000 + Math.random() * 9000)}`,
         adminEmail,
         actionType: 'WITHDRAWAL_STATUS_CHANGE',
@@ -569,7 +640,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const adjustUserAssetBalance = (symbol: string, amountChange: number, subAccount: WalletSubAccount, adminEmail: string, reason: string) => {
-    setWalletDetails(prev => prev.map(a => {
+    setWalletDetails((prev: WalletAssetDetail[]) => prev.map((a: WalletAssetDetail) => {
       if (a.symbol !== symbol) return a;
       return {
         ...a,
@@ -579,7 +650,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }));
 
-    setAuditLogs(logs => [{
+    setAuditLogs((logs: AdminAuditRecord[]) => [{
       id: `AUD-${Math.floor(1000 + Math.random() * 9000)}`,
       adminEmail,
       actionType: 'BALANCE_ADJUSTMENT',
@@ -645,6 +716,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         confirmLogout,
         logout,
         login,
+        registerAccount,
         triggerSessionExpired
       }}
     >
@@ -660,4 +732,3 @@ export const useUser = () => {
   }
   return context;
 };
-

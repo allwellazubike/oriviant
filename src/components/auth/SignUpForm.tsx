@@ -19,6 +19,7 @@ import {
   ExternalLink,
   ChevronRight
 } from 'lucide-react';
+import { useUser } from '../../contexts/UserContext';
 
 interface CountryCode {
   code: string;
@@ -60,6 +61,8 @@ interface SignUpFormProps {
 }
 
 export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSuccessLogin }) => {
+  const { registerAccount } = useUser();
+  
   // Form State
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -90,6 +93,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
   const [resendCountdown, setResendCountdown] = useState(60);
   const [isResendDisabled, setIsResendDisabled] = useState(false);
   const [resendMessage, setResendMessage] = useState('');
+  const [apiError, setApiError] = useState('');
 
   // Touched field trackers
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({});
@@ -219,8 +223,9 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
     setTimeout(() => setResendMessage(''), 4000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setApiError('');
     setTouched({
       fullName: true,
       email: true,
@@ -232,11 +237,21 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
     if (!isFormValid) return;
 
     setIsSubmitting(true);
-    // Simulate secure registration & email verification dispatch
-    setTimeout(() => {
-      setIsSubmitting(false);
+    
+    // Connect to the real backend API via UserContext
+    const success = await registerAccount({
+      email,
+      password,
+      nickname: fullName
+    });
+
+    setIsSubmitting(false);
+    
+    if (success) {
       setIsVerificationStep(true);
-    }, 1200);
+    } else {
+      setApiError('Registration failed. The email might already be in use or the server is unreachable.');
+    }
   };
 
   // If in Email Verification Step
@@ -685,6 +700,13 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
             <span>Receive trading updates, platform news, and promotions.</span>
           </label>
         </div>
+
+        {/* API Error Display */}
+        {apiError && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold animate-in fade-in">
+            {apiError}
+          </div>
+        )}
 
         {/* Create Account Button */}
         <button
