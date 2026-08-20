@@ -7,11 +7,16 @@ export const AuthModal: React.FC = () => {
   const { isAuthModalOpen, authModalTab, closeAuthModal, login } = useUser();
   const [tab, setTab] = useState<'login' | 'signup' | 'forgot' | 'pin' | 'otp'>(authModalTab);
 
-  const [email, setEmail] = useState('trader.alex@oriviant.io');
-  const [password, setPassword] = useState('••••••••••••');
+  // Cleared the demo credentials so real backend authentication can be tested
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [otp, setOtp] = useState(['4', '8', '1', '9', '2', '0']);
   const [pin, setPin] = useState(['1', '2', '3', '4']);
   const [rememberMe, setRememberMe] = useState(true);
+
+  // API State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   React.useEffect(() => {
     setTab(authModalTab);
@@ -19,14 +24,28 @@ export const AuthModal: React.FC = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setApiError('');
+
     if (tab === 'login') {
-      login(email, rememberMe);
+      setIsSubmitting(true);
+      const success = await login(email, password, rememberMe);
+      setIsSubmitting(false);
+      
+      if (!success) {
+        setApiError('Invalid email or password. Please try again.');
+      }
     } else if (tab === 'otp') {
       setTab('pin');
     } else if (tab === 'pin' || tab === 'forgot') {
-      login(email, rememberMe);
+      setIsSubmitting(true);
+      const success = await login(email, password, rememberMe);
+      setIsSubmitting(false);
+      
+      if (!success) {
+        setApiError('Authentication failed.');
+      }
     }
   };
 
@@ -54,7 +73,7 @@ export const AuthModal: React.FC = () => {
             <SignUpForm 
               onSwitchToLogin={() => setTab('login')} 
               onSuccessLogin={(userEmail) => {
-                login(userEmail, true);
+                login(userEmail, password, true);
               }}
             />
           ) : (
@@ -184,18 +203,35 @@ export const AuthModal: React.FC = () => {
                   </div>
                 )}
 
+                {/* API Error Display */}
+                {apiError && (
+                  <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-semibold animate-in fade-in">
+                    {apiError}
+                  </div>
+                )}
+
                 {/* Primary Action Button */}
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-lg shadow-accent/20 transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer"
+                  disabled={isSubmitting || !email}
+                  className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-lg shadow-accent/20 transition-all flex items-center justify-center gap-2 mt-2 cursor-pointer disabled:opacity-50"
                 >
-                  <span>
-                    {tab === 'login' && 'Sign In to Account'}
-                    {tab === 'forgot' && 'Send Reset Link'}
-                    {tab === 'otp' && 'Verify Security Code'}
-                    {tab === 'pin' && 'Save Security PIN'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                      <span>Authenticating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {tab === 'login' && 'Sign In to Account'}
+                        {tab === 'forgot' && 'Send Reset Link'}
+                        {tab === 'otp' && 'Verify Security Code'}
+                        {tab === 'pin' && 'Save Security PIN'}
+                      </span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
 
               </form>
@@ -212,7 +248,7 @@ export const AuthModal: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => login('google.user@oriviant.io', true)}
+                    onClick={() => login('google.user@oriviant.io', password, true)}
                     className="w-full py-2.5 px-4 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app font-bold text-xs border border-app shadow-sm transition-all flex items-center justify-center gap-2.5 cursor-pointer"
                   >
                     <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -258,4 +294,3 @@ export const AuthModal: React.FC = () => {
     </div>
   );
 };
-
