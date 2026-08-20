@@ -12,9 +12,11 @@ import {
 } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
+import { useUser } from '../../contexts/UserContext';
 import { MarginMode, PositionSide } from '../../types';
 import { TradingChart } from '../trading/TradingChart';
 import { TradeConfirmationModal } from '../layout/TradeConfirmationModal';
+import { futuresApi } from '../../api/futures';
 
 export const FuturesTradingView: React.FC = () => {
   const { 
@@ -28,6 +30,7 @@ export const FuturesTradingView: React.FC = () => {
   } = useTrading();
 
   const { isDemoMode, demoBalance } = useDemoMode();
+  const { fetchLiveWallets } = useUser();
 
   const [leverage, setLeverage] = useState<number>(20);
   const [marginMode, setMarginMode] = useState<MarginMode>('cross');
@@ -72,19 +75,74 @@ export const FuturesTradingView: React.FC = () => {
     }
   };
 
-  const executeFuturesPositionInternal = () => {
-    const res = openFuturesPosition({
-      pair: activeCoin.symbol,
-      side: positionSide,
-      leverage,
-      marginMode,
-      amountUsdt: numMargin,
-      tpPrice: tpPrice ? parseFloat(tpPrice) : undefined,
-      slPrice: slPrice ? parseFloat(slPrice) : undefined
-    });
+  const executeFuturesPositionInternal = async () => {
+    if (isDemoMode) {
+      const res = openFuturesPosition({
+        pair: activeCoin.symbol,
+        side: positionSide,
+        leverage,
+        marginMode,
+        amountUsdt: numMargin,
+        tpPrice: tpPrice ? parseFloat(tpPrice) : undefined,
+        slPrice: slPrice ? parseFloat(slPrice) : undefined
+      });
 
-    setMsg(res.message);
-    setTimeout(() => setMsg(null), 3500);
+      setMsg(res.message);
+      setTimeout(() => setMsg(null), 3500);
+      setIsConfirmModalOpen(false);
+      return;
+    }
+
+    try {
+      const res = await futuresApi.openPosition({
+        market_symbol: activeCoin.symbol,
+        side: positionSide.toUpperCase() as 'LONG' | 'SHORT',
+        margin_mode: marginMode.toUpperCase() as 'ISOLATED' | 'CROSS',
+        leverage,
+        collateral_amount: numMargin
+      });
+
+      setMsg(res.message || 'Futures position opened successfully!');
+      await fetchLiveWallets();
+    } catch (err: any) {
+      setMsg(err.message || 'Failed to open futures position.');
+    } finally {
+      setTimeout(() => setMsg(null), 3500);
+      setIsConfirmModalOpen(false);
+    }
+  };
+
+  const handleClosePositionBackend = async (positionId: string | number) => {
+    if (isDemoMode) {
+      closePosition(String(positionId));
+      return;
+    }
+
+    try {
+      const res = await futuresApi.closePosition(positionId);
+      setMsg(res.message || 'Position closed successfully.');
+      await fetchLiveWallets();
+    } catch (err: any) {
+      setMsg(err.message || 'Failed to close position.');
+    } finally {
+      setTimeout(() => setMsg(null), 3500);
+    }
+  };
+
+  const handleUpdateLeverageBackend = async (newLev: number) => {
+    setLeverage(newLev);
+    setIsLeverageModalOpen(false);
+
+    if (!isDemoMode) {
+      try {
+        await futuresApi.updateLeverage(activeCoin.symbol, newLev);
+        setMsg(`Leverage updated to ${newLev}x`);
+      } catch (err: any) {
+        setMsg('Failed to update leverage on server.');
+      } finally {
+        setTimeout(() => setMsg(null), 3000);
+      }
+    }
   };
 
   return (
@@ -324,7 +382,7 @@ export const FuturesTradingView: React.FC = () => {
             ) : (
               <>
                 {/* ========================================================= */}
-                {/* MOBILE RESPONSIVE CARDS VIEW (< MD)                       */}
+                {/* MOBILE RESPONSIVE CARDS VIEW (< MD)                      */}
                 {/* Stacked trading position cards with zero column congestion*/}
                 {/* ========================================================= */}
                 <div className="block md:hidden space-y-3">
@@ -391,7 +449,7 @@ export const FuturesTradingView: React.FC = () => {
                         </button>
                         
                         <button
-                          onClick={() => closePosition(pos.id)}
+                          onClick={() => handleClosePositionBackend(pos.id)}
                           className="flex-1 py-2 px-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs shadow-md shadow-red-500/20 min-h-[40px] flex items-center justify-center"
                         >
                           <span>Market Close</span>
@@ -402,7 +460,7 @@ export const FuturesTradingView: React.FC = () => {
                 </div>
 
                 {/* ========================================================= */}
-                {/* DESKTOP TABLE VIEW (MD & UP)                             */}
+                {/* DESKTOP TABLE VIEW (MD & UP)                              */}
                 {/* ========================================================= */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse">
@@ -461,7 +519,7 @@ export const FuturesTradingView: React.FC = () => {
                                 <RefreshCcw className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => closePosition(pos.id)}
+                                onClick={() => handleClosePositionBackend(pos.id)}
                                 className="px-2.5 py-1 text-[11px] font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg shadow-sm"
                               >
                                 Close
@@ -515,10 +573,7 @@ export const FuturesTradingView: React.FC = () => {
             </div>
 
             <button
-              onClick={() => {
-                setLeverage(tempLeverage);
-                setIsLeverageModalOpen(false);
-              }}
+              onClick={() => handleUpdateLeverageBackend(tempLeverage)}
               className="w-full py-3 rounded-xl bg-accent text-white font-bold text-xs shadow-md min-h-[44px]"
             >
               Confirm {tempLeverage}x Leverage
