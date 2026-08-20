@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   Wallet, 
@@ -30,6 +30,9 @@ import { TransferModal } from '../wallet/TransferModal';
 import { AddressBookModal } from '../wallet/AddressBookModal';
 import { TransactionDetailModal } from '../wallet/TransactionDetailModal';
 import { DepositRecord, WithdrawalRecord, WalletSubAccount } from '../../types/wallet';
+
+import { depositApi } from '../../api/deposits';
+import { withdrawalApi } from '../../api/withdrawals';
 
 export const AssetsView: React.FC = () => {
   const { 
@@ -73,6 +76,79 @@ export const AssetsView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Live Backend Data States
+  const [liveDeposits, setLiveDeposits] = useState<DepositRecord[]>([]);
+  const [liveWithdrawals, setLiveWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [isFetchingHistory, setIsFetchingHistory] = useState<boolean>(false);
+
+  // Fetch Live Transaction History
+  const fetchLiveHistory = async () => {
+    if (isDemoMode) return;
+    setIsFetchingHistory(true);
+    try {
+      const [depRes, wthRes] = await Promise.all([
+        depositApi.getDeposits(),
+        withdrawalApi.getWithdrawals()
+      ]);
+
+      if (depRes.success && depRes.deposits) {
+        const mappedDeps: any[] = depRes.deposits.map((d: any) => ({
+          id: `DEP-${d.id}`,
+          userId: 'USER',
+          userName: 'Trader',
+          userEmail: '',
+          asset: d.asset,
+          amount: Number(d.amount_expected),
+          usdValue: Number(d.amount_expected),
+          network: d.network || 'Unknown',
+          txHash: d.tx_hash || 'N/A',
+          depositAddress: d.deposit_address || 'N/A',
+          status: d.status === 'APPROVED' ? 'Completed' : d.status === 'DENIED' ? 'Rejected' : 'Pending',
+          createdAt: d.created_at,
+          updatedAt: d.updated_at || d.created_at,
+          notes: d.notes || ''
+        }));
+        setLiveDeposits(mappedDeps);
+      }
+
+      if (wthRes.success && wthRes.withdrawals) {
+        const mappedWths: any[] = wthRes.withdrawals.map((w: any) => ({
+          id: `WTH-${w.id}`,
+          userId: 'USER',
+          userName: 'Trader',
+          userEmail: '',
+          asset: w.asset,
+          amount: Number(w.amount),
+          fee: Number(w.fee),
+          receiveAmount: Number(w.receive_amount),
+          usdValue: Number(w.amount),
+          network: w.network || 'Unknown',
+          recipientAddress: w.recipient_address || 'N/A',
+          addressNickname: w.address_nickname || '',
+          isWhitelisted: false,
+          status: w.status === 'APPROVED' || w.status === 'COMPLETED' ? 'Completed' : w.status === 'DENIED' || w.status === 'REJECTED' ? 'Rejected' : 'Pending',
+          txHash: w.tx_hash || 'N/A',
+          createdAt: w.created_at,
+          updatedAt: w.updated_at || w.created_at,
+          notes: w.notes || ''
+        }));
+        setLiveWithdrawals(mappedWths);
+      }
+    } catch (err) {
+      console.error('Failed to fetch live transactions:', err);
+    } finally {
+      setIsFetchingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveHistory();
+  }, [isDemoMode]);
+
+  // Use live data if available and not in demo mode, otherwise fallback to context
+  const activeDeposits = isDemoMode ? deposits : (liveDeposits.length > 0 ? liveDeposits : deposits);
+  const activeWithdrawals = isDemoMode ? withdrawals : (liveWithdrawals.length > 0 ? liveWithdrawals : withdrawals);
+
   // Portfolio Totals Math
   const totalSpotValue = walletDetails.reduce((acc, a) => acc + (a.spotBalance * a.priceUsdt), 0);
   const totalFuturesValue = walletDetails.reduce((acc, a) => acc + (a.futuresBalance * a.priceUsdt), 0);
@@ -95,10 +171,10 @@ export const AssetsView: React.FC = () => {
     let list: Array<{ record: any; type: 'deposit' | 'withdrawal' | 'transfer'; date: string }> = [];
 
     if (historyTab === 'all' || historyTab === 'deposits') {
-      deposits.forEach(d => list.push({ record: d, type: 'deposit', date: d.createdAt }));
+      activeDeposits.forEach(d => list.push({ record: d, type: 'deposit', date: d.createdAt }));
     }
     if (historyTab === 'all' || historyTab === 'withdrawals') {
-      withdrawals.forEach(w => list.push({ record: w, type: 'withdrawal', date: w.createdAt }));
+      activeWithdrawals.forEach(w => list.push({ record: w, type: 'withdrawal', date: w.createdAt }));
     }
     if (historyTab === 'all' || historyTab === 'transfers') {
       internalTransfers.forEach(t => list.push({ record: t, type: 'transfer', date: t.createdAt }));
@@ -120,7 +196,7 @@ export const AssetsView: React.FC = () => {
       }
       return true;
     });
-  }, [deposits, withdrawals, internalTransfers, historyTab, statusFilter, searchQuery]);
+  }, [activeDeposits, activeWithdrawals, internalTransfers, historyTab, statusFilter, searchQuery]);
 
   return (
     <div className="space-y-6 pb-16">
@@ -380,12 +456,23 @@ export const AssetsView: React.FC = () => {
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-app pb-4">
           <div>
-            <h2 className="text-base font-extrabold text-app">Transaction Center</h2>
+            <h2 className="text-base font-extrabold text-app flex items-center gap-2">
+              Transaction Center
+              {isFetchingHistory && <RefreshCw className="w-3.5 h-3.5 animate-spin text-accent" />}
+            </h2>
             <p className="text-xs text-app-sec">Real-time ledger of deposits, withdrawals, and internal transfers</p>
           </div>
 
           {/* Search & Filters */}
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={fetchLiveHistory}
+              className="p-1.5 rounded-xl bg-app-sub border border-app text-app-sec hover:text-app transition-colors"
+              title="Refresh Ledger"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+
             <div className="relative flex-1 sm:w-48">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-app-sec" />
               <input
@@ -415,8 +502,8 @@ export const AssetsView: React.FC = () => {
         <div className="flex items-center gap-2">
           {[
             { id: 'all', label: `All Activity (${combinedHistory.length})` },
-            { id: 'deposits', label: `Deposits (${deposits.length})` },
-            { id: 'withdrawals', label: `Withdrawals (${withdrawals.length})` },
+            { id: 'deposits', label: `Deposits (${activeDeposits.length})` },
+            { id: 'withdrawals', label: `Withdrawals (${activeWithdrawals.length})` },
             { id: 'transfers', label: `Internal Transfers (${internalTransfers.length})` },
           ].map((tab) => (
             <button
@@ -502,7 +589,7 @@ export const AssetsView: React.FC = () => {
                       </td>
 
                       <td className="py-3 px-4 text-app-sec text-[11px]">
-                        {record.createdAt}
+                        {new Date(record.createdAt).toLocaleString()}
                       </td>
 
                       <td className="py-3 px-4 text-right font-sans">

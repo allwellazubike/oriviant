@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ArrowUpRight, 
   Search, 
@@ -12,8 +12,10 @@ import {
   Download,
   ShieldAlert,
   Edit,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react';
+import { adminApi } from '../../../api/admin';
 
 export interface WithdrawalRecord {
   id: string;
@@ -33,84 +35,9 @@ export interface WithdrawalRecord {
 }
 
 export const AdminWithdrawalsTab: React.FC = () => {
-  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([
-    {
-      id: 'WTH-88102',
-      user: 'Alex Thompson',
-      email: 'alex.t@oriviant.io',
-      asset: 'USDT',
-      amount: 4500,
-      usdValue: 4500,
-      walletAddress: 'TQ8zX...711kL',
-      network: 'TRC-20 (Tron)',
-      date: '2026-08-04',
-      time: '18:15:30',
-      status: 'Pending',
-      txHash: 'Pending Batch Release',
-      notes: 'User requested withdrawal after closing BTC futures position'
-    },
-    {
-      id: 'WTH-88101',
-      user: 'Sarah Jenkins',
-      email: 's.jenkins@gmail.com',
-      asset: 'BTC',
-      amount: 0.25,
-      usdValue: 23562.50,
-      walletAddress: 'bc1q9...099x0',
-      network: 'Bitcoin Native',
-      date: '2026-08-04',
-      time: '17:40:12',
-      status: 'Under Review',
-      txHash: 'Pending Hot Wallet Sign',
-      notes: 'High balance withdrawal flagged for 2FA confirmation'
-    },
-    {
-      id: 'WTH-88100',
-      user: 'Elena Rostova',
-      email: 'elena.rostova@proton.me',
-      asset: 'USDT',
-      amount: 12500,
-      usdValue: 12500,
-      walletAddress: '0x91F...228ba',
-      network: 'ERC-20 (Ethereum)',
-      date: '2026-08-04',
-      time: '15:20:00',
-      status: 'Approved',
-      txHash: '0x88ff...901abc',
-      notes: 'Approved by Lead Compliance Officer'
-    },
-    {
-      id: 'WTH-88099',
-      user: 'David Kim',
-      email: 'dkim_trader@yahoo.com',
-      asset: 'ETH',
-      amount: 1.2,
-      usdValue: 4176.30,
-      walletAddress: '0x11A...445ee',
-      network: 'ERC-20 (Ethereum)',
-      date: '2026-08-04',
-      time: '13:00:44',
-      status: 'Successful',
-      txHash: '0x4421...0011bb',
-      notes: 'On-chain broadcast complete'
-    },
-    {
-      id: 'WTH-88098',
-      user: 'Marcus Vance',
-      email: 'marcus.vance@corp.net',
-      asset: 'SOL',
-      amount: 50,
-      usdValue: 10730,
-      walletAddress: 'Sol88...119aa',
-      network: 'Solana Native',
-      date: '2026-08-04',
-      time: '10:05:12',
-      status: 'Rejected',
-      txHash: 'N/A',
-      notes: 'Unverified withdrawal attempt',
-      rejectionReason: 'Failed KYC 2FA authentication protocol check.'
-    }
-  ]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -133,7 +60,42 @@ export const AdminWithdrawalsTab: React.FC = () => {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  const handleConfirmStatusChange = () => {
+  const fetchWithdrawals = async () => {
+    setIsLoading(true);
+    try {
+      const res = await adminApi.getWithdrawals('ALL');
+      if (res.success && res.data) {
+        const mapped: WithdrawalRecord[] = res.data.map((w: any) => ({
+          id: w.id.toString(),
+          user: w.nickname || 'Unknown User',
+          email: w.email || 'N/A',
+          asset: w.asset,
+          amount: Number(w.amount),
+          usdValue: Number(w.amount), // Assuming 1:1 for MVP without oracle
+          walletAddress: w.recipient_address || 'N/A',
+          network: w.network || 'Unknown',
+          date: new Date(w.created_at).toISOString().split('T')[0],
+          time: new Date(w.created_at).toISOString().split('T')[1].substring(0, 8),
+          status: w.status === 'APPROVED' ? 'Successful' : w.status === 'DENIED' ? 'Rejected' : 'Pending',
+          txHash: w.tx_hash || 'N/A',
+          notes: w.notes || '',
+          rejectionReason: w.status === 'DENIED' ? 'Administrative Rejection' : undefined
+        }));
+        setWithdrawals(mapped);
+      }
+    } catch (err) {
+      console.error('Failed to load withdrawals:', err);
+      showToast('Failed to load live withdrawal records.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWithdrawals();
+  }, []);
+
+  const handleConfirmStatusChange = async () => {
     if (!statusModal) return;
     const { withdrawal, targetStatus } = statusModal;
 
@@ -142,23 +104,39 @@ export const AdminWithdrawalsTab: React.FC = () => {
       return;
     }
 
-    setWithdrawals(prev => prev.map(w => {
-      if (w.id === withdrawal.id) {
-        return {
-          ...w,
-          status: targetStatus,
-          rejectionReason: targetStatus === 'Rejected' ? rejectionReason : w.rejectionReason,
-          notes: internalNote ? `${w.notes} | Note: ${internalNote}` : w.notes,
-          txHash: targetStatus === 'Successful' ? `0x${Math.random().toString(16).substring(2, 10)}...${Math.random().toString(16).substring(2, 6)}` : w.txHash
-        };
+    setIsActionLoading(true);
+    try {
+      if (targetStatus === 'Successful' || targetStatus === 'Approved' || targetStatus === 'Processing') {
+        // Approve Flow
+        const mockTxHash = `0x${Math.random().toString(16).substring(2, 10)}${Math.random().toString(16).substring(2, 10)}`;
+        const res = await adminApi.approveWithdrawal(withdrawal.id, mockTxHash);
+        if (res.success) {
+          showToast(`Withdrawal ${withdrawal.id} approved successfully!`);
+          await fetchWithdrawals();
+        } else {
+          showToast(`Error: ${res.message}`);
+        }
+      } else if (targetStatus === 'Rejected' || targetStatus === 'Failed' || targetStatus === 'Cancelled') {
+        // Reject Flow
+        const res = await adminApi.denyWithdrawal(withdrawal.id, rejectionReason);
+        if (res.success) {
+          showToast(`Withdrawal ${withdrawal.id} rejected and funds refunded to user.`);
+          await fetchWithdrawals();
+        } else {
+          showToast(`Error: ${res.message}`);
+        }
+      } else {
+        showToast('Only Approval or Rejection status updates are currently supported via API.');
       }
-      return w;
-    }));
-
-    showToast(`Withdrawal ${withdrawal.id} status changed to ${targetStatus} successfully.`);
-    setStatusModal(null);
-    setRejectionReason('');
-    setInternalNote('');
+    } catch (err: any) {
+      console.error('Withdrawal action error:', err);
+      showToast(err.message || 'Failed to update withdrawal status.');
+    } finally {
+      setIsActionLoading(false);
+      setStatusModal(null);
+      setRejectionReason('');
+      setInternalNote('');
+    }
   };
 
   const handleSaveNotes = () => {
@@ -261,6 +239,14 @@ export const AdminWithdrawalsTab: React.FC = () => {
 
         {/* Filters & Export button */}
         <div className="flex flex-wrap items-center gap-2">
+          <button 
+            onClick={fetchWithdrawals}
+            className="p-2 rounded-xl bg-app-sec border border-app text-app-sec hover:text-app transition-colors"
+            title="Refresh Ledger"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -319,114 +305,132 @@ export const AdminWithdrawalsTab: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-app text-[11px] font-extrabold text-app-sec uppercase tracking-wider">
-                <th className="pb-3 pl-2">Withdrawal ID</th>
-                <th className="pb-3">User & Email</th>
-                <th className="pb-3">Asset / Amount</th>
-                <th className="pb-3">USD Value</th>
-                <th className="pb-3">Destination Wallet & Chain</th>
-                <th className="pb-3">Date & Time</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">TX Hash / Notes</th>
-                <th className="pb-3 pr-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-app/60 text-xs font-medium">
-              {filteredWithdrawals.map((w) => (
-                <tr key={w.id} className="hover:bg-app-sec/30 transition-colors">
-                  <td className="py-3.5 pl-2 font-mono font-bold text-app text-xs">
-                    {w.id}
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="font-bold text-app">{w.user}</div>
-                    <div className="text-[10px] text-app-sec">{w.email}</div>
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="font-extrabold text-app">{w.amount} {w.asset}</div>
-                    <div className="text-[10px] text-app-sec">{w.network}</div>
-                  </td>
-
-                  <td className="py-3.5 font-bold text-amber-500 font-mono">
-                    ${w.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="font-mono text-[11px] text-app font-semibold truncate max-w-[140px]" title={w.walletAddress}>
-                      {w.walletAddress}
-                    </div>
-                  </td>
-
-                  <td className="py-3.5 text-app-sec text-[11px] font-mono">
-                    {w.date} <span className="text-[10px]">{w.time}</span>
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="flex flex-col gap-1">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold w-fit ${
-                        w.status === 'Successful'
-                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                          : w.status === 'Approved' || w.status === 'Processing'
-                          ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
-                          : w.status === 'Pending' || w.status === 'Under Review'
-                          ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                          : 'bg-red-500/10 text-red-500 border border-red-500/20'
-                      }`}>
-                        {w.status}
-                      </span>
-                      {w.rejectionReason && (
-                        <span className="text-[9px] text-red-400 font-normal max-w-[120px] truncate" title={w.rejectionReason}>
-                          Reason: {w.rejectionReason}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="font-mono text-[10px] text-app-sec truncate max-w-[120px]" title={w.txHash}>
-                      {w.txHash}
-                    </div>
-                    <button
-                      onClick={() => {
-                        setEditingNotesItem(w);
-                        setInternalNote(w.notes);
-                      }}
-                      className="text-[10px] text-accent hover:underline flex items-center gap-1 mt-0.5"
-                    >
-                      <Edit className="w-3 h-3" /> Edit Notes
-                    </button>
-                  </td>
-
-                  <td className="py-3.5 pr-2 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <select
-                        value={w.status}
-                        onChange={(e) => {
-                          const target = e.target.value as WithdrawalRecord['status'];
-                          setStatusModal({ withdrawal: w, targetStatus: target });
-                          setRejectionReason('');
-                          setInternalNote('');
-                        }}
-                        className="bg-app-sec border border-app rounded-xl px-2.5 py-1 text-xs font-bold text-app focus:outline-none"
-                      >
-                        <option value="Pending">Set Pending</option>
-                        <option value="Under Review">Set Under Review</option>
-                        <option value="Approved">Set Approved</option>
-                        <option value="Processing">Set Processing</option>
-                        <option value="Successful">Set Successful</option>
-                        <option value="Rejected">Set Rejected</option>
-                        <option value="Cancelled">Set Cancelled</option>
-                        <option value="Failed">Set Failed</option>
-                      </select>
-                    </div>
-                  </td>
+          {isLoading && withdrawals.length === 0 ? (
+            <div className="py-10 text-center text-app-sec text-xs font-bold flex flex-col items-center justify-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-accent" />
+              Loading live withdrawal records...
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-app text-[11px] font-extrabold text-app-sec uppercase tracking-wider">
+                  <th className="pb-3 pl-2">Withdrawal ID</th>
+                  <th className="pb-3">User & Email</th>
+                  <th className="pb-3">Asset / Amount</th>
+                  <th className="pb-3">USD Value</th>
+                  <th className="pb-3">Destination Wallet & Chain</th>
+                  <th className="pb-3">Date & Time</th>
+                  <th className="pb-3">Status</th>
+                  <th className="pb-3">TX Hash / Notes</th>
+                  <th className="pb-3 pr-2 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-app/60 text-xs font-medium">
+                {filteredWithdrawals.map((w) => (
+                  <tr key={w.id} className="hover:bg-app-sec/30 transition-colors">
+                    <td className="py-3.5 pl-2 font-mono font-bold text-app text-xs">
+                      {w.id}
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="font-bold text-app">{w.user}</div>
+                      <div className="text-[10px] text-app-sec">{w.email}</div>
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="font-extrabold text-app">{w.amount} {w.asset}</div>
+                      <div className="text-[10px] text-app-sec">{w.network}</div>
+                    </td>
+
+                    <td className="py-3.5 font-bold text-amber-500 font-mono">
+                      ${w.usdValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="font-mono text-[11px] text-app font-semibold truncate max-w-[140px]" title={w.walletAddress}>
+                        {w.walletAddress}
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 text-app-sec text-[11px] font-mono">
+                      {w.date} <span className="text-[10px]">{w.time}</span>
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold w-fit ${
+                          w.status === 'Successful' || w.status === 'Approved'
+                            ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                            : w.status === 'Processing'
+                            ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20'
+                            : w.status === 'Pending' || w.status === 'Under Review'
+                            ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                            : 'bg-red-500/10 text-red-500 border border-red-500/20'
+                        }`}>
+                          {w.status}
+                        </span>
+                        {w.rejectionReason && (
+                          <span className="text-[9px] text-red-400 font-normal max-w-[120px] truncate" title={w.rejectionReason}>
+                            Reason: {w.rejectionReason}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="font-mono text-[10px] text-app-sec truncate max-w-[120px]" title={w.txHash}>
+                        {w.txHash}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setEditingNotesItem(w);
+                          setInternalNote(w.notes);
+                        }}
+                        className="text-[10px] text-accent hover:underline flex items-center gap-1 mt-0.5"
+                      >
+                        <Edit className="w-3 h-3" /> Edit Notes
+                      </button>
+                    </td>
+
+                    <td className="py-3.5 pr-2 text-right">
+                      {w.status === 'Pending' || w.status === 'Under Review' || w.status === 'Processing' ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <select
+                            value={w.status}
+                            onChange={(e) => {
+                              const target = e.target.value as WithdrawalRecord['status'];
+                              setStatusModal({ withdrawal: w, targetStatus: target });
+                              setRejectionReason('');
+                              setInternalNote('');
+                            }}
+                            className="bg-app-sec border border-app rounded-xl px-2.5 py-1 text-xs font-bold text-app focus:outline-none"
+                          >
+                            <option value="Pending">Set Pending</option>
+                            <option value="Under Review">Set Under Review</option>
+                            <option value="Approved">Set Approved</option>
+                            <option value="Processing">Set Processing</option>
+                            <option value="Successful">Set Successful</option>
+                            <option value="Rejected">Set Rejected</option>
+                            <option value="Cancelled">Set Cancelled</option>
+                            <option value="Failed">Set Failed</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <span className="text-app-sec text-[10px] italic">Resolved</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {filteredWithdrawals.length === 0 && !isLoading && (
+                  <tr>
+                    <td colSpan={9} className="py-8 text-center text-app-sec font-medium">
+                      No withdrawals found matching criteria.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -439,7 +443,7 @@ export const AdminWithdrawalsTab: React.FC = () => {
                 <ShieldAlert className="w-5 h-5 text-amber-500" />
                 <span>Confirm Withdrawal Status Update</span>
               </h3>
-              <button onClick={() => setStatusModal(null)} className="p-1 rounded-lg text-app-sec hover:text-app">
+              <button onClick={() => setStatusModal(null)} className="p-1 rounded-lg text-app-sec hover:text-app" disabled={isActionLoading}>
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -464,7 +468,7 @@ export const AdminWithdrawalsTab: React.FC = () => {
               <div className="flex justify-between pt-1 border-t border-app">
                 <span className="text-app-sec font-bold">New Target Status:</span>
                 <span className={`font-black uppercase px-2 py-0.5 rounded text-[10px] ${
-                  statusModal.targetStatus === 'Successful' ? 'bg-emerald-500 text-white' :
+                  statusModal.targetStatus === 'Successful' || statusModal.targetStatus === 'Approved' ? 'bg-emerald-500 text-white' :
                   statusModal.targetStatus === 'Rejected' ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'
                 }`}>
                   {statusModal.targetStatus}
@@ -484,7 +488,8 @@ export const AdminWithdrawalsTab: React.FC = () => {
                   placeholder="State exact reason for rejection (e.g. Unverified recipient wallet, failed security check, insufficient margin)..."
                   rows={3}
                   required
-                  className="w-full bg-app-card border border-red-500/40 rounded-xl p-3 text-xs text-app placeholder-app-sec focus:outline-none focus:ring-2 focus:ring-red-500/50"
+                  disabled={isActionLoading}
+                  className="w-full bg-app-card border border-red-500/40 rounded-xl p-3 text-xs text-app placeholder-app-sec focus:outline-none focus:ring-2 focus:ring-red-500/50 disabled:opacity-50"
                 />
               </div>
             )}
@@ -496,23 +501,27 @@ export const AdminWithdrawalsTab: React.FC = () => {
                 onChange={(e) => setInternalNote(e.target.value)}
                 placeholder="Optional internal notes for audit stream..."
                 rows={2}
-                className="w-full bg-app-sec border border-app rounded-xl p-2.5 text-xs text-app focus:outline-none focus:border-amber-500"
+                disabled={isActionLoading}
+                className="w-full bg-app-sec border border-app rounded-xl p-2.5 text-xs text-app focus:outline-none focus:border-amber-500 disabled:opacity-50"
               />
             </div>
 
             <div className="pt-3 border-t border-app flex items-center justify-end gap-2">
               <button
                 onClick={() => setStatusModal(null)}
-                className="px-4 py-2.5 rounded-xl bg-app-sec text-app-sec hover:text-app font-bold text-xs"
+                disabled={isActionLoading}
+                className="px-4 py-2.5 rounded-xl bg-app-sec text-app-sec hover:text-app font-bold text-xs disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmStatusChange}
-                className={`px-5 py-2.5 rounded-xl text-white font-extrabold text-xs shadow-md ${
+                disabled={isActionLoading}
+                className={`flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-white font-extrabold text-xs shadow-md disabled:opacity-50 ${
                   statusModal.targetStatus === 'Rejected' ? 'bg-red-500 hover:bg-red-600' : 'bg-amber-500 hover:bg-amber-600'
                 }`}
               >
+                {isActionLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                 Confirm Status Update
               </button>
             </div>
