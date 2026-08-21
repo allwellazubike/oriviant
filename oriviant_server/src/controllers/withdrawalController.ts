@@ -47,5 +47,63 @@ export const withdrawalController = {
       console.error('Get withdrawals error:', err);
       return res.status(500).json({ success: false, error: 'Failed to retrieve withdrawals' });
     }
+  },
+
+  approveWithdrawal: async (req: Request, res: Response) => {
+    try {
+      const adminId = req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const withdrawalId = Number(req.params.id);
+      const { tx_hash } = req.body;
+
+      if (!withdrawalId) {
+        return res.status(400).json({ success: false, error: 'Invalid withdrawal ID' });
+      }
+
+      if (!tx_hash) {
+        return res.status(400).json({ success: false, error: 'Transaction hash is required for approval' });
+      }
+
+      const withdrawal = await withdrawalService.approveWithdrawal(withdrawalId, adminId, tx_hash);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Withdrawal approved successfully',
+        withdrawal
+      });
+    } catch (err: any) {
+      console.error('Withdrawal approval error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to approve withdrawal' });
+    }
+  },
+
+  denyWithdrawal: async (req: Request, res: Response) => {
+    try {
+      const adminId = req.user?.id;
+      if (!adminId) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      const withdrawalId = Number(req.params.id);
+      const { notes } = req.body;
+
+      if (!withdrawalId) {
+        return res.status(400).json({ success: false, error: 'Invalid withdrawal ID' });
+      }
+
+      const withdrawal = await withdrawalService.denyWithdrawal(withdrawalId, adminId, notes || 'Rejected by admin');
+
+      return res.status(200).json({
+        success: true,
+        message: 'Withdrawal denied and funds released',
+        withdrawal
+      });
+    } catch (err: any) {
+      console.error('Withdrawal denial error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to deny withdrawal' });
+    }
   }
 };

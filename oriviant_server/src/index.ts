@@ -3,11 +3,14 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import depositRoutes from './routes/depositRoutes.js';
+import withdrawalRoutes from './routes/withdrawalRoutes.js';
+import transferRoutes from './routes/transferRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
 import marketRoutes from './routes/marketRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import tradingRoutes from './routes/tradingRoutes.js';
 import copyTradingRoutes from './routes/copyTradingRoutes.js';
+import futuresRoutes from './routes/futuresRoutes.js';
 import { processRestingOrders } from './services/tradingService.js';
 import { tickDemoTraders } from './services/demoTraderEngine.js';
 import pool from './config/db.js';
@@ -25,11 +28,14 @@ app.use(express.json({ limit: '8mb' }));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/deposits', depositRoutes);
+app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/markets', marketRoutes);
 app.use('/api/wallets', walletRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/copy', copyTradingRoutes);
+app.use('/api/futures', futuresRoutes);
+app.use('/api/transfers', transferRoutes);
 
 // Database connection check
 pool.query('SELECT NOW()', (err, res) => {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/db.js';
 import { applyMovement } from '../services/ledgerService.js';
 import { sendDepositApproved, sendDepositDenied } from '../services/emailService.js';
+import { adminService } from '../services/adminService.js';
 
 /**
  * Deposit requests for the admin queue.
@@ -31,6 +32,38 @@ export const getPendingDeposits = async (req: Request, res: Response) => {
     res.status(200).json({ success: true, data: result.rows });
   } catch (error) {
     console.error('Error fetching deposits:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+/**
+ * Withdrawal requests for the admin queue.
+ *
+ * Defaults to PENDING (the actionable queue) but accepts ?status=ALL or a
+ * specific status so the admin can review what was already approved or denied.
+ */
+export const getPendingWithdrawals = async (req: Request, res: Response) => {
+  try {
+    const requested = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'PENDING';
+    const allowed = ['PENDING', 'APPROVED', 'DENIED', 'COMPLETED', 'REJECTED'];
+
+    const filterByStatus = allowed.includes(requested);
+    if (!filterByStatus && requested !== 'ALL') {
+      return res.status(400).json({ success: false, error: 'Invalid status filter' });
+    }
+
+    const query = `
+      SELECT w.*, u.email, u.nickname
+      FROM withdrawals w
+      JOIN users u ON w.user_id = u.id
+      ${filterByStatus ? 'WHERE w.status = $1' : ''}
+      ORDER BY w.created_at DESC
+      LIMIT 200;
+    `;
+    const result = await pool.query(query, filterByStatus ? [requested] : []);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching withdrawals:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
@@ -72,9 +105,9 @@ export const getUsers = async (req: Request, res: Response) => {
       LEFT JOIN (
         SELECT
           user_id,
-          COUNT(*)                                        AS deposit_count,
-          COUNT(*) FILTER (WHERE status = 'PENDING')      AS pending_count,
-          MAX(created_at)                                 AS last_deposit_at
+          COUNT(*)                                                        AS deposit_count,
+          COUNT(*) FILTER (WHERE status = 'PENDING')                      AS pending_count,
+          MAX(created_at)                                                 AS last_deposit_at
         FROM deposit_requests
         GROUP BY user_id
       ) d ON d.user_id = u.id
@@ -98,11 +131,11 @@ export const getAdminStats = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
       SELECT
-        (SELECT COUNT(*) FROM users)                                          AS total_users,
+        (SELECT COUNT(*) FROM users)                                      AS total_users,
         (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '7 days') AS new_users_7d,
-        (SELECT COUNT(*) FROM deposit_requests WHERE status = 'PENDING')      AS pending_deposits,
-        (SELECT COUNT(*) FROM deposit_requests WHERE status = 'APPROVED')     AS approved_deposits,
-        (SELECT COUNT(*) FROM wallets WHERE balance > 0)                      AS funded_wallets;
+        (SELECT COUNT(*) FROM deposit_requests WHERE status = 'PENDING')          AS pending_deposits,
+        (SELECT COUNT(*) FROM deposit_requests WHERE status = 'APPROVED')         AS approved_deposits,
+        (SELECT COUNT(*) FROM wallets WHERE balance > 0)                          AS funded_wallets;
     `);
 
     // Held balances are per-asset; converting to a single fiat total needs a
@@ -112,7 +145,7 @@ export const getAdminStats = async (req: Request, res: Response) => {
       FROM wallets
       WHERE balance > 0
       GROUP BY asset_symbol
-      ORDER BY asset_symbol;
+      ORDER BY asset_symbol
     `);
 
     res.status(200).json({
@@ -233,5 +266,165 @@ export const denyDeposit = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error denying deposit:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const approveWithdrawal = async (req: Request, res: Response) => {
+  try {
+    const withdrawalId = req.params.id;
+    const txHash = typeof req.body?.tx_hash === 'string' ? req.body.tx_hash.trim() : null;
+
+    const query = `
+      UPDATE withdrawals
+      SET status = 'APPROVED',
+          tx_hash = COALESCE($1, tx_hash),
+          reviewed_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3 AND status = 'PENDING'
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [txHash, req.user?.id ?? null, withdrawalId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Pending withdrawal request not found.' });
+    }
+
+    const approved = result.rows[0];
+    res.status(200).json({
+      success: true,
+      message: `Withdrawal of ${approved.amount} ${approved.asset} approved.`,
+      data: approved,
+    });
+  } catch (error) {
+    console.error('Error approving withdrawal:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const denyWithdrawal = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const withdrawalId = req.params.id;
+
+    await client.query('BEGIN');
+
+    // 1. Lock and fetch pending withdrawal
+    const wthQuery = `SELECT * FROM withdrawals WHERE id = $1 AND status = 'PENDING' FOR UPDATE;`;
+    const wthResult = await client.query(wthQuery, [withdrawalId]);
+
+    if (wthResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Pending withdrawal request not found.' });
+    }
+
+    const withdrawal = wthResult.rows[0];
+
+    // 2. Update status to DENIED
+    await client.query(
+      `UPDATE withdrawals
+       SET status = 'DENIED',
+           reviewed_by = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [req.user?.id ?? null, withdrawalId]
+    );
+
+    // 3. Refund the deducted balance back to user's wallet via ledger
+    const refundAmount = Number(withdrawal.amount);
+    const balanceAfter = await applyMovement({
+      client,
+      userId: withdrawal.user_id,
+      asset: withdrawal.asset,
+      delta: refundAmount,
+      reason: 'WITHDRAWAL_DENIED_REFUND' as any,
+      refType: 'withdrawal',
+      refId: withdrawalId,
+      metadata: { deniedBy: req.user?.email, reason: req.body?.reason || 'Administrative rejection' },
+    });
+
+    await client.query('COMMIT');
+
+    res.status(200).json({
+      success: true,
+      message: `Withdrawal denied and ${refundAmount} ${withdrawal.asset} refunded.`,
+      data: {
+        user_id: withdrawal.user_id,
+        asset_symbol: withdrawal.asset,
+        balance: balanceAfter,
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error denying withdrawal:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+// --- NEW PHASE 12: ADMIN GOVERNANCE METHODS ---
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const targetUserId = parseInt(req.params.id, 10);
+    const { is_suspended, vip_level, role } = req.body;
+
+    const updatedUser = await adminService.updateUserStatus(adminId, targetUserId, {
+      is_suspended,
+      vip_level,
+      role
+    });
+
+    return res.status(200).json({ success: true, message: 'User updated', user: updatedUser });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+export const getAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const logs = await adminService.getAuditLogs();
+    return res.status(200).json({ success: true, logs });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getLedgerLogs = async (req: Request, res: Response) => {
+  try {
+    const logs = await adminService.getSystemLedgerLogs();
+    return res.status(200).json({ success: true, logs });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getSettings = async (req: Request, res: Response) => {
+  try {
+    const settings = await adminService.getPlatformSettings();
+    return res.status(200).json({ success: true, settings });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const updateSettings = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const { key, value } = req.body;
+    if (!key || !value) {
+      return res.status(400).json({ success: false, error: 'Missing key or value' });
+    }
+    const updated = await adminService.updatePlatformSetting(adminId, key, value);
+    return res.status(200).json({ success: true, message: 'Setting updated', setting: updated });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
   }
 };
