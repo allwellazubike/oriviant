@@ -25,6 +25,7 @@ import {
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { NavigationTab } from '../../types';
+import { securityApi } from '../../api/security';
 
 interface ProfileSettingsViewProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -52,12 +53,29 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
     setTimeout(() => setMsg(null), 3000);
   };
 
-  const handleSaveAntiPhishing = (e: React.FormEvent) => {
+  const handleSaveAntiPhishing = async (e: React.FormEvent) => {
     e.preventDefault();
     updateAntiPhishingCode(antiPhishingInput);
     setIsEditingPhishing(false);
-    setMsg('Anti-Phishing Code updated successfully! This code will appear in all official emails from Oriviant.');
+
+    try {
+      await securityApi.updateAntiPhishingCode(antiPhishingInput);
+      setMsg('Anti-Phishing Code updated successfully on server! This code will appear in all official emails from Oriviant.');
+    } catch (err) {
+      setMsg('Anti-Phishing Code updated locally (offline mode active).');
+    }
     setTimeout(() => setMsg(null), 4000);
+  };
+
+  const handleRevokeSessionBackend = async (deviceId: string) => {
+    removeTrustedDevice(deviceId);
+    try {
+      await securityApi.revokeSession(deviceId);
+      setMsg('Session successfully revoked on server.');
+    } catch (err) {
+      setMsg('Session revoked locally.');
+    }
+    setTimeout(() => setMsg(null), 3000);
   };
 
   return (
@@ -281,7 +299,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
 
               {!dev.isCurrentDevice && (
                 <button
-                  onClick={() => removeTrustedDevice(dev.id)}
+                  onClick={() => handleRevokeSessionBackend(dev.id)}
                   className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs border border-rose-500/20 transition-all flex items-center gap-1.5 self-end sm:self-center cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
