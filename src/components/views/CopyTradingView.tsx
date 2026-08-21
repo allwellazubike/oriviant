@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   Star, 
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useCopyTrading } from '../../contexts/CopyTradingContext';
 import { LeadTrader } from '../../types';
+import { copyTradingApi } from '../../api/copyTrading';
 
 export const CopyTradingView: React.FC = () => {
   const { traders, followedTraders, followTrader, stopCopyTrader, addReview } = useCopyTrading();
@@ -26,6 +27,12 @@ export const CopyTradingView: React.FC = () => {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewComment, setReviewComment] = useState('');
+  const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setNotificationMsg(msg);
+    setTimeout(() => setNotificationMsg(null), 3500);
+  };
 
   const sortedTraders = [...traders].sort((a, b) => {
     if (filterSort === 'roi') return b.roi30d - a.roi30d;
@@ -34,10 +41,38 @@ export const CopyTradingView: React.FC = () => {
     return b.followers - a.followers;
   });
 
-  const handleConfirmCopy = () => {
-    if (selectedTrader) {
-      followTrader(selectedTrader.id, copyAllocation, stopLossPct);
+  const handleConfirmCopy = async () => {
+    if (!selectedTrader) return;
+    
+    // Execute local context update
+    followTrader(selectedTrader.id, copyAllocation, stopLossPct);
+
+    try {
+      // Sync with backend API
+      const res = await copyTradingApi.startCopying({
+        master_trader_id: selectedTrader.id,
+        allocation_amount: copyAllocation,
+        leverage_mode: 'PROPORTIONAL',
+        stop_loss_pct: stopLossPct
+      });
+      if (res.success) {
+        showToast(res.message || `Successfully started copying ${selectedTrader.name}`);
+      }
+    } catch (err: any) {
+      console.error('Backend copy trading sync error:', err);
+      showToast('Started copying locally (offline mode active)');
+    } finally {
       setIsCopyModalOpen(false);
+    }
+  };
+
+  const handleStopCopyingBackend = async (traderId: string | number) => {
+    stopCopyTrader(String(traderId));
+    try {
+      await copyTradingApi.stopCopying(traderId);
+      showToast('Successfully stopped copying trader.');
+    } catch (err) {
+      showToast('Stopped copying locally.');
     }
   };
 
@@ -47,12 +82,21 @@ export const CopyTradingView: React.FC = () => {
       addReview(selectedTrader.id, reviewRating, reviewComment);
       setIsReviewModalOpen(false);
       setReviewComment('');
+      showToast('Review submitted successfully!');
     }
   };
 
   return (
     <div className="space-y-6 pb-12">
       
+      {/* Toast Notice */}
+      {notificationMsg && (
+        <div className="p-3.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 text-xs font-bold flex items-center justify-between shadow-md">
+          <span>{notificationMsg}</span>
+          <button onClick={() => setNotificationMsg(null)}><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {/* Header Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 border border-indigo-500/30 text-white shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -173,7 +217,7 @@ export const CopyTradingView: React.FC = () => {
               <div className="pt-2 flex items-center gap-2">
                 {isFollowing ? (
                   <button
-                    onClick={() => stopCopyTrader(trader.id)}
+                    onClick={() => handleStopCopyingBackend(trader.id)}
                     className="w-full py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold text-xs border border-red-500/20 transition-colors"
                   >
                     Stop Copying
