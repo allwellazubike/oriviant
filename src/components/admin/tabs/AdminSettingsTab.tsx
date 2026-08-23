@@ -8,7 +8,8 @@ import {
   X,
   Percent,
   Lock,
-  RefreshCw
+  RefreshCw,
+  Zap
 } from 'lucide-react';
 import { adminApi } from '../../../api/admin';
 
@@ -93,6 +94,18 @@ export const AdminSettingsTab: React.FC = () => {
   const handleSaveSecurity = (e: React.FormEvent) => {
     e.preventDefault();
     saveKey('security', security, 'Security settings');
+  };
+
+  const handleResetAllPractice = async () => {
+    setIsSaving(true);
+    try {
+      const res = await adminApi.resetAllPracticeAccounts();
+      flash(res.message || 'Practice balances reset.');
+    } catch (error) {
+      flash('Failed to reset practice balances.', true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const toggleMaintenanceMode = () => {
@@ -296,6 +309,23 @@ export const AdminSettingsTab: React.FC = () => {
           </button>
         </div>
       </form>
+
+      {/* Practice Demo Mode Module */}
+      <div className="p-6 rounded-3xl bg-app-card border border-emerald-500/30 shadow-sm space-y-4">
+        <h3 className="text-sm font-extrabold text-app flex items-center gap-2">
+          <Zap className="w-4 h-4 text-emerald-500" />
+          <span>Practice Demo Mode Module</span>
+        </h3>
+        <p className="text-xs text-app-sec">Every practice account starts at $10,000 USDT. Use the Practice Mode Desk tab to reset individual accounts, or reset everyone at once here.</p>
+        <button
+          type="button"
+          onClick={handleResetAllPractice}
+          disabled={isSaving}
+          className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md transition-all cursor-pointer disabled:opacity-60"
+        >
+          Reset All Practice Balances
+        </button>
+      </div>
 
       {/* Email Delivery — informational, not DB-backed (the app sends via a transactional API, not SMTP) */}
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-sm space-y-3">

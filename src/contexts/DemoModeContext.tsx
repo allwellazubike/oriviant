@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useOverlayRegistration } from '../utils/OverlayRegistry';
 import { VirtualLedgerEntry, DemoAnalytics } from '../types';
+import { practiceApi } from '../api/practice';
 
 interface DemoModeContextType {
   isDemoMode: boolean;
@@ -223,6 +224,11 @@ export const DemoModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       // Update analytics if trade profit/loss
       if (entry.type === 'trade_profit' || entry.type === 'trade_loss') {
+        // Best-effort report to the backend so admins can see real practice
+        // activity — the local simulation above is the source of truth for
+        // the user's own UI either way, so a failure here is silently ignored.
+        practiceApi.recordTrade({ description: entry.description, pnl: entry.amount }).catch(() => {});
+
         setAnalytics((prevAnalytics) => {
           const isWin = entry.amount > 0;
           const wins = prevAnalytics.winningTrades + (isWin ? 1 : 0);

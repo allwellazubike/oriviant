@@ -15,6 +15,7 @@ import academyRoutes from './routes/academyRoutes.js';
 import copyTradingRoutes from './routes/copyTradingRoutes.js';
 import futuresRoutes from './routes/futuresRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import practiceRoutes from './routes/practiceRoutes.js';
 import { processRestingOrders } from './services/tradingService.js';
 import { tickDemoTraders } from './services/demoTraderEngine.js';
 import { websocketService } from './services/websocketService.js';
@@ -94,6 +95,7 @@ app.use('/api/futures', futuresRoutes);
 app.use('/api/transfers', transferRoutes);
 app.use('/api/academy', academyRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/practice', practiceRoutes);
 
 // Database connection check
 pool.query('SELECT NOW()', (err, res) => {

@@ -76,6 +76,20 @@ export const adminApi = {
     return apiClient<{ success: boolean; data: any }>('/admin/analytics', { method: 'GET' });
   },
 
+  // --- PRACTICE MODE DESK ---
+  getPracticeAccounts: async () => {
+    return apiClient<{ success: boolean; data: any[] }>('/admin/practice/accounts', { method: 'GET' });
+  },
+  getPracticeLeaderboard: async () => {
+    return apiClient<{ success: boolean; data: any[] }>('/admin/practice/leaderboard', { method: 'GET' });
+  },
+  resetPracticeAccount: async (userId: number) => {
+    return apiClient<{ success: boolean; data: any }>(`/admin/practice/${userId}/reset`, { method: 'POST' });
+  },
+  resetAllPracticeAccounts: async () => {
+    return apiClient<{ success: boolean; message: string; data: { count: number } }>('/admin/practice/reset-all', { method: 'POST' });
+  },
+
   // --- REPORTS & EXPORT ---
   getReportCounts: async () => {
     return apiClient<{ success: boolean; data: Record<string, number> }>('/admin/reports/counts', { method: 'GET' });

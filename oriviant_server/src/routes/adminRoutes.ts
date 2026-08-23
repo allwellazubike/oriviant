@@ -30,6 +30,7 @@ import {
 import { getAdminTraders, patchTraderStatus } from '../controllers/copyTradingController.js';
 import { getAcademyOverview, setLessonStatus } from '../controllers/academyController.js';
 import { getReportCounts, exportReport } from '../controllers/reportsController.js';
+import { getAdminAccounts, getAdminLeaderboard, postAdminResetOne, postAdminResetAll } from '../controllers/practiceController.js';
 
 const router = Router();
 
@@ -66,6 +67,12 @@ router.patch('/academy/lessons/:lessonId/status', setLessonStatus);
 // Reports & Export
 router.get('/reports/counts', getReportCounts);
 router.get('/reports/export', exportReport);
+
+// Practice Mode Desk
+router.get('/practice/accounts', getAdminAccounts);
+router.get('/practice/leaderboard', getAdminLeaderboard);
+router.post('/practice/:userId/reset', postAdminResetOne);
+router.post('/practice/reset-all', postAdminResetAll);
 
 // Audit & System Logs
 router.get('/audit-logs', getAuditLogs);

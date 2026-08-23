@@ -527,13 +527,18 @@ const createTables = async () => {
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS practice_trades (
+    -- practice_trades shipped in an earlier revision with rigid NOT NULL
+    -- pair/side/fill_price columns that turned out not to match what the
+    -- client can actually report. Safe to drop and redefine: it has never
+    -- had a real write against it.
+    DROP TABLE IF EXISTS practice_trades;
+
+    CREATE TABLE practice_trades (
       id BIGSERIAL PRIMARY KEY,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      pair VARCHAR(20) NOT NULL,
-      side VARCHAR(4) NOT NULL,
-      amount NUMERIC NOT NULL,
-      fill_price NUMERIC NOT NULL,
+      pair VARCHAR(20),
+      side VARCHAR(10),
+      description TEXT,
       pnl NUMERIC NOT NULL DEFAULT 0,
       balance_after NUMERIC NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
