@@ -76,6 +76,24 @@ export const adminApi = {
     return apiClient<{ success: boolean; data: any }>('/admin/analytics', { method: 'GET' });
   },
 
+  // --- AUDIT & SYSTEM LOGS ---
+  getAuditLogs: async () => {
+    return apiClient<{ success: boolean; logs: any[] }>('/admin/audit-logs', { method: 'GET' });
+  },
+  getLedgerLogs: async () => {
+    return apiClient<{ success: boolean; logs: any[] }>('/admin/ledger-logs', { method: 'GET' });
+  },
+
+  // --- PLATFORM SETTINGS ---
+  getSettings: async () => {
+    return apiClient<{ success: boolean; settings: Record<string, any> }>('/admin/settings', { method: 'GET' });
+  },
+  updateSetting: async (key: string, value: Record<string, any>) => {
+    return apiClient<{ success: boolean; message: string; setting: any }>('/admin/settings', {
+      method: 'POST', body: JSON.stringify({ key, value }),
+    });
+  },
+
   // --- BROADCAST BANNERS ---
   getBroadcasts: async () => {
     return apiClient<{ success: boolean; data: any[] }>('/admin/broadcasts', { method: 'GET' });

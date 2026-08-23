@@ -12,6 +12,7 @@ import {
   CopyTradeError,
   AdminCopyTraderError,
 } from '../services/copyTradingService.js';
+import { logAudit } from '../services/adminService.js';
 
 const handle = (error: unknown, res: Response, context: string) => {
   if (error instanceof CopyTradeError || error instanceof AdminCopyTraderError) {
@@ -40,6 +41,9 @@ export const patchTraderStatus = async (req: Request, res: Response) => {
     }
 
     const trader = await setTraderStatus(traderId, status);
+    void logAudit(req.user!.id, 'UPDATE_TRADER_STATUS', 'copy_trader', traderId.toString(), {
+      handle: trader.handle, newStatus: status
+    }, req.ip);
     res.status(200).json({ success: true, message: `Trader status set to ${status}.`, data: trader });
   } catch (error) {
     handle(error, res, 'updating trader status');

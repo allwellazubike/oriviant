@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { withdrawalService } from '../services/withdrawalService.js';
 import { notifyWithdrawalPending, notifyWithdrawalCompleted, notifyWithdrawalRejected } from '../services/notificationService.js';
+import { logAudit } from '../services/adminService.js';
 
 export const withdrawalController = {
   requestWithdrawal: async (req: Request, res: Response) => {
@@ -72,6 +73,9 @@ export const withdrawalController = {
 
       const withdrawal = await withdrawalService.approveWithdrawal(withdrawalId, adminId, tx_hash);
       void notifyWithdrawalCompleted(withdrawal.user_id, withdrawal.asset, Number(withdrawal.amount));
+      void logAudit(adminId, 'APPROVE_WITHDRAWAL', 'withdrawal', withdrawalId.toString(), {
+        asset: withdrawal.asset, amount: withdrawal.amount, txHash: tx_hash, userId: withdrawal.user_id
+      }, req.ip);
 
       return res.status(200).json({
         success: true,
@@ -100,6 +104,9 @@ export const withdrawalController = {
 
       const withdrawal = await withdrawalService.denyWithdrawal(withdrawalId, adminId, notes || 'Rejected by admin');
       void notifyWithdrawalRejected(withdrawal.user_id, withdrawal.asset, Number(withdrawal.amount));
+      void logAudit(adminId, 'DENY_WITHDRAWAL', 'withdrawal', withdrawalId.toString(), {
+        asset: withdrawal.asset, amount: withdrawal.amount, notes, userId: withdrawal.user_id
+      }, req.ip);
 
       return res.status(200).json({
         success: true,

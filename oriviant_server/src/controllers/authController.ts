@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
+import { adminService } from '../services/adminService.js';
 import { sendPasswordResetCode } from '../services/emailService.js';
 import { uploadAvatarImage, UploadError } from '../services/uploadService.js';
 import { recordLoginAttempt } from '../services/loginHistoryService.js';
@@ -19,6 +20,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     if (!email || !password) {
       res.status(400).json({ success: false, error: 'Email and password are required' });
+      return;
+    }
+
+    if (!(await adminService.areRegistrationsOpen())) {
+      res.status(403).json({ success: false, error: 'New registrations are temporarily closed. Please check back later.' });
       return;
     }
 

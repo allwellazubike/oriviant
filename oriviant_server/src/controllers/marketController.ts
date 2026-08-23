@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getQuotes, marketDataService } from '../services/marketDataService.js';
 import pool from '../config/db.js';
+import { logAudit } from '../services/adminService.js';
 
 export const getMarketPrices = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -70,6 +71,7 @@ export const createMarket = async (req: Request, res: Response): Promise<void> =
     ];
 
     const result = await pool.query(query, values);
+    void logAudit(req.user!.id, 'CREATE_MARKET_ASSET', 'market_asset', result.rows[0].id.toString(), { symbol, name, category }, req.ip);
     res.status(201).json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -101,6 +103,7 @@ export const updateMarket = async (req: Request, res: Response): Promise<void> =
     ];
 
     const result = await pool.query(query, values);
+    void logAudit(req.user!.id, 'UPDATE_MARKET_ASSET', 'market_asset', id, { symbol, name, category, status }, req.ip);
     res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -110,7 +113,9 @@ export const updateMarket = async (req: Request, res: Response): Promise<void> =
 export const deleteMarket = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const existing = await pool.query('SELECT symbol FROM market_assets WHERE id = $1', [id]);
     await pool.query('DELETE FROM market_assets WHERE id = $1', [id]);
+    void logAudit(req.user!.id, 'DELETE_MARKET_ASSET', 'market_asset', id, { symbol: existing.rows[0]?.symbol }, req.ip);
     res.status(200).json({ success: true, message: 'Market deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -122,6 +127,7 @@ export const quickUpdateMarketStatus = async (req: Request, res: Response): Prom
     const { id } = req.params;
     const { status } = req.body;
     const result = await pool.query('UPDATE market_assets SET status = $1 WHERE id = $2 RETURNING *', [status, id]);
+    void logAudit(req.user!.id, 'UPDATE_MARKET_STATUS', 'market_asset', id, { symbol: result.rows[0]?.symbol, newStatus: status }, req.ip);
     res.status(200).json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Internal server error' });

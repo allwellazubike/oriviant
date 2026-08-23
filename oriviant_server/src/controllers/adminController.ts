@@ -3,7 +3,7 @@ import pool from '../config/db.js';
 import { applyMovement } from '../services/ledgerService.js';
 import { sendDepositApproved, sendDepositDenied } from '../services/emailService.js';
 import { marketDataService } from '../services/marketDataService.js'; 
-import { adminService } from '../services/adminService.js';
+import { adminService, logAudit } from '../services/adminService.js';
 import { notifyDepositCompleted, notifyDepositRejected } from '../services/notificationService.js';
 import { createBroadcast, listBroadcasts, BroadcastAudience } from '../services/notificationService.js';
 
@@ -171,6 +171,9 @@ export const approveDeposit = async (req: Request, res: Response) => {
       void sendDepositApproved(depositor.rows[0].email, amountReceived, deposit.asset);
     }
     void notifyDepositCompleted(deposit.user_id, deposit.asset, amountReceived);
+    void logAudit(req.user!.id, 'APPROVE_DEPOSIT', 'deposit', depositId.toString(), {
+      asset: deposit.asset, amountClaimed: deposit.amount_expected, amountCredited: amountReceived, userId: deposit.user_id
+    }, req.ip);
 
     res.status(200).json({
       success: true,
@@ -208,6 +211,9 @@ export const denyDeposit = async (req: Request, res: Response) => {
       void sendDepositDenied(depositor.rows[0].email, denied.asset);
     }
     void notifyDepositRejected(denied.user_id, denied.asset);
+    void logAudit(req.user!.id, 'DENY_DEPOSIT', 'deposit', depositId.toString(), {
+      asset: denied.asset, amountClaimed: denied.amount_expected, userId: denied.user_id
+    }, req.ip);
 
     res.status(200).json({ success: true, message: 'Deposit denied.' });
   } catch (error) {

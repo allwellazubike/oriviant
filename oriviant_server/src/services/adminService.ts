@@ -1,5 +1,30 @@
 import pool from '../config/db.js';
 
+/**
+ * One place to write an audit row, so every admin mutation endpoint logs the
+ * same shape instead of re-deriving the INSERT at each call site. Never
+ * throws into the caller — a logging failure must not undo the action it was
+ * describing (the deposit is already approved by the time this runs).
+ */
+export const logAudit = async (
+  adminId: number,
+  action: string,
+  targetType: string,
+  targetId: string,
+  details: Record<string, any>,
+  ipAddress?: string | null
+): Promise<void> => {
+  try {
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details, ip_address)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [adminId, action, targetType, targetId, JSON.stringify(details), ipAddress ?? null]
+    );
+  } catch (err) {
+    console.error('[audit] Failed to write audit log:', (err as Error).message);
+  }
+};
+
 export const adminService = {
   getPendingTransactions: async () => {
     const depRes = await pool.query("SELECT * FROM deposit_requests WHERE status = 'PENDING' ORDER BY created_at DESC");
@@ -159,6 +184,24 @@ export const adminService = {
       [limit]
     );
     return res.rows;
+  },
+
+  /**
+   * Read live rather than cached: this only runs on the create-order/open-
+   * position hot path, which is low-volume enough that one extra indexed
+   * lookup per request is cheaper than the risk of a stale in-memory flag
+   * leaving maintenance mode "on" after an admin has already turned it off.
+   */
+  isMaintenanceModeActive: async (): Promise<boolean> => {
+    const res = await pool.query(`SELECT value FROM platform_settings WHERE key = 'general'`);
+    return Boolean(res.rows[0]?.value?.maintenanceMode);
+  },
+
+  areRegistrationsOpen: async (): Promise<boolean> => {
+    const res = await pool.query(`SELECT value FROM platform_settings WHERE key = 'general'`);
+    const value = res.rows[0]?.value;
+    // Default open if the setting has never been touched.
+    return value?.allowRegistrations !== false;
   },
 
   getPlatformSettings: async () => {

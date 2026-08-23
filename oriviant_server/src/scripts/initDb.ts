@@ -541,6 +541,38 @@ const createTables = async () => {
 
     CREATE INDEX IF NOT EXISTS practice_trades_user_idx ON practice_trades (user_id, created_at DESC);
 
+    /* Key-value platform configuration, edited from the admin Platform Settings tab. */
+    CREATE TABLE IF NOT EXISTS platform_settings (
+      key VARCHAR(40) PRIMARY KEY,
+      value JSONB NOT NULL,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO platform_settings (key, value) VALUES
+      ('general', '{"platformName": "Oriviant", "supportEmail": "support@oriviant.com", "maintenanceMode": false, "allowRegistrations": true}'::jsonb),
+      ('trading_fees', '{"makerFee": 0.001, "takerFee": 0.001, "futuresFee": 0.0006}'::jsonb),
+      ('security', '{"maxDailyWithdrawalUSDT": 100000, "require2FAForWithdrawal": true}'::jsonb)
+    ON CONFLICT (key) DO NOTHING;
+
+    /* Immutable log of admin mutations — read by the Executive Audit Trail tab. */
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id SERIAL PRIMARY KEY,
+      admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action VARCHAR(60) NOT NULL,
+      target_type VARCHAR(30),
+      target_id VARCHAR(60),
+      details JSONB,
+      ip_address VARCHAR(64),
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS admin_audit_logs_created_idx ON admin_audit_logs (created_at DESC);
+
+    -- Backfill for rows that existed before allowRegistrations was added.
+    UPDATE platform_settings
+      SET value = value || '{"allowRegistrations": true}'::jsonb
+      WHERE key = 'general' AND NOT (value ? 'allowRegistrations');
+
   `;
 
   try {

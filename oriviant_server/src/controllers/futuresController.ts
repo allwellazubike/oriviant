@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { futuresService } from '../services/futuresService.js';
 import { notifyPositionOpened, notifyPositionClosed } from '../services/notificationService.js';
+import { adminService } from '../services/adminService.js';
 
 export const futuresController = {
   openPosition: async (req: Request, res: Response) => {
@@ -8,6 +9,10 @@ export const futuresController = {
       const userId = req.user?.id;
       if (!userId) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+
+      if (await adminService.isMaintenanceModeActive()) {
+        return res.status(503).json({ success: false, error: 'Trading is temporarily paused for platform maintenance. Please try again shortly.' });
       }
 
       const { market_symbol, side, margin_mode, leverage, collateral_amount } = req.body;

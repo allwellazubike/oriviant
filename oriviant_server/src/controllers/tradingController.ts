@@ -3,10 +3,15 @@ import pool from '../config/db.js';
 import { placeOrder, cancelOrder, TradeError, FEE_RATE } from '../services/tradingService.js';
 import { PriceUnavailableError, getMarketPrice } from '../services/priceOracle.js';
 import { notifyOrderPlaced, notifyOrderFilled, notifyOrderCancelled } from '../services/notificationService.js';
+import { adminService } from '../services/adminService.js';
 
 export const createOrder = async (req: Request, res: Response) => {
   console.log('📥 INCOMING ORDER REQUEST:', req.body);
   try {
+    if (await adminService.isMaintenanceModeActive()) {
+      return res.status(503).json({ success: false, error: 'Trading is temporarily paused for platform maintenance. Please try again shortly.' });
+    }
+
     const userId = req.user!.id;
     const body = req.body ?? {};
 
