@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { LocalizationProvider } from './contexts/LocalizationContext';
 import { DemoModeProvider } from './contexts/DemoModeContext';
 import { TradingProvider } from './contexts/TradingContext';
 import { UserProvider, useUser } from './contexts/UserContext';
@@ -161,21 +162,23 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <DemoModeProvider>
-        <UserProvider>              {/* <-- FIX: UserProvider is now wrapping TradingProvider */}
-          <TradingProvider>
-            <CopyTradingProvider>
-              <NotificationProvider>
-                <SearchProvider>
-                  <NavigationProvider>
-                    <AppContent />
-                  </NavigationProvider>
-                </SearchProvider>
-              </NotificationProvider>
-            </CopyTradingProvider>
-          </TradingProvider>
-        </UserProvider>
-      </DemoModeProvider>
+      <LocalizationProvider>
+        <DemoModeProvider>
+          <UserProvider>              {/* <-- FIX: UserProvider is now wrapping TradingProvider */}
+            <TradingProvider>
+              <CopyTradingProvider>
+                <NotificationProvider>
+                  <SearchProvider>
+                    <NavigationProvider>
+                      <AppContent />
+                    </NavigationProvider>
+                  </SearchProvider>
+                </NotificationProvider>
+              </CopyTradingProvider>
+            </TradingProvider>
+          </UserProvider>
+        </DemoModeProvider>
+      </LocalizationProvider>
     </ThemeProvider>
   );
 }
