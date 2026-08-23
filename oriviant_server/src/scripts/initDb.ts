@@ -13,6 +13,8 @@ const createTables = async () => {
 
     -- Migration for databases created before the role column existed.
     ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user';
+    -- Profile picture, stored on Cloudinary; this column holds only the URL.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_check') THEN
@@ -151,6 +153,45 @@ const createTables = async () => {
     CREATE INDEX IF NOT EXISTS password_resets_user_idx
       ON password_resets (user_id, created_at DESC);
 
+    /*
+     * Audit trail of sign-in attempts, shown back to the user as "Recent Login
+     * Activity" so they can notice access they do not recognize. Failed
+     * attempts are recorded too — that is precisely the case a user checking
+     * this table is looking for.
+     */
+    CREATE TABLE IF NOT EXISTS login_history (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      ip_address VARCHAR(64),
+      device VARCHAR(40),
+      browser VARCHAR(40),
+      os VARCHAR(40),
+      status VARCHAR(20) NOT NULL DEFAULT 'Success',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS login_history_user_idx
+      ON login_history (user_id, created_at DESC);
+
+      /*
+     * User progression tracking for the Oriviant Academy.
+     * Stored permanently so users don't lose XP/streaks if they clear cache.
+     * Uses JSONB for flexible array/object storage of lesson IDs and scores.
+     */
+    CREATE TABLE IF NOT EXISTS academy_progress (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      completed_lesson_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+      quiz_scores JSONB NOT NULL DEFAULT '{}'::jsonb,
+      total_learning_minutes INTEGER NOT NULL DEFAULT 0,
+      daily_streak INTEGER NOT NULL DEFAULT 0,
+      last_active_date DATE,
+      practice_scenarios_completed JSONB NOT NULL DEFAULT '[]'::jsonb,
+      xp_points INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    
     /* ================= COPY TRADING ================= */
 
     /*
