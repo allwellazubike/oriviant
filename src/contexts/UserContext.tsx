@@ -3,6 +3,7 @@ import { useOverlayRegistration } from '../utils/OverlayRegistry';
 import { WalletAsset } from '../types';
 import { INITIAL_WALLET_ASSETS } from '../mockData';
 import { apiClient } from '../api/client';
+import { authApi } from '../api/auth';
 import { walletApi } from '../api/wallet';
 import { depositApi } from '../api/deposits';
 import { withdrawalApi } from '../api/withdrawals';
@@ -16,7 +17,8 @@ import {
   AdminAuditRecord,
   DepositStatus,
   WithdrawalStatus,
-  WalletSubAccount
+  WalletSubAccount,
+  LoginHistoryItem
 } from '../types/wallet';
 import {
   INITIAL_WALLET_ASSETS_DETAIL,
@@ -90,6 +92,8 @@ interface UserContextType {
   login: (email: string, password?: string, rememberMe?: boolean) => Promise<boolean>;
   registerAccount: (userData: Record<string, string>) => Promise<boolean>;
   triggerSessionExpired: () => void;
+  updateProfile: (nickname: string) => Promise<{ success: boolean; error?: string }>;
+  uploadAvatar: (avatarDataUri: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -242,6 +246,27 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const fetchLoginHistory = useCallback(async () => {
+    try {
+      const res = await authApi.getLoginHistory();
+      if (res.success && Array.isArray(res.data)) {
+        const mapped: LoginHistoryItem[] = res.data.map((row) => ({
+          id: `LOG-${row.id}`,
+          loginTime: row.created_at ? new Date(row.created_at).toISOString().replace('T', ' ').substring(0, 19) : '',
+          location: 'Unknown',
+          browser: row.browser || 'Unknown',
+          os: row.os || 'Unknown',
+          device: row.device || 'Unknown',
+          ip: row.ip_address || 'Unknown',
+          status: row.status === 'Failed' ? 'Failed' : 'Success'
+        }));
+        setSecurityState((prev: UserSecurityState) => ({ ...prev, loginHistory: mapped }));
+      }
+    } catch (err) {
+      console.error('Failed to load login history:', err);
+    }
+  }, []);
+
   useEffect(() => {
     const handleRefresh = () => {
       fetchLiveWallets();
@@ -264,10 +289,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...prev,
               id: userData.id?.toString() || prev.id,
               email: userData.email || prev.email,
-              nickname: userData.nickname || userData.name || prev.nickname
+              nickname: userData.nickname || userData.name || prev.nickname,
+              avatar: userData.avatar_url || prev.avatar
             }));
             setIsLoggedIn(true);
-            await Promise.all([fetchLiveWallets(), fetchLiveTransactions()]);
+            await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
           } else {
             confirmLogout();
           }
@@ -280,7 +306,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     validateSession();
-  }, [fetchLiveWallets, fetchLiveTransactions]);
+  }, [fetchLiveWallets, fetchLiveTransactions, fetchLoginHistory]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
@@ -369,12 +395,13 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...user,
           id: userData.id?.toString() || '',
           email: userData.email || email,
-          nickname: userData.nickname || userData.name || 'Trader'
+          nickname: userData.nickname || userData.name || 'Trader',
+          avatar: userData.avatar_url || user.avatar
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
 
-        await Promise.all([fetchLiveWallets(), fetchLiveTransactions()]);
+        await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
 
         localStorage.setItem('oriviant_authenticated', 'true');
         localStorage.setItem('oriviant_token', token);
@@ -413,16 +440,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...user,
           id: userObj.id?.toString() || '',
           email: userObj.email || userData.email,
-          nickname: userObj.nickname || userObj.name || 'Trader'
+          nickname: userObj.nickname || userObj.name || 'Trader',
+          avatar: userObj.avatar_url || user.avatar
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
 
-        await Promise.all([fetchLiveWallets(), fetchLiveTransactions()]);
+        await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
 
         localStorage.setItem('oriviant_authenticated', 'true');
         localStorage.setItem('oriviant_token', token);
-        
+
         return true;
       }
       
@@ -434,6 +462,45 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const triggerSessionExpired = () => confirmLogout();
+
+  const updateProfile = async (nickname: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await authApi.updateProfile(nickname);
+      const userData = res.user;
+
+      if (res.success && userData) {
+        setUser((prev: UserProfile) => ({
+          ...prev,
+          nickname: userData.nickname || prev.nickname,
+          avatar: userData.avatar_url || prev.avatar
+        }));
+        return { success: true };
+      }
+
+      return { success: false, error: res.message || res.error || 'Could not update profile.' };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'Could not update profile.' };
+    }
+  };
+
+  const uploadAvatar = async (avatarDataUri: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const res = await authApi.uploadAvatar(avatarDataUri);
+      const userData = res.user;
+
+      if (res.success && userData) {
+        setUser((prev: UserProfile) => ({
+          ...prev,
+          avatar: userData.avatar_url || prev.avatar
+        }));
+        return { success: true };
+      }
+
+      return { success: false, error: res.message || res.error || 'Could not upload avatar.' };
+    } catch (error: any) {
+      return { success: false, error: error?.message || 'Could not upload avatar.' };
+    }
+  };
 
   const submitDeposit = (assetSymbol: string, amount: number, network: string): DepositRecord => {
     const asset = walletDetails.find((a: WalletAssetDetail) => a.symbol === assetSymbol) || walletDetails[0];
@@ -620,7 +687,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchLiveWallets, fetchLiveTransactions, submitDeposit, submitWithdrawal, executeInternalTransfer, addAddressBookItem, deleteAddressBookItem, toggleAddressWhitelist, toggleAddressFavorite,
         updateAntiPhishingCode, removeTrustedDevice, toggleWalletFreeze, toggleWithdrawalsLock, updateDepositStatus, updateWithdrawalStatus, adjustUserAssetBalance,
         depositAsset, withdrawAsset, transferAsset, isAuthModalOpen, authModalTab, openAuthModal, closeAuthModal, isSignOutModalOpen, openSignOutModal, closeSignOutModal,
-        confirmLogout, logout, login, registerAccount, triggerSessionExpired
+        confirmLogout, logout, login, registerAccount, triggerSessionExpired, updateProfile, uploadAvatar
       }}
     >
       {children}

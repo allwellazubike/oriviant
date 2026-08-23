@@ -46,10 +46,11 @@ const attemptUpload = async (
   userId: number,
   cloudName: string,
   apiKey: string,
-  apiSecret: string
+  apiSecret: string,
+  folderName: string = 'deposit-proofs'
 ): Promise<string | null> => {
   const timestamp = Math.floor(Date.now() / 1000);
-  const folder = `oriviant/deposit-proofs/${userId}`;
+  const folder = `oriviant/${folderName}/${userId}`;
 
   // Cloudinary signs the alphabetically-sorted params that are not file/api_key,
   // joined as key=value pairs, with the API secret appended.
@@ -78,6 +79,61 @@ const attemptUpload = async (
   }
 
   return payload.secure_url;
+};
+
+/** Avatars are small display images — no reason to allow a PDF here. */
+const ALLOWED_AVATAR_MIME = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+
+/** Rejects anything that is not a plausible, small-enough image data URI. */
+export const assertValidAvatarDataUri = (dataUri: string): void => {
+  const match = /^data:([a-z/+.-]+);base64,/i.exec(dataUri);
+
+  if (!match) {
+    throw new UploadError('Avatar must be an image file.');
+  }
+
+  if (!ALLOWED_AVATAR_MIME.includes(match[1].toLowerCase())) {
+    throw new UploadError('Avatar must be a PNG, JPG or WEBP file.');
+  }
+
+  if (dataUri.length > MAX_DATA_URI_LENGTH) {
+    throw new UploadError('Avatar file is too large. Please keep it under 5MB.');
+  }
+};
+
+/**
+ * Uploads a profile picture and returns its secure URL.
+ *
+ * Unlike a deposit proof, there is no downstream action this is corroborating —
+ * updating the avatar *is* the action the user asked for. So, unlike
+ * uploadDepositProof, a storage failure here throws instead of returning null:
+ * silently keeping the old picture while telling the user it worked would be
+ * the wrong failure mode.
+ */
+export const uploadAvatarImage = async (dataUri: string, userId: number): Promise<string> => {
+  assertValidAvatarDataUri(dataUri);
+
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new UploadError('Image uploads are not configured. Please contact support.');
+  }
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const url = await attemptUpload(dataUri, userId, cloudName, apiKey, apiSecret, 'avatars');
+      if (url) return url;
+    } catch (error) {
+      console.error(
+        `[upload] Attempt ${attempt}/2 failed to reach Cloudinary:`,
+        (error as Error).message
+      );
+    }
+  }
+
+  throw new UploadError('Could not upload your avatar right now. Please try again.');
 };
 
 /**

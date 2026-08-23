@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, TrendingUp, Layers, Zap, Wallet } from 'lucide-react';
 import { NavigationTab } from '../../types';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface BottomNavProps {
   activeTab: NavigationTab;
@@ -8,12 +9,13 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onNavigate }) => {
+  const { t } = useLocalization();
   const tabs = [
-    { id: 'home' as NavigationTab, label: 'Home', icon: Home },
-    { id: 'markets' as NavigationTab, label: 'Markets', icon: TrendingUp },
-    { id: 'futures' as NavigationTab, label: 'Futures', icon: Zap, badge: '125x' },
-    { id: 'spot' as NavigationTab, label: 'Spot', icon: Layers },
-    { id: 'assets' as NavigationTab, label: 'Assets', icon: Wallet },
+    { id: 'home' as NavigationTab, label: t('nav.home'), icon: Home },
+    { id: 'markets' as NavigationTab, label: t('nav.markets'), icon: TrendingUp },
+    { id: 'futures' as NavigationTab, label: t('nav.futures'), icon: Zap, badge: '125x' },
+    { id: 'spot' as NavigationTab, label: t('nav.spot'), icon: Layers },
+    { id: 'assets' as NavigationTab, label: t('nav.assets'), icon: Wallet },
   ];
 
   return (

@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { 
-  User, 
-  ShieldCheck, 
-  Lock, 
-  Settings, 
-  Globe, 
-  Moon, 
-  Sun, 
-  LogOut, 
+import React, { useRef, useState } from 'react';
+import {
+  User,
+  ShieldCheck,
+  Lock,
+  Settings,
+  Globe,
+  Moon,
+  Sun,
+  LogOut,
   CheckCircle2,
   Key,
   Zap,
@@ -20,10 +20,15 @@ import {
   Clock,
   Laptop,
   Check,
-  AlertCircle
+  AlertCircle,
+  Camera,
+  Pencil,
+  X,
+  Loader2
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useLocalization, LANGUAGE_OPTIONS, CURRENCY_OPTIONS, LanguageCode, CurrencyCode } from '../../contexts/LocalizationContext';
 import { NavigationTab } from '../../types';
 import { securityApi } from '../../api/security';
 
@@ -32,25 +37,96 @@ interface ProfileSettingsViewProps {
 }
 
 export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavigate }) => {
-  const { 
-    user, 
-    logout, 
-    securityState, 
-    updateAntiPhishingCode, 
-    removeTrustedDevice 
+  const {
+    user,
+    logout,
+    securityState,
+    updateAntiPhishingCode,
+    removeTrustedDevice,
+    updateProfile,
+    uploadAvatar
   } = useUser();
   const { mode, toggleTheme } = useTheme();
+  const { t, language, setLanguage, currency, setCurrency } = useLocalization();
 
-  const [language, setLanguage] = useState('English');
-  const [currency, setCurrency] = useState('USD ($)');
+  const [draftLanguage, setDraftLanguage] = useState<LanguageCode>(language);
+  const [draftCurrency, setDraftCurrency] = useState<CurrencyCode>(currency);
+  const [preferencesSaved, setPreferencesSaved] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const [antiPhishingInput, setAntiPhishingInput] = useState(securityState.antiPhishingCode || 'ORIVIANT-SECURE-894');
   const [isEditingPhishing, setIsEditingPhishing] = useState(false);
 
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState(user.nickname);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  const flashMessage = (text: string, isError = false) => {
+    if (isError) setErrMsg(text); else setMsg(text);
+    setTimeout(() => { setMsg(null); setErrMsg(null); }, 4000);
+  };
+
+  const handleAvatarFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+    if (!file.type.startsWith('image/')) {
+      flashMessage('Please choose an image file (PNG, JPG or WEBP).', true);
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      flashMessage('Image is too large. Please choose a file under 5MB.', true);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUri = reader.result as string;
+      setIsUploadingAvatar(true);
+      const result = await uploadAvatar(dataUri);
+      setIsUploadingAvatar(false);
+      if (result.success) {
+        flashMessage('Profile picture updated successfully.');
+      } else {
+        flashMessage(result.error || 'Could not upload your profile picture.', true);
+      }
+    };
+    reader.onerror = () => flashMessage('Could not read that file. Please try another image.', true);
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveNickname = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = nicknameInput.trim();
+    if (trimmed.length < 2 || trimmed.length > 40) {
+      flashMessage('Display name must be between 2 and 40 characters.', true);
+      return;
+    }
+
+    setIsSavingProfile(true);
+    const result = await updateProfile(trimmed);
+    setIsSavingProfile(false);
+
+    if (result.success) {
+      setIsEditingProfile(false);
+      flashMessage('Profile details updated successfully.');
+    } else {
+      flashMessage(result.error || 'Could not update your profile.', true);
+    }
+  };
+
   const handleSavePreferences = () => {
-    setMsg('Preferences updated successfully.');
-    setTimeout(() => setMsg(null), 3000);
+    setLanguage(draftLanguage);
+    setCurrency(draftCurrency);
+    flashMessage(t('profile.preferencesSaved'));
+    setPreferencesSaved(true);
+    setTimeout(() => setPreferencesSaved(false), 3000);
   };
 
   const handleSaveAntiPhishing = async (e: React.FormEvent) => {
@@ -79,24 +155,77 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-24">
       
       {/* Profile Banner Card */}
       <div className="p-6 lg:p-8 rounded-3xl bg-app-card border border-app shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4 min-w-0">
-          <img
-            src={user.avatar}
-            alt={user.nickname}
-            className="w-16 h-16 rounded-2xl object-cover ring-4 ring-accent/30 shadow-md shrink-0"
-          />
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-app truncate">{user.nickname}</h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-black rounded-lg bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 inline-flex items-center gap-1 shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Level 2 Enterprise Verified</span>
-              </span>
-            </div>
+          <div className="relative shrink-0">
+            <img
+              src={user.avatar}
+              alt={user.nickname}
+              className="w-16 h-16 rounded-2xl object-cover ring-4 ring-accent/30 shadow-md"
+            />
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarFileSelected}
+            />
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-full bg-accent text-white flex items-center justify-center border-2 border-app-card shadow-md cursor-pointer disabled:opacity-60"
+              title={t('profile.changePicture')}
+            >
+              {isUploadingAvatar ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+            </button>
+          </div>
+          <div className="min-w-0 space-y-1 flex-1">
+            {isEditingProfile ? (
+              <form onSubmit={handleSaveNickname} className="flex items-center gap-2">
+                <input
+                  autoFocus
+                  type="text"
+                  value={nicknameInput}
+                  onChange={(e) => setNicknameInput(e.target.value)}
+                  className="min-w-0 flex-1 px-3 py-1.5 rounded-xl bg-app-sub border border-app text-sm font-bold text-app focus:outline-none focus:border-accent"
+                  placeholder="Display name"
+                  maxLength={40}
+                  required
+                />
+                <button
+                  type="submit"
+                  disabled={isSavingProfile}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 text-white font-bold text-xs shrink-0 cursor-pointer disabled:opacity-60"
+                >
+                  {isSavingProfile ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : t('profile.save')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsEditingProfile(false); setNicknameInput(user.nickname); }}
+                  className="w-8 h-8 rounded-xl bg-app-sub border border-app text-app-sec flex items-center justify-center shrink-0 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black text-app truncate">{user.nickname}</h1>
+                <button
+                  onClick={() => { setNicknameInput(user.nickname); setIsEditingProfile(true); }}
+                  className="w-6 h-6 rounded-lg bg-app-sub hover:bg-app-sub/70 text-app-sec flex items-center justify-center shrink-0 cursor-pointer"
+                  title={t('profile.editName')}
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+                <span className="px-2.5 py-0.5 text-[10px] font-black rounded-lg bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 inline-flex items-center gap-1 shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>{t('profile.verified')}</span>
+                </span>
+              </div>
+            )}
             <p className="text-xs text-app-sec truncate">{user.email}</p>
             <div className="text-[11px] text-app-sec flex items-center gap-3 font-mono pt-0.5">
               <span>UID: <strong className="text-app">{user.id}</strong></span>
@@ -111,7 +240,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
           className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-bold text-xs border border-red-500/20 transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0"
         >
           <LogOut className="w-4 h-4 shrink-0" />
-          <span>Sign Out</span>
+          <span>{t('profile.signOut')}</span>
         </button>
       </div>
 
@@ -123,10 +252,10 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-black text-app">Security Protection Score</h3>
-              <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-500 text-white">HIGHLY SECURED</span>
+              <h3 className="text-base font-black text-app">{t('profile.securityScoreTitle')}</h3>
+              <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-500 text-white">{t('profile.highlySecured')}</span>
             </div>
-            <p className="text-xs text-app-sec mt-1">Your account uses 2FA, Email Verification, Whitelisted Addresses, and Anti-Phishing protection.</p>
+            <p className="text-xs text-app-sec mt-1">{t('profile.securityScoreDesc')}</p>
           </div>
         </div>
 
@@ -135,7 +264,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
           className="px-4 py-2.5 rounded-xl bg-app-card hover:bg-app-sub border border-app text-app font-bold text-xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
         >
           <Zap className="w-4 h-4 text-emerald-500" />
-          <span>Practice Demo Workspace</span>
+          <span>{t('profile.practiceDemo')}</span>
         </button>
       </div>
 
@@ -150,33 +279,43 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
         </div>
       )}
 
+      {errMsg && (
+        <div className="p-4 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-500 text-xs font-bold flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errMsg}</span>
+          </div>
+          <button onClick={() => setErrMsg(null)}><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {/* Security Center & 2FA Suite */}
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-6">
         <div>
           <h2 className="text-base font-black text-app flex items-center gap-2">
             <Lock className="w-5 h-5 text-accent" />
-            <span>Account Security & Verification Suite</span>
+            <span>{t('profile.suiteTitle')}</span>
           </h2>
-          <p className="text-xs text-app-sec">Multi-tier authentication and anti-phishing protection</p>
+          <p className="text-xs text-app-sec">{t('profile.suiteDesc')}</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          
+
           {/* Email Verification */}
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-2 flex flex-col justify-between">
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-app flex items-center gap-1.5">
                   <Mail className="w-4 h-4 text-accent" />
-                  <span>Email Verification</span>
+                  <span>{t('profile.emailVerification')}</span>
                 </span>
                 <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-500/20 text-emerald-500">
-                  VERIFIED
+                  {t('profile.verifiedBadge')}
                 </span>
               </div>
               <p className="text-[11px] text-app-sec font-mono truncate">{securityState.email}</p>
             </div>
-            <div className="text-[10px] text-app-sec pt-2 border-t border-app">Required for all withdrawals and password changes.</div>
+            <div className="text-[10px] text-app-sec pt-2 border-t border-app">{t('profile.emailNote')}</div>
           </div>
 
           {/* Google 2FA Authenticator */}
@@ -185,15 +324,15 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-app flex items-center gap-1.5">
                   <Smartphone className="w-4 h-4 text-emerald-500" />
-                  <span>Google Authenticator 2FA</span>
+                  <span>{t('profile.googleAuth')}</span>
                 </span>
                 <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-500/20 text-emerald-500">
-                  ACTIVE
+                  {t('profile.active')}
                 </span>
               </div>
-              <p className="text-[11px] text-app-sec">TOTP Time-based Security Token Enabled</p>
+              <p className="text-[11px] text-app-sec">{t('profile.totpNote')}</p>
             </div>
-            <div className="text-[10px] text-app-sec pt-2 border-t border-app">Protects funds from unauthorized withdrawals.</div>
+            <div className="text-[10px] text-app-sec pt-2 border-t border-app">{t('profile.protectsNote')}</div>
           </div>
 
           {/* Passkey / WebAuthn */}
@@ -202,15 +341,15 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-app flex items-center gap-1.5">
                   <KeyRound className="w-4 h-4 text-purple-400" />
-                  <span>Biometric Passkey</span>
+                  <span>{t('profile.passkey')}</span>
                 </span>
                 <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-purple-500/20 text-purple-400">
-                  HARDWARE READY
+                  {t('profile.hardwareReady')}
                 </span>
               </div>
-              <p className="text-[11px] text-app-sec">FaceID / TouchID / FIDO2 Key</p>
+              <p className="text-[11px] text-app-sec">{t('profile.passkeyNote')}</p>
             </div>
-            <div className="text-[10px] text-app-sec pt-2 border-t border-app">Next-gen passwordless security option.</div>
+            <div className="text-[10px] text-app-sec pt-2 border-t border-app">{t('profile.nextGenNote')}</div>
           </div>
 
         </div>
@@ -221,9 +360,9 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
             <div>
               <span className="text-xs font-extrabold text-app flex items-center gap-1.5">
                 <ShieldAlert className="w-4 h-4 text-amber-500" />
-                <span>Custom Anti-Phishing Code</span>
+                <span>{t('profile.antiPhishingTitle')}</span>
               </span>
-              <p className="text-[11px] text-app-sec">This code will be embedded into every official notification email sent by Oriviant to prevent email spoofing and phishing.</p>
+              <p className="text-[11px] text-app-sec">{t('profile.antiPhishingDesc')}</p>
             </div>
 
             {!isEditingPhishing && (
@@ -231,7 +370,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
                 onClick={() => setIsEditingPhishing(true)}
                 className="px-3 py-1.5 rounded-xl bg-accent text-white font-bold text-xs shrink-0 cursor-pointer"
               >
-                Change Code
+                {t('profile.changeCode')}
               </button>
             )}
           </div>
@@ -250,13 +389,13 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
                 type="submit"
                 className="px-4 py-2 rounded-xl bg-emerald-500 text-white font-bold text-xs cursor-pointer"
               >
-                Save Code
+                {t('profile.saveCode')}
               </button>
             </form>
           ) : (
             <div className="p-3 rounded-xl bg-app-card border border-app text-xs font-mono font-bold text-accent flex items-center justify-between">
               <span>Code: {securityState.antiPhishingCode || 'ORIVIANT-SECURE-894'}</span>
-              <span className="text-[10px] text-emerald-500 font-sans">PROTECTED</span>
+              <span className="text-[10px] text-emerald-500 font-sans">{t('profile.protected')}</span>
             </div>
           )}
         </div>
@@ -268,9 +407,9 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
         <div>
           <h2 className="text-base font-black text-app flex items-center gap-2">
             <Laptop className="w-5 h-5 text-accent" />
-            <span>Trusted Device Management</span>
+            <span>{t('profile.trustedDevicesTitle')}</span>
           </h2>
-          <p className="text-xs text-app-sec">Active devices authorized to access your Oriviant wallet</p>
+          <p className="text-xs text-app-sec">{t('profile.trustedDevicesDesc')}</p>
         </div>
 
         <div className="space-y-3">
@@ -284,7 +423,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
                   <span className="text-xs font-extrabold text-app">{dev.deviceName}</span>
                   {dev.isCurrentDevice && (
                     <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-500/20 text-emerald-500">
-                      CURRENT DEVICE
+                      {t('profile.currentDevice')}
                     </span>
                   )}
                 </div>
@@ -303,7 +442,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
                   className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-bold text-xs border border-rose-500/20 transition-all flex items-center gap-1.5 self-end sm:self-center cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Revoke Session</span>
+                  <span>{t('profile.revokeSession')}</span>
                 </button>
               )}
             </div>
@@ -316,97 +455,107 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
         <div>
           <h2 className="text-base font-black text-app flex items-center gap-2">
             <Clock className="w-5 h-5 text-accent" />
-            <span>Recent Login Activity Logs</span>
+            <span>{t('profile.loginActivityTitle')}</span>
           </h2>
-          <p className="text-xs text-app-sec">Audit record of recent IP connections and device authorizations</p>
+          <p className="text-xs text-app-sec">{t('profile.loginActivityDesc')}</p>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-app text-[10px] font-bold text-app-sec uppercase">
-                <th className="py-2.5 px-4">Date & Time</th>
-                <th className="py-2.5 px-4">Device & Browser</th>
-                <th className="py-2.5 px-4">Location</th>
-                <th className="py-2.5 px-4">IP Address</th>
-                <th className="py-2.5 px-4 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-app/50 text-xs font-mono">
-              {securityState.loginHistory.map((log) => (
-                <tr key={log.id} className="hover:bg-app-sub/30 transition-colors">
-                  <td className="py-3 px-4 text-app font-bold">{log.loginTime}</td>
-                  <td className="py-3 px-4 text-app-sec">{log.device} - {log.browser} ({log.os})</td>
-                  <td className="py-3 px-4 text-app-sec">{log.location}</td>
-                  <td className="py-3 px-4 text-accent">{log.ip}</td>
-                  <td className="py-3 px-4 text-right font-sans">
-                    <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
-                      log.status === 'Success' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
-                    }`}>
-                      {log.status}
-                    </span>
-                  </td>
+        {securityState.loginHistory.length === 0 ? (
+          <div className="text-center py-10 text-app-sec text-xs font-bold">{t('profile.noLoginHistory')}</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-app text-[10px] font-bold text-app-sec uppercase">
+                  <th className="py-2.5 px-4">{t('profile.dateTime')}</th>
+                  <th className="py-2.5 px-4">{t('profile.deviceBrowser')}</th>
+                  <th className="py-2.5 px-4">{t('profile.location')}</th>
+                  <th className="py-2.5 px-4">{t('profile.ipAddress')}</th>
+                  <th className="py-2.5 px-4 text-right">{t('profile.status')}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-app/50 text-xs font-mono">
+                {securityState.loginHistory.map((log) => (
+                  <tr key={log.id} className="hover:bg-app-sub/30 transition-colors">
+                    <td className="py-3 px-4 text-app font-bold">{log.loginTime}</td>
+                    <td className="py-3 px-4 text-app-sec">{log.device} - {log.browser} ({log.os})</td>
+                    <td className="py-3 px-4 text-app-sec">{log.location}</td>
+                    <td className="py-3 px-4 text-accent">{log.ip}</td>
+                    <td className="py-3 px-4 text-right font-sans">
+                      <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
+                        log.status === 'Success' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
+                      }`}>
+                        {log.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Preferences Settings */}
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-4">
         <h3 className="text-sm font-bold text-app flex items-center gap-2">
           <Settings className="w-4 h-4 text-accent shrink-0" />
-          <span>Trading Preferences & Localization</span>
+          <span>{t('profile.preferencesTitle')}</span>
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-app-sec mb-1">Theme Mode</label>
+            <label className="block text-xs font-semibold text-app-sec mb-1">{t('profile.themeMode')}</label>
             <button
               onClick={toggleTheme}
               className="w-full py-2.5 px-3 rounded-xl bg-app-sub border border-app text-xs font-bold text-app flex items-center justify-between gap-2 cursor-pointer"
             >
-              <span>{mode === 'dark' ? 'Dark Theme' : 'Light Theme'}</span>
+              <span>{mode === 'dark' ? t('profile.darkTheme') : t('profile.lightTheme')}</span>
               {mode === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
             </button>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-app-sec mb-1">Language</label>
+            <label className="block text-xs font-semibold text-app-sec mb-1">{t('profile.language')}</label>
             <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
+              value={draftLanguage}
+              onChange={(e) => setDraftLanguage(e.target.value as LanguageCode)}
               className="w-full bg-app-sub border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none"
             >
-              <option>English</option>
-              <option>Spanish</option>
-              <option>German</option>
-              <option>Japanese</option>
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code}>{opt.label}</option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-app-sec mb-1">Display Currency</label>
+            <label className="block text-xs font-semibold text-app-sec mb-1">{t('profile.displayCurrency')}</label>
             <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
+              value={draftCurrency}
+              onChange={(e) => setDraftCurrency(e.target.value as CurrencyCode)}
               className="w-full bg-app-sub border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none"
             >
-              <option>USD ($)</option>
-              <option>EUR (€)</option>
-              <option>GBP (£)</option>
-              <option>JPY (¥)</option>
+              {CURRENCY_OPTIONS.map((opt) => (
+                <option key={opt.code} value={opt.code}>{opt.label}</option>
+              ))}
             </select>
           </div>
         </div>
 
-        <button
-          onClick={handleSavePreferences}
-          className="px-6 py-2.5 rounded-xl bg-accent text-white font-bold text-xs shadow-md shadow-accent/20 cursor-pointer"
-        >
-          Save Preferences
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSavePreferences}
+            className="px-6 py-2.5 rounded-xl bg-accent text-white font-bold text-xs shadow-md shadow-accent/20 cursor-pointer"
+          >
+            {t('profile.savePreferences')}
+          </button>
+          {preferencesSaved && (
+            <span className="text-xs font-bold text-emerald-500 flex items-center gap-1.5 animate-in fade-in">
+              <Check className="w-4 h-4" />
+              {t('profile.preferencesSaved')}
+            </span>
+          )}
+        </div>
       </div>
 
     </div>

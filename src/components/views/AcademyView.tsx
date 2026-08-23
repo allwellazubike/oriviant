@@ -18,7 +18,8 @@ import {
   X,
   FileDown,
   Layers,
-  HelpCircle
+  HelpCircle,
+  RefreshCw
 } from 'lucide-react';
 
 import { 
@@ -32,19 +33,15 @@ import {
   UserAcademyProgress
 } from '../../types/academy';
 
+import { academyApi } from '../../api/academy';
 import { QuizEngine } from '../academy/QuizEngine';
 import { PracticeSimulation } from '../academy/PracticeSimulation';
 import { DailyLearningWidget } from '../academy/DailyLearningWidget';
 
 export const AcademyView: React.FC = () => {
-  // State from localStorage or default
-  const [userProgress, setUserProgress] = useState<UserAcademyProgress>(() => {
-    const saved = localStorage.getItem('oriviant_academy_progress');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
-    }
-    return INITIAL_USER_ACADEMY_PROGRESS;
-  });
+  // Live Database State
+  const [userProgress, setUserProgress] = useState<UserAcademyProgress>(INITIAL_USER_ACADEMY_PROGRESS);
+  const [isLoadingProgress, setIsLoadingProgress] = useState<boolean>(true);
 
   // Active Path Tab
   const [activePath, setActivePath] = useState<CourseLevel>('Beginner');
@@ -65,10 +62,33 @@ export const AcademyView: React.FC = () => {
   // Dev Unlock All Toggle (For instant evaluator testing)
   const [unlockAll, setUnlockAll] = useState<boolean>(false);
 
-  // Save progress changes
+  // 1. Fetch Initial Progress from PostgreSQL
   useEffect(() => {
-    localStorage.setItem('oriviant_academy_progress', JSON.stringify(userProgress));
-  }, [userProgress]);
+    let mounted = true;
+    const loadProgress = async () => {
+      try {
+        const res = await academyApi.getProgress();
+        if (res.success && res.data && mounted) {
+          setUserProgress(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load live academy progress', err);
+      } finally {
+        if (mounted) setIsLoadingProgress(false);
+      }
+    };
+    loadProgress();
+    return () => { mounted = false; };
+  }, []);
+
+  // 2. Auto-sync progress to PostgreSQL whenever it changes
+  useEffect(() => {
+    if (!isLoadingProgress) {
+      academyApi.saveProgress(userProgress).catch(err => {
+        console.error('Failed to sync progress to database:', err);
+      });
+    }
+  }, [userProgress, isLoadingProgress]);
 
   // Lessons for current path
   const currentPathLessons = useMemo(() => {
@@ -175,6 +195,15 @@ export const AcademyView: React.FC = () => {
       };
     });
   };
+
+  if (isLoadingProgress) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-app-sec space-y-4">
+        <RefreshCw className="w-8 h-8 animate-spin text-accent" />
+        <p className="text-sm font-bold tracking-wider uppercase">Loading Academy Progress...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 pb-16 animate-in fade-in duration-300">

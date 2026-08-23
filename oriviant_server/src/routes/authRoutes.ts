@@ -4,6 +4,9 @@ import {
   login,
   logout,
   me,
+  updateProfile,
+  updateAvatar,
+  getLoginHistory,
   forgotPassword,
   verifyResetCode,
   resetPassword,
@@ -16,6 +19,9 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/logout', logout);
 router.get('/me', verifyToken, me);
+router.patch('/profile', verifyToken, updateProfile);
+router.post('/avatar', verifyToken, updateAvatar);
+router.get('/login-history', verifyToken, getLoginHistory);
 
 // Password reset — unauthenticated by definition: the caller cannot sign in.
 router.post('/forgot-password', forgotPassword);
