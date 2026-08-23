@@ -9,6 +9,7 @@ export interface AuthUser {
   email: string;
   nickname: string | null;
   role: string;
+  avatar_url: string | null;
 }
 
 // Payload we sign in authController. Anything else in the token is ignored.
@@ -49,7 +50,7 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
     }
 
     const result = await pool.query(
-      'SELECT id, email, nickname, role FROM users WHERE id = $1',
+      'SELECT id, email, nickname, role, avatar_url FROM users WHERE id = $1',
       [payload.id]
     );
 

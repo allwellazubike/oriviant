@@ -19,6 +19,7 @@ import {
 import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
 import { useCopyTrading } from '../../contexts/CopyTradingContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 import { NavigationTab } from '../../types';
 import { HeroCarousel } from '../home/HeroCarousel';
 
@@ -30,6 +31,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   const { coins, setActiveCoinSymbol, favorites, toggleFavorite } = useTrading();
   const { demoBalance, refillDemoFunds, isDemoMode } = useDemoMode();
   const { traders } = useCopyTrading();
+  const { t, formatCurrency } = useLocalization();
 
   const topGainers = [...coins].sort((a, b) => b.change24h - a.change24h).slice(0, 4);
   const topLosers = [...coins].sort((a, b) => a.change24h - b.change24h).slice(0, 4);
@@ -37,19 +39,19 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
 
   return (
     <div className="space-y-6 pb-12">
-      
+
       {/* Hero Carousel */}
       <HeroCarousel onNavigate={onNavigate} />
 
       {/* Quick Action Buttons Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { label: 'Spot Trading', icon: Layers, tab: 'spot' as NavigationTab, color: 'text-blue-500' },
-          { label: 'Futures 125x', icon: Zap, tab: 'futures' as NavigationTab, color: 'text-red-500' },
-          { label: 'Copy Trading', icon: Users, tab: 'copy-trading' as NavigationTab, color: 'text-emerald-500' },
-          { label: 'Demo Mode', icon: RefreshCw, tab: 'demo-workspace' as NavigationTab, color: 'text-amber-500' },
-          { label: 'Academy', icon: BookOpen, tab: 'academy' as NavigationTab, color: 'text-indigo-500' },
-          { label: 'Referral Hub', icon: Gift, tab: 'referral' as NavigationTab, color: 'text-purple-500' },
+          { label: t('home.spotTrading'), icon: Layers, tab: 'spot' as NavigationTab, color: 'text-blue-500' },
+          { label: t('home.futures125x'), icon: Zap, tab: 'futures' as NavigationTab, color: 'text-red-500' },
+          { label: t('header.copyTrading'), icon: Users, tab: 'copy-trading' as NavigationTab, color: 'text-emerald-500' },
+          { label: t('home.demoMode'), icon: RefreshCw, tab: 'demo-workspace' as NavigationTab, color: 'text-amber-500' },
+          { label: t('header.academy'), icon: BookOpen, tab: 'academy' as NavigationTab, color: 'text-indigo-500' },
+          { label: t('home.referralHub'), icon: Gift, tab: 'referral' as NavigationTab, color: 'text-purple-500' },
         ].map((item, idx) => {
           const Icon = item.icon;
           return (
@@ -76,15 +78,15 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-app flex items-center gap-2">
                 <Gauge className="w-4 h-4 text-amber-500" />
-                Crypto Fear & Greed Index
+                {t('home.fearGreedIndex')}
               </h3>
-              <span className="text-xs text-app-sec font-medium">Updated 1h ago</span>
+              <span className="text-xs text-app-sec font-medium">{t('home.updatedAgo')}</span>
             </div>
 
             <div className="text-center py-4">
               <div className="text-4xl font-black text-emerald-500 mb-1">78</div>
               <div className="text-xs font-extrabold uppercase tracking-wider text-emerald-500 bg-emerald-500/10 inline-block px-3 py-1 rounded-full border border-emerald-500/20">
-                Extreme Greed
+                {t('home.extremeGreed')}
               </div>
             </div>
 
@@ -98,7 +100,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           </div>
 
           <p className="text-[11px] text-app-sec leading-relaxed">
-            Market sentiment is strongly bullish. Traders are aggressively adding long exposure across Layer 1 and AI tokens.
+            {t('home.sentimentDesc')}
           </p>
         </div>
 
@@ -107,13 +109,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-app flex items-center gap-2">
               <Flame className="w-4 h-4 text-emerald-500" />
-              Top 24h Gainers
+              {t('home.topGainers')}
             </h3>
             <button
               onClick={() => onNavigate('markets')}
               className="text-xs font-semibold text-accent hover:underline flex items-center gap-0.5"
             >
-              View All <ChevronRight className="w-3.5 h-3.5" />
+              {t('home.viewAll')} <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -147,13 +149,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-app flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-blue-500" />
-              24h Volume Leaders
+              {t('home.volumeLeaders')}
             </h3>
             <button
               onClick={() => onNavigate('markets')}
               className="text-xs font-semibold text-accent hover:underline flex items-center gap-0.5"
             >
-              View All <ChevronRight className="w-3.5 h-3.5" />
+              {t('home.viewAll')} <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -190,18 +192,18 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                PRO COPY TRADING
+                {t('home.proCopyTrading')}
               </span>
             </div>
-            <h3 className="text-lg font-bold text-app">Automate Profits with Top Lead Traders</h3>
-            <p className="text-xs text-app-sec">Copy trades 1:1 automatically. No manual execution required.</p>
+            <h3 className="text-lg font-bold text-app">{t('home.automateProfits')}</h3>
+            <p className="text-xs text-app-sec">{t('home.copyTradesDesc')}</p>
           </div>
 
           <button
             onClick={() => onNavigate('copy-trading')}
             className="px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs shadow-md shadow-accent/20 transition-all flex items-center gap-2 self-start sm:self-center"
           >
-            <span>Explore All Lead Traders</span>
+            <span>{t('home.exploreLeadTraders')}</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -218,7 +220,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                   <img src={trader.avatar} alt={trader.name} className="w-10 h-10 rounded-full object-cover ring-2 ring-accent/30" />
                   <div>
                     <h4 className="text-xs font-bold text-app">{trader.name}</h4>
-                    <span className="text-[10px] text-app-sec">{trader.followers} Copiers • Risk {trader.riskScore}/10</span>
+                    <span className="text-[10px] text-app-sec">{trader.followers} {t('home.copiers')} • {t('home.risk')} {trader.riskScore}/10</span>
                   </div>
                 </div>
                 <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-emerald-500/10 text-emerald-500">
@@ -227,15 +229,15 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
               </div>
 
               <div className="flex items-center justify-between text-xs pt-1 border-t border-app/60">
-                <span className="text-app-sec">Win Rate: <strong className="text-app">{trader.winRate}%</strong></span>
-                <span className="text-app-sec">AUM: <strong className="text-app">${(trader.aum / 1e6).toFixed(2)}M</strong></span>
+                <span className="text-app-sec">{t('home.winRate')}: <strong className="text-app">{trader.winRate}%</strong></span>
+                <span className="text-app-sec">{t('home.aum')}: <strong className="text-app">{formatCurrency(trader.aum / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M</strong></span>
               </div>
 
               <button
                 onClick={() => onNavigate('copy-trading')}
                 className="w-full py-2 rounded-xl bg-app-card hover:bg-app-sec text-accent font-bold text-xs border border-app transition-colors"
               >
-                Copy This Trader
+                {t('home.copyThisTrader')}
               </button>
             </div>
           ))}

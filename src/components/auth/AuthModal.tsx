@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, KeyRound, ShieldCheck, Sparkles, Check, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 import { SignUpForm } from './SignUpForm';
 
 export const AuthModal: React.FC = () => {
   const { isAuthModalOpen, authModalTab, closeAuthModal, login } = useUser();
+  const { t } = useLocalization();
   const [tab, setTab] = useState<'login' | 'signup' | 'forgot' | 'pin' | 'otp'>(authModalTab);
 
   const [email, setEmail] = useState('');
@@ -61,7 +63,7 @@ export const AuthModal: React.FC = () => {
         <button
           onClick={closeAuthModal}
           className="absolute top-4 right-4 p-2 rounded-xl bg-app-sec text-app-sec hover:text-app transition-colors z-20 cursor-pointer"
-          aria-label="Close authentication modal"
+          aria-label={t('auth.closeModal')}
         >
           <X className="w-5 h-5" />
         </button>
@@ -91,16 +93,16 @@ export const AuthModal: React.FC = () => {
                   </div>
                 </div>
                 <h3 className="text-xl font-black text-app tracking-tight">
-                  {tab === 'login' && 'Welcome Back to Oriviant'}
-                  {tab === 'forgot' && 'Reset Your Password'}
-                  {tab === 'otp' && 'Verify 2FA Security Code'}
-                  {tab === 'pin' && 'Create Quick Access PIN'}
+                  {tab === 'login' && t('auth.welcomeBack')}
+                  {tab === 'forgot' && t('auth.resetPassword')}
+                  {tab === 'otp' && t('auth.verify2fa')}
+                  {tab === 'pin' && t('auth.createPin')}
                 </h3>
                 <p className="text-xs text-app-sec mt-1">
-                  {tab === 'login' && 'Access institutional liquidity & 125x perp futures'}
-                  {tab === 'forgot' && 'Enter your email to receive recovery instructions'}
-                  {tab === 'otp' && 'Enter the 6-digit verification code sent to your device'}
-                  {tab === 'pin' && 'Set a 4-digit security PIN for biometric quick sign-in'}
+                  {tab === 'login' && t('auth.loginSubtitle')}
+                  {tab === 'forgot' && t('auth.forgotSubtitle')}
+                  {tab === 'otp' && t('auth.otpSubtitle')}
+                  {tab === 'pin' && t('auth.pinSubtitle')}
                 </p>
               </div>
 
@@ -108,7 +110,7 @@ export const AuthModal: React.FC = () => {
 
                 {(tab === 'login' || tab === 'forgot') && (
                   <div>
-                    <label className="block text-xs font-semibold text-app-sec mb-1.5">Email Address</label>
+                    <label className="block text-xs font-semibold text-app-sec mb-1.5">{t('auth.emailAddress')}</label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
@@ -126,13 +128,13 @@ export const AuthModal: React.FC = () => {
                 {tab === 'login' && (
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-app-sec">Password</label>
+                      <label className="text-xs font-semibold text-app-sec">{t('auth.password')}</label>
                       <button
                         type="button"
                         onClick={() => setTab('forgot')}
                         className="text-[11px] font-semibold text-accent hover:underline cursor-pointer"
                       >
-                        Forgot?
+                        {t('auth.forgot')}
                       </button>
                     </div>
                     <div className="relative">
@@ -149,7 +151,7 @@ export const AuthModal: React.FC = () => {
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3.5 top-1/2 -translate-y-1/2 text-app-sec hover:text-app transition-colors"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                       >
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -167,7 +169,7 @@ export const AuthModal: React.FC = () => {
                       className="rounded text-accent focus:ring-accent cursor-pointer"
                     />
                     <label htmlFor="rememberMe" className="text-[11px] font-medium text-app-sec cursor-pointer">
-                      Remember my session on this device
+                      {t('auth.rememberMe')}
                     </label>
                   </div>
                 )}
@@ -224,15 +226,15 @@ export const AuthModal: React.FC = () => {
                   {isSubmitting ? (
                     <>
                       <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                      <span>Authenticating...</span>
+                      <span>{t('auth.authenticating')}</span>
                     </>
                   ) : (
                     <>
                       <span>
-                        {tab === 'login' && 'Sign In to Account'}
-                        {tab === 'forgot' && 'Send Reset Link'}
-                        {tab === 'otp' && 'Verify Security Code'}
-                        {tab === 'pin' && 'Save Security PIN'}
+                        {tab === 'login' && t('auth.signInToAccount')}
+                        {tab === 'forgot' && t('auth.sendResetLink')}
+                        {tab === 'otp' && t('auth.verifySecurityCode')}
+                        {tab === 'pin' && t('auth.saveSecurityPin')}
                       </span>
                       <ArrowRight className="w-4 h-4" />
                     </>
@@ -246,7 +248,7 @@ export const AuthModal: React.FC = () => {
                   <div className="relative flex items-center justify-center">
                     <div className="border-t border-app w-full" />
                     <span className="bg-app-card px-3 text-[10px] font-bold text-app-sec tracking-widest uppercase absolute">
-                      OR
+                      {t('auth.or')}
                     </span>
                   </div>
 
@@ -261,7 +263,7 @@ export const AuthModal: React.FC = () => {
                       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                     </svg>
-                    <span>Continue with Google</span>
+                    <span>{t('auth.continueWithGoogle')}</span>
                   </button>
                 </div>
               )}
@@ -269,12 +271,12 @@ export const AuthModal: React.FC = () => {
               {tab === 'login' && (
                 <div className="mt-6 pt-4 border-t border-app text-center">
                   <p className="text-xs text-app-sec">
-                    Don't have an Oriviant account?{' '}
+                    {t('auth.noAccount')}{' '}
                     <button
                       onClick={() => setTab('signup')}
                       className="font-bold text-accent hover:underline cursor-pointer"
                     >
-                      Sign Up
+                      {t('auth.signUp')}
                     </button>
                   </p>
                 </div>

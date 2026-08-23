@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 import { DepositModal } from '../wallet/DepositModal';
 import { WithdrawModal } from '../wallet/WithdrawModal';
 import { TransferModal } from '../wallet/TransferModal';
@@ -27,8 +28,9 @@ import { depositApi } from '../../api/deposits';
 import { withdrawalApi } from '../../api/withdrawals';
 
 export const AssetsView: React.FC = () => {
-  const { 
-    walletDetails, 
+  const { t, formatCurrency } = useLocalization();
+  const {
+    walletDetails,
     deposits, 
     withdrawals, 
     internalTransfers,
@@ -194,19 +196,19 @@ export const AssetsView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                ORIVIANT ENTERPRISE VAULT
+                {t('wallet.vaultBadge')}
               </span>
               {securityState.isWalletFrozen && (
                 <span className="px-2.5 py-0.5 text-[10px] font-black rounded-full bg-rose-500/20 text-rose-500 border border-rose-500/30">
-                  WALLET FROZEN
+                  {t('wallet.frozen')}
                 </span>
               )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-app">
-              Wallet & Asset Management
+              {t('wallet.title')}
             </h1>
             <p className="text-xs text-app-sec">
-              Multi-chain deposits, institutional cold-storage withdrawals & internal transfers.
+              {t('wallet.subtitle')}
             </p>
           </div>
 
@@ -219,7 +221,7 @@ export const AssetsView: React.FC = () => {
               className="px-4 py-2.5 rounded-xl bg-accent text-white font-bold text-xs shadow-md shadow-accent/20 hover:opacity-90 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowDownRight className="w-4 h-4" />
-              <span>Deposit</span>
+              <span>{t('wallet.deposit')}</span>
             </button>
 
             <button
@@ -230,7 +232,7 @@ export const AssetsView: React.FC = () => {
               className="px-4 py-2.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app font-bold text-xs border border-app transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowUpRight className="w-4 h-4 text-rose-500" />
-              <span>Withdraw</span>
+              <span>{t('wallet.withdraw')}</span>
             </button>
 
             <button
@@ -238,13 +240,13 @@ export const AssetsView: React.FC = () => {
               className="px-4 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-bold text-xs border border-purple-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <ArrowRightLeft className="w-4 h-4" />
-              <span>Transfer</span>
+              <span>{t('wallet.transfer')}</span>
             </button>
 
             <button
               onClick={() => setIsAddressBookOpen(true)}
               className="p-2.5 rounded-xl bg-app-sub hover:bg-app-card text-app-sec hover:text-app border border-app transition-all cursor-pointer"
-              title="Address Book"
+              title={t('wallet.addressBook')}
             >
               <BookOpen className="w-4 h-4" />
             </button>
@@ -256,40 +258,40 @@ export const AssetsView: React.FC = () => {
           
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1">
             <span className="text-[10px] font-bold text-app-sec uppercase">
-              {activeSubAccount.toUpperCase()} BALANCE
+              {activeSubAccount.toUpperCase()} {t('wallet.balance')}
             </span>
             <div className="text-xl font-black text-app font-mono">
-              ${currentTabBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(currentTabBalance)}
             </div>
             <span className="text-[10px] text-emerald-500 font-bold">≈ {(currentTabBalance / 92450.8).toFixed(4)} BTC</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Total Available</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">{t('wallet.totalAvailable')}</span>
             <div className="text-xl font-black text-emerald-500 font-mono">
-              ${totalAvailableValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(totalAvailableValue)}
             </div>
-            <span className="text-[10px] text-app-sec">Ready for trading / withdrawal</span>
+            <span className="text-[10px] text-app-sec">{t('wallet.readyForTrading')}</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Locked / Frozen</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">{t('wallet.lockedFrozen')}</span>
             <div className="text-xl font-black text-amber-500 font-mono">
-              ${totalLockedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(totalLockedValue)}
             </div>
-            <span className="text-[10px] text-app-sec">Pending orders & withdrawals</span>
+            <span className="text-[10px] text-app-sec">{t('wallet.pendingOrders')}</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Unrealized PnL</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">{t('wallet.unrealizedPnl')}</span>
             <div className={`text-xl font-black font-mono ${totalUnrealizedPnL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {totalUnrealizedPnL >= 0 ? '+' : ''}${totalUnrealizedPnL.toFixed(2)}
+              {totalUnrealizedPnL >= 0 ? '+' : ''}{formatCurrency(totalUnrealizedPnL)}
             </div>
-            <span className="text-[10px] text-app-sec">Open Futures positions</span>
+            <span className="text-[10px] text-app-sec">{t('wallet.openFuturesPositions')}</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1 sm:col-span-2 lg:col-span-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Account Tier</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">{t('wallet.accountTier')}</span>
             <div className="text-xl font-black text-blue-400 font-mono">
               VIP LEVEL 2
             </div>
@@ -301,10 +303,10 @@ export const AssetsView: React.FC = () => {
         {/* Sub-Wallet Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-app pb-2 overflow-x-auto">
           {[
-            { id: 'overview', label: `Overview ($${totalPortfolioValue.toFixed(0)})`, icon: PieIcon },
-            { id: 'spot', label: `Spot Wallet ($${totalSpotValue.toFixed(0)})`, icon: Wallet },
-            { id: 'futures', label: `Futures Wallet ($${totalFuturesValue.toFixed(0)})`, icon: Layers },
-            { id: 'funding', label: `Funding Wallet ($${totalFundingValue.toFixed(0)})`, icon: ShieldCheck },
+            { id: 'overview', label: `Overview (${formatCurrency(totalPortfolioValue, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`, icon: PieIcon },
+            { id: 'spot', label: `Spot Wallet (${formatCurrency(totalSpotValue, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`, icon: Wallet },
+            { id: 'futures', label: `Futures Wallet (${formatCurrency(totalFuturesValue, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`, icon: Layers },
+            { id: 'funding', label: `Funding Wallet (${formatCurrency(totalFundingValue, { minimumFractionDigits: 0, maximumFractionDigits: 0 })})`, icon: ShieldCheck },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeSubAccount === tab.id;

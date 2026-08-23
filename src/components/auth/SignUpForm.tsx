@@ -20,6 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 
 interface CountryCode {
   code: string;
@@ -62,7 +63,8 @@ interface SignUpFormProps {
 
 export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSuccessLogin }) => {
   const { registerAccount } = useUser();
-  
+  const { t } = useLocalization();
+
   // Form State
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -125,11 +127,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
 
   const passwordStrengthLabel = useMemo(() => {
     if (!password) return { text: '', color: 'bg-app-sec', textColor: 'text-app-sec' };
-    if (passwordStrengthScore <= 1) return { text: 'Weak', color: 'bg-red-500', textColor: 'text-red-500' };
-    if (passwordStrengthScore === 2) return { text: 'Fair', color: 'bg-amber-500', textColor: 'text-amber-500' };
-    if (passwordStrengthScore === 3) return { text: 'Good', color: 'bg-yellow-500', textColor: 'text-yellow-500' };
-    return { text: 'Strong', color: 'bg-emerald-500', textColor: 'text-emerald-500' };
-  }, [password, passwordStrengthScore]);
+    if (passwordStrengthScore <= 1) return { text: t('signup.strengthWeak'), color: 'bg-red-500', textColor: 'text-red-500' };
+    if (passwordStrengthScore === 2) return { text: t('signup.strengthFair'), color: 'bg-amber-500', textColor: 'text-amber-500' };
+    if (passwordStrengthScore === 3) return { text: t('signup.strengthGood'), color: 'bg-yellow-500', textColor: 'text-yellow-500' };
+    return { text: t('signup.strengthStrong'), color: 'bg-emerald-500', textColor: 'text-emerald-500' };
+  }, [password, passwordStrengthScore, t]);
 
   // Passwords match check
   const passwordsMatch = useMemo(() => {
@@ -140,33 +142,33 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
   // Real-time error checks
   const fullNameError = useMemo(() => {
     if (!touched.fullName) return '';
-    if (!fullName.trim()) return 'Full name is required';
-    if (fullName.trim().length < 2) return 'Minimum 2 characters required';
+    if (!fullName.trim()) return t('signup.fullNameRequired');
+    if (fullName.trim().length < 2) return t('signup.fullNameMin');
     return '';
-  }, [fullName, touched.fullName]);
+  }, [fullName, touched.fullName, t]);
 
   const emailError = useMemo(() => {
     if (!touched.email) return '';
-    if (!email.trim()) return 'Email address is required';
+    if (!email.trim()) return t('signup.emailRequired');
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    if (!emailRegex.test(email)) return t('signup.emailInvalid');
     if (REGISTERED_EMAILS.includes(email.toLowerCase())) {
-      return 'This email address is already registered.';
+      return t('signup.emailTaken');
     }
     return '';
-  }, [email, touched.email]);
+  }, [email, touched.email, t]);
 
   const phoneError = useMemo(() => {
     if (!touched.phone) return '';
-    if (!phoneNumber.trim()) return 'Phone number is required';
+    if (!phoneNumber.trim()) return t('signup.phoneRequired');
     const digitsOnly = phoneNumber.replace(/\D/g, '');
-    if (digitsOnly.length < 7) return 'Please enter a valid phone number';
+    if (digitsOnly.length < 7) return t('signup.phoneInvalid');
     const fullPhone = `${selectedCountry.dialCode}${digitsOnly}`;
     if (REGISTERED_PHONES.includes(fullPhone)) {
-      return 'This phone number is already registered.';
+      return t('signup.phoneTaken');
     }
     return '';
-  }, [phoneNumber, selectedCountry, touched.phone]);
+  }, [phoneNumber, selectedCountry, touched.phone, t]);
 
   const isPasswordValid = useMemo(() => {
     return (
@@ -219,7 +221,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
   const handleResendEmail = () => {
     setIsResendDisabled(true);
     setResendCountdown(60);
-    setResendMessage('A new verification email has been dispatched!');
+    setResendMessage(t('signup.resendDispatched'));
     setTimeout(() => setResendMessage(''), 4000);
   };
 
@@ -250,7 +252,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
     if (success) {
       setIsVerificationStep(true);
     } else {
-      setApiError('Registration failed. The email might already be in use or the server is unreachable.');
+      setApiError(t('signup.registrationFailed'));
     }
   };
 
@@ -267,12 +269,12 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         {/* Title */}
         <div>
           <h3 className="text-xl font-black text-app">
-            Account Created Successfully!
+            {t('signup.accountCreated')}
           </h3>
           <p className="text-xs text-app-sec mt-1.5 leading-relaxed max-w-sm mx-auto">
-            We've sent a verification email to{' '}
+            {t('signup.verificationSentPrefix')}{' '}
             <span className="font-bold text-accent">{email}</span>.
-            Please verify your email before accessing your account.
+            {' '}{t('signup.verificationSentSuffix')}
           </p>
         </div>
 
@@ -280,12 +282,12 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         <div className="p-4 rounded-2xl bg-app-sec/60 border border-app text-left space-y-2 text-xs">
           <div className="flex items-center gap-2 font-bold text-app">
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>Verification Instructions</span>
+            <span>{t('signup.verificationInstructions')}</span>
           </div>
           <p className="text-app-sec text-[11px] leading-relaxed">
-            1. Check your email inbox for the message from Oriviant Security.<br />
-            2. Click the secure verification link inside.<br />
-            3. Return here or proceed to log in to access your $10,000 USDT practice balance and live markets.
+            {t('signup.instructionsLine1')}<br />
+            {t('signup.instructionsLine2')}<br />
+            {t('signup.instructionsLine3')}
           </p>
         </div>
 
@@ -305,7 +307,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
             className="w-full py-3 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-lg shadow-accent/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <Mail className="w-4 h-4" />
-            <span>Open Email App</span>
+            <span>{t('signup.openEmailApp')}</span>
             <ExternalLink className="w-3.5 h-3.5 opacity-70" />
           </button>
 
@@ -318,7 +320,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isResendDisabled ? 'animate-spin' : ''}`} />
               <span>
-                {isResendDisabled ? `Resend (${resendCountdown}s)` : 'Resend Email'}
+                {isResendDisabled ? `${t('signup.resendCountdown')} (${resendCountdown}s)` : t('signup.resendEmail')}
               </span>
             </button>
 
@@ -327,7 +329,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               onClick={() => setIsVerificationStep(false)}
               className="w-full py-2.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app-sec hover:text-app font-semibold text-xs border border-app transition-all cursor-pointer"
             >
-              Change Email
+              {t('signup.changeEmail')}
             </button>
           </div>
 
@@ -336,7 +338,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
             onClick={() => onSuccessLogin(email)}
             className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer mt-4"
           >
-            <span>Proceed to Sign In & Dashboard</span>
+            <span>{t('signup.proceedToLogin')}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -353,17 +355,17 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         <div className="flex items-center justify-center gap-1.5">
           <Sparkles className="w-4 h-4 text-accent" />
           <span className="text-xs font-bold text-accent tracking-widest uppercase">
-            ORIVIANT EXCHANGE
+            {t('signup.exchange')}
           </span>
         </div>
         <h2 className="text-2xl font-black text-app tracking-tight">
-          Create Your Account
+          {t('signup.createAccount')}
         </h2>
         <p className="text-xs font-semibold text-accent">
-          Trade • Invest • Grow
+          {t('signup.tagline')}
         </p>
         <p className="text-xs text-app-sec max-w-sm mx-auto pt-1">
-          Join thousands of traders worldwide and start your trading journey today.
+          {t('signup.joinDesc')}
         </p>
       </div>
 
@@ -372,7 +374,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         {/* Full Name */}
         <div>
           <label className="block text-xs font-semibold text-app-sec mb-1">
-            Full Name <span className="text-red-500">*</span>
+            {t('signup.fullName')} <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <User className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -399,7 +401,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         {/* Email Address */}
         <div>
           <label className="block text-xs font-semibold text-app-sec mb-1">
-            Email Address <span className="text-red-500">*</span>
+            {t('auth.emailAddress')} <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <Mail className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -427,9 +429,9 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-semibold text-app-sec">
-              Phone Number <span className="text-red-500">*</span>
+              {t('signup.phoneNumber')} <span className="text-red-500">*</span>
             </label>
-            <span className="text-[10px] text-app-sec">Auto-detected {selectedCountry.name}</span>
+            <span className="text-[10px] text-app-sec">{t('signup.autoDetected')} {selectedCountry.name}</span>
           </div>
 
           <div className="flex gap-2 relative">
@@ -468,7 +470,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
                   type="text"
                   value={countrySearch}
                   onChange={(e) => setCountrySearch(e.target.value)}
-                  placeholder="Search country or code..."
+                  placeholder={t('signup.searchCountry')}
                   className="w-full bg-app-sec border border-app rounded-xl px-3 py-1.5 text-xs text-app mb-2 focus:outline-none focus:border-accent"
                 />
                 <div className="max-h-48 overflow-y-auto space-y-0.5 custom-scrollbar">
@@ -492,7 +494,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
                     </button>
                   ))}
                   {filteredCountries.length === 0 && (
-                    <p className="text-xs text-app-sec text-center py-3">No matching country</p>
+                    <p className="text-xs text-app-sec text-center py-3">{t('signup.noMatchingCountry')}</p>
                   )}
                 </div>
               </div>
@@ -511,11 +513,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-semibold text-app-sec">
-              Password <span className="text-red-500">*</span>
+              {t('signup.password')} <span className="text-red-500">*</span>
             </label>
             {password && (
               <span className={`text-[10px] font-extrabold ${passwordStrengthLabel.textColor}`}>
-                Strength: {passwordStrengthLabel.text}
+                {t('signup.strength')}: {passwordStrengthLabel.text}
               </span>
             )}
           </div>
@@ -554,23 +556,23 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               <div className="p-2.5 rounded-xl bg-app-sec/50 border border-app/60 grid grid-cols-2 gap-1.5 text-[10px]">
                 <div className={`flex items-center gap-1.5 ${passwordRequirements.length ? 'text-emerald-500 font-semibold' : 'text-app-sec'}`}>
                   {passwordRequirements.length ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                  <span>Min 8 characters</span>
+                  <span>{t('signup.min8Chars')}</span>
                 </div>
                 <div className={`flex items-center gap-1.5 ${passwordRequirements.uppercase ? 'text-emerald-500 font-semibold' : 'text-app-sec'}`}>
                   {passwordRequirements.uppercase ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                  <span>Uppercase letter</span>
+                  <span>{t('signup.uppercaseLetter')}</span>
                 </div>
                 <div className={`flex items-center gap-1.5 ${passwordRequirements.lowercase ? 'text-emerald-500 font-semibold' : 'text-app-sec'}`}>
                   {passwordRequirements.lowercase ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                  <span>Lowercase letter</span>
+                  <span>{t('signup.lowercaseLetter')}</span>
                 </div>
                 <div className={`flex items-center gap-1.5 ${passwordRequirements.number ? 'text-emerald-500 font-semibold' : 'text-app-sec'}`}>
                   {passwordRequirements.number ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                  <span>One number</span>
+                  <span>{t('signup.oneNumber')}</span>
                 </div>
                 <div className={`flex items-center gap-1.5 col-span-2 ${passwordRequirements.special ? 'text-emerald-500 font-semibold' : 'text-app-sec'}`}>
                   {passwordRequirements.special ? <Check className="w-3 h-3 shrink-0" /> : <X className="w-3 h-3 shrink-0 opacity-40" />}
-                  <span>One special character (!@#$%)</span>
+                  <span>{t('signup.oneSpecialChar')}</span>
                 </div>
               </div>
             </div>
@@ -581,19 +583,19 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-xs font-semibold text-app-sec">
-              Confirm Password <span className="text-red-500">*</span>
+              {t('signup.confirmPassword')} <span className="text-red-500">*</span>
             </label>
             {confirmPassword && (
               <span className={`text-[10px] font-bold flex items-center gap-1 ${passwordsMatch ? 'text-emerald-500' : 'text-red-500'}`}>
                 {passwordsMatch ? (
                   <>
                     <Check className="w-3 h-3" />
-                    <span>Passwords Match</span>
+                    <span>{t('signup.passwordsMatch')}</span>
                   </>
                 ) : (
                   <>
                     <X className="w-3 h-3" />
-                    <span>Passwords Do Not Match</span>
+                    <span>{t('signup.passwordsNoMatch')}</span>
                   </>
                 )}
               </span>
@@ -608,7 +610,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onBlur={() => markTouched('confirmPassword')}
-              placeholder="Re-enter password"
+              placeholder={t('signup.reenterPassword')}
               className={`w-full bg-app-sec border ${
                 confirmPassword && !passwordsMatch ? 'border-red-500' : 'border-app'
               } rounded-xl pl-10 pr-10 py-2.5 text-xs text-app focus:outline-none focus:border-accent`}
@@ -630,7 +632,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
             onClick={() => setIsReferralOpen(!isReferralOpen)}
             className="flex items-center justify-between w-full text-xs font-semibold text-accent hover:underline py-1"
           >
-            <span>Have a Referral Code?</span>
+            <span>{t('signup.haveReferralCode')}</span>
             {isReferralOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
@@ -640,11 +642,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
                 type="text"
                 value={referralCode}
                 onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                placeholder="Enter Code (e.g. ORV894)"
+                placeholder={t('signup.enterCode')}
                 className="w-full bg-app-sec border border-app rounded-xl px-3 py-2 text-xs text-app font-mono focus:outline-none focus:border-accent"
               />
               <p className="text-[10px] text-app-sec mt-1">
-                Receive 10% fee discount and bonus $100 trading voucher on deposit.
+                {t('signup.referralBonus')}
               </p>
             </div>
           )}
@@ -659,7 +661,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               onChange={(e) => setIsHumanVerified(e.target.checked)}
               className="w-4 h-4 rounded text-accent focus:ring-accent cursor-pointer"
             />
-            <span className="text-xs font-semibold text-app">I am human (Security Verification)</span>
+            <span className="text-xs font-semibold text-app">{t('signup.imHuman')}</span>
           </label>
           <div className="flex items-center gap-1 text-[10px] text-app-sec font-mono">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
@@ -678,13 +680,13 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               className="mt-0.5 rounded text-accent focus:ring-accent shrink-0"
             />
             <span>
-              I agree to the{' '}
+              {t('signup.agreeTermsPrefix')}{' '}
               <a href="#terms" onClick={(e) => e.preventDefault()} className="text-accent underline font-semibold">
-                Terms of Service
+                {t('signup.termsOfService')}
               </a>{' '}
-              and{' '}
+              {t('signup.and')}{' '}
               <a href="#privacy" onClick={(e) => e.preventDefault()} className="text-accent underline font-semibold">
-                Privacy Policy
+                {t('signup.privacyPolicy')}
               </a>
               . <span className="text-red-500">*</span>
             </span>
@@ -697,7 +699,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               onChange={(e) => setReceiveUpdates(e.target.checked)}
               className="mt-0.5 rounded text-accent focus:ring-accent shrink-0"
             />
-            <span>Receive trading updates, platform news, and promotions.</span>
+            <span>{t('signup.receiveUpdates')}</span>
           </label>
         </div>
 
@@ -717,11 +719,11 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
           {isSubmitting ? (
             <>
               <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-              <span>Creating Account...</span>
+              <span>{t('signup.creatingAccount')}</span>
             </>
           ) : (
             <>
-              <span>Create Account</span>
+              <span>{t('welcome.createAccount')}</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}
@@ -734,7 +736,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
         <div className="relative flex items-center justify-center">
           <div className="border-t border-app w-full" />
           <span className="bg-app-card px-3 text-[10px] font-bold text-app-sec tracking-widest uppercase absolute">
-            OR
+            {t('auth.or')}
           </span>
         </div>
 
@@ -762,20 +764,20 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          <span>Continue with Google</span>
+          <span>{t('auth.continueWithGoogle')}</span>
         </button>
       </div>
 
       {/* Footer Switch to Login */}
       <div className="pt-2 border-t border-app text-center">
         <p className="text-xs text-app-sec">
-          Already have an account?{' '}
+          {t('signup.alreadyHaveAccount')}{' '}
           <button
             type="button"
             onClick={onSwitchToLogin}
             className="font-extrabold text-accent hover:underline cursor-pointer"
           >
-            Log In
+            {t('welcome.logIn')}
           </button>
         </p>
       </div>

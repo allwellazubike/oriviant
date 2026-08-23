@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Star, ArrowUpDown, Zap, ArrowUpRight, ArrowDownRight, Layers } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 import { NavigationTab } from '../../types';
 import { socketService } from '../../services/socketService';
 
@@ -10,7 +11,8 @@ interface MarketsViewProps {
 
 export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
   const { coins, setActiveCoinSymbol, favorites, toggleFavorite, priceFlashes, feedStatus, manualRefreshFeed } = useTrading();
-  
+  const { t } = useLocalization();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortField, setSortField] = useState<'name' | 'price' | 'change24h' | 'volume24h'>('volume24h');
@@ -48,22 +50,22 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
   }, [coins]);
 
   const categories = [
-    { id: 'all', label: 'All Markets' },
-    { id: 'watchlist', label: '★ Watchlist' },
-    { id: 'crypto', label: 'Crypto' },
-    { id: 'forex', label: 'Forex' },
-    { id: 'stocks', label: 'Stocks' },
-    { id: 'etfs', label: 'ETFs' },
-    { id: 'indices', label: 'Indices' },
-    { id: 'commodities', label: 'Commodities' },
-    { id: 'metals', label: 'Metals' },
-    { id: 'energy', label: 'Energy' },
-    { id: 'bonds', label: 'Bonds' },
-    { id: 'trending', label: '🔥 Trending' },
-    { id: 'gainers', label: '📈 Top Gainers' },
-    { id: 'losers', label: '📉 Top Losers' },
-    { id: 'new', label: '✨ New Listings' },
-    { id: 'traded', label: '⚡ Most Traded' },
+    { id: 'all', label: t('markets.catAll') },
+    { id: 'watchlist', label: t('markets.catWatchlist') },
+    { id: 'crypto', label: t('markets.catCrypto') },
+    { id: 'forex', label: t('markets.catForex') },
+    { id: 'stocks', label: t('markets.catStocks') },
+    { id: 'etfs', label: t('markets.catEtfs') },
+    { id: 'indices', label: t('markets.catIndices') },
+    { id: 'commodities', label: t('markets.catCommodities') },
+    { id: 'metals', label: t('markets.catMetals') },
+    { id: 'energy', label: t('markets.catEnergy') },
+    { id: 'bonds', label: t('markets.catBonds') },
+    { id: 'trending', label: t('markets.catTrending') },
+    { id: 'gainers', label: t('markets.catGainers') },
+    { id: 'losers', label: t('markets.catLosers') },
+    { id: 'new', label: t('markets.catNew') },
+    { id: 'traded', label: t('markets.catTraded') },
   ];
 
   const handleSort = (field: 'name' | 'price' | 'change24h' | 'volume24h') => {
@@ -115,8 +117,8 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
       {/* Markets Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-app tracking-tight">Multi-Asset Marketplace</h1>
-          <p className="text-xs text-app-sec">Real-time quotes across Crypto, Forex, Stocks, ETFs, Indices, Commodities & Bonds.</p>
+          <h1 className="text-2xl font-black text-app tracking-tight">{t('markets.title')}</h1>
+          <p className="text-xs text-app-sec">{t('markets.subtitle')}</p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
@@ -127,7 +129,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search symbol, name or market (e.g. AAPL, EUR/USD, Gold)"
+              placeholder={t('markets.searchPlaceholder')}
               className="w-full bg-app-card border border-app rounded-xl pl-10 pr-4 py-2 text-xs text-app placeholder-app-sec focus:outline-none focus:border-accent"
             />
           </div>
@@ -139,14 +141,14 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-bold text-[11px]">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>LIVE DATA FEED CONNECTED</span>
+            <span>{t('markets.liveFeedConnected')}</span>
           </div>
 
           <div className="flex items-center gap-4 text-app-sec text-[11px] font-medium">
-            <span>Latency: <strong className="text-app font-bold">{feedStatus.latencyMs}ms</strong></span>
-            <span>Streaming: <strong className="text-app font-bold">{feedStatus.activeFeedsCount} Markets</strong></span>
-            <span>Sync Engine: <strong className="text-emerald-500 font-bold">{feedStatus.isWsConnected ? 'Binance WS + FX Stream' : 'REST Stream'}</strong></span>
-            <span>Last Sync: <strong className="text-app font-bold">{feedStatus.lastUpdated}</strong></span>
+            <span>{t('markets.latency')}: <strong className="text-app font-bold">{feedStatus.latencyMs}ms</strong></span>
+            <span>{t('markets.streaming')}: <strong className="text-app font-bold">{feedStatus.activeFeedsCount} {t('markets.markets')}</strong></span>
+            <span>{t('markets.syncEngine')}: <strong className="text-emerald-500 font-bold">{feedStatus.isWsConnected ? 'Binance WS + FX Stream' : 'REST Stream'}</strong></span>
+            <span>{t('markets.lastSync')}: <strong className="text-app font-bold">{feedStatus.lastUpdated}</strong></span>
           </div>
         </div>
 
@@ -154,7 +156,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
           onClick={manualRefreshFeed}
           className="px-3 py-1.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app text-xs font-semibold border border-app transition-colors flex items-center gap-1.5 cursor-pointer ml-auto"
         >
-          <span>Sync Feed Now</span>
+          <span>{t('markets.syncFeedNow')}</span>
         </button>
       </div>
 
@@ -184,37 +186,37 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                 <th className="py-3 px-4 w-10">★</th>
                 <th className="py-3 px-4 cursor-pointer" onClick={() => handleSort('name')}>
                   <div className="flex items-center gap-1">
-                    <span>Trading Pair</span>
+                    <span>{t('markets.tradingPair')}</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3 px-4 text-right cursor-pointer" onClick={() => handleSort('price')}>
                   <div className="flex items-center justify-end gap-1">
-                    <span>Price (USDT)</span>
+                    <span>{t('markets.priceUsdt')}</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3 px-4 text-right cursor-pointer" onClick={() => handleSort('change24h')}>
                   <div className="flex items-center justify-end gap-1">
-                    <span>24h Change</span>
+                    <span>{t('markets.change24h')}</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
                 <th className="py-3 px-4 text-right hidden md:table-cell cursor-pointer" onClick={() => handleSort('volume24h')}>
                   <div className="flex items-center justify-end gap-1">
-                    <span>24h Volume</span>
+                    <span>{t('markets.volume24h')}</span>
                     <ArrowUpDown className="w-3 h-3" />
                   </div>
                 </th>
-                <th className="py-3 px-4 text-center hidden lg:table-cell">Sparkline (7D)</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 text-center hidden lg:table-cell">{t('markets.sparkline7d')}</th>
+                <th className="py-3 px-4 text-right">{t('markets.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-app">
               {sortedCoins.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-xs text-app-sec">
-                    No coins found matching "{searchQuery}"
+                    {t('markets.noCoinsFound')} "{searchQuery}"
                   </td>
                 </tr>
               ) : (
@@ -298,7 +300,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                             }}
                             className="px-2.5 py-1 text-xs font-bold rounded-lg bg-app-sec hover:bg-app-sec/80 text-app border border-app transition-colors"
                           >
-                            Spot
+                            {t('markets.spot')}
                           </button>
                           <button
                             onClick={() => {
@@ -307,7 +309,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                             }}
                             className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-colors"
                           >
-                            Futures
+                            {t('markets.futures')}
                           </button>
                         </div>
                       </td>

@@ -36,6 +36,7 @@ import { useDemoMode } from '../../contexts/DemoModeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { useSearch } from '../../contexts/SearchContext';
 import { useUser } from '../../contexts/UserContext';
+import { useLocalization } from '../../contexts/LocalizationContext';
 import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { NavigationTab } from '../../types';
 
@@ -50,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
   const { unreadCount, openDrawer } = useNotifications();
   const { openSearch } = useSearch();
   const { user, isLoggedIn, logout, openAuthModal } = useUser();
+  const { t } = useLocalization();
 
   const [isAccountDrawerOpen, setIsAccountDrawerOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -164,7 +166,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'home' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Home
+                    {t('nav.home')}
                   </button>
                   <button
                     onClick={() => onNavigate('markets')}
@@ -172,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'markets' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Markets
+                    {t('nav.markets')}
                   </button>
                   <button
                     onClick={() => onNavigate('spot')}
@@ -180,7 +182,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'spot' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Spot
+                    {t('nav.spot')}
                   </button>
                   <button
                     onClick={() => onNavigate('futures')}
@@ -188,7 +190,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'futures' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Futures
+                    {t('nav.futures')}
                     <span className="px-1 text-[9px] bg-red-500/15 text-red-500 rounded font-bold">125x</span>
                   </button>
                   <button
@@ -197,7 +199,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'copy-trading' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Copy Trading
+                    {t('header.copyTrading')}
                   </button>
                   <button
                     onClick={() => onNavigate('academy')}
@@ -205,7 +207,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'academy' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Academy
+                    {t('header.academy')}
                   </button>
                   <button
                     onClick={() => onNavigate('reviews')}
@@ -213,7 +215,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       activeTab === 'reviews' ? 'bg-app-sec text-accent font-semibold' : 'text-app-sec hover:text-app hover:bg-app-sec/50'
                     }`}
                   >
-                    Reviews
+                    {t('header.reviews')}
                   </button>
                   <button
                     onClick={() => onNavigate('demo-workspace')}
@@ -222,7 +224,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     }`}
                   >
                     <Zap className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Practice Demo Mode</span>
+                    <span>{t('header.practiceDemoMode')}</span>
                   </button>
                 </nav>
               </div>
@@ -234,17 +236,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={openSearch}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app flex items-center gap-2 cursor-pointer"
-                  title="Search markets, coins, traders (Ctrl+K)"
+                  title={t('header.searchTooltip')}
                 >
                   <Search className="w-4 h-4" />
-                  <span className="hidden xl:inline text-xs font-medium text-app-sec">Search...</span>
+                  <span className="hidden xl:inline text-xs font-medium text-app-sec">{t('header.searchPlaceholder')}</span>
                 </button>
 
                 {/* Notifications Trigger */}
                 <button
                   onClick={openDrawer}
                   className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
-                  title="Notifications"
+                  title={t('header.notifications')}
                 >
                   <Bell className="w-4 h-4" />
                   {unreadCount > 0 && (
@@ -258,7 +260,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={toggleTheme}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
-                  title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
+                  title={mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
                 >
                   {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
                 </button>
@@ -267,7 +269,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={() => setIsAccountDrawerOpen(!isAccountDrawerOpen)}
                   className="p-1 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app transition-all focus:outline-none min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 group cursor-pointer"
-                  title="Account Profile & Settings"
+                  title={t('header.accountProfile')}
                   aria-label="User Account Profile"
                 >
                   <img
@@ -309,8 +311,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={openSearch}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
-                  title="Search"
-                  aria-label="Search"
+                  title={t('header.search')}
+                  aria-label={t('header.search')}
                 >
                   <Search className="w-4 h-4" />
                 </button>
@@ -319,8 +321,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={openDrawer}
                   className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
-                  title="Notifications"
-                  aria-label="Notifications"
+                  title={t('header.notifications')}
+                  aria-label={t('header.notifications')}
                 >
                   <Bell className="w-4 h-4" />
                   {unreadCount > 0 && (
@@ -334,8 +336,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={toggleTheme}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
-                  title={`Switch to ${mode === 'dark' ? 'Light' : 'Dark'} mode`}
-                  aria-label="Toggle Theme"
+                  title={mode === 'dark' ? t('header.switchToLight') : t('header.switchToDark')}
+                  aria-label={t('drawer.toggleTheme')}
                 >
                   {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
                 </button>
@@ -344,8 +346,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={handleProfileClick}
                   className="p-0.5 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
-                  title="Profile & Account"
-                  aria-label="User Account Profile"
+                  title={t('header.profileAccount')}
+                  aria-label={t('header.profileAccount')}
                 >
                   <img
                     src={user.avatar}
@@ -392,12 +394,12 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
             <div className="p-4 sm:p-5 border-b border-app flex items-center justify-between shrink-0 bg-app-card">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <h2 className="text-sm font-extrabold text-app tracking-tight uppercase">Account Management</h2>
+                <h2 className="text-sm font-extrabold text-app tracking-tight uppercase">{t('drawer.accountManagement')}</h2>
               </div>
               <button
                 onClick={() => setIsAccountDrawerOpen(false)}
                 className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors"
-                aria-label="Close Account Panel"
+                aria-label={t('drawer.closePanel')}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -430,28 +432,28 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 {/* Badges and Meta Information Grid */}
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-app/60 text-xs">
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">Account UID</span>
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.accountUid')}</span>
                     <span className="font-mono font-bold text-app text-xs">{user.id}</span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">VIP Level</span>
-                    <span className="font-bold text-accent text-xs">VIP Level {user.vipLevel}</span>
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.vipLevel')}</span>
+                    <span className="font-bold text-accent text-xs">{t('drawer.vipLevel')} {user.vipLevel}</span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">Verification</span>
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.verification')}</span>
                     <span className="inline-flex items-center gap-1 font-bold text-emerald-500 text-xs">
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      KYC Level 2
+                      {t('drawer.kycLevel2')}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">Security Status</span>
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.securityStatus')}</span>
                     <span className="inline-flex items-center gap-1 font-bold text-indigo-400 text-xs">
                       <Shield className="w-3.5 h-3.5" />
-                      2FA Active
+                      {t('drawer.twoFaActive')}
                     </span>
                   </div>
                 </div>
@@ -460,22 +462,22 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span className="font-bold text-emerald-500">Account Verification: Verified</span>
+                    <span className="font-bold text-emerald-500">{t('drawer.accountVerified')}</span>
                   </div>
-                  <span className="text-[10px] text-app-sec font-medium">Daily Limit: $1,000,000</span>
+                  <span className="text-[10px] text-app-sec font-medium">{t('drawer.dailyLimit')}</span>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">Theme Preference</span>
-                    <span className="font-bold text-app text-xs capitalize">{mode} Mode Active</span>
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.themePreference')}</span>
+                    <span className="font-bold text-app text-xs">{mode === 'dark' ? t('profile.darkTheme') : t('profile.lightTheme')} {t('drawer.modeActive')}</span>
                   </div>
                   <button
                     onClick={toggleTheme}
                     className="px-2.5 py-1 text-xs font-bold rounded-lg bg-app-sec hover:bg-app text-app border border-app transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     {mode === 'dark' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-500" />}
-                    <span>Toggle Theme</span>
+                    <span>{t('drawer.toggleTheme')}</span>
                   </button>
                 </div>
               </div>
@@ -483,7 +485,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               {/* Quick Actions / Navigation Shortcuts */}
               <div className="space-y-2">
                 <span className="text-[10px] font-bold text-app-sec uppercase tracking-wider px-1">
-                  Quick Actions
+                  {t('drawer.quickActions')}
                 </span>
 
                 <button
@@ -498,8 +500,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <User className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">My Profile</p>
-                      <p className="text-[10px] text-app-sec">Manage profile & identity details</p>
+                      <p className="font-bold">{t('drawer.myProfile')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.myProfileDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -517,8 +519,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <Wallet className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Assets</p>
-                      <p className="text-[10px] text-app-sec">Balances, deposit & withdrawal</p>
+                      <p className="font-bold">{t('drawer.assets')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.assetsDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -536,8 +538,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <FileText className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Orders</p>
-                      <p className="text-[10px] text-app-sec">Active trades & order history</p>
+                      <p className="font-bold">{t('drawer.orders')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.ordersDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -555,8 +557,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <Users className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Copy Trading</p>
-                      <p className="text-[10px] text-app-sec">Lead traders & copied portfolios</p>
+                      <p className="font-bold">{t('header.copyTrading')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.copyTradingDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -574,8 +576,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <Settings className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Settings</p>
-                      <p className="text-[10px] text-app-sec">Platform & account configuration</p>
+                      <p className="font-bold">{t('drawer.settings')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.settingsDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -593,8 +595,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <ShieldCheck className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Security</p>
-                      <p className="text-[10px] text-app-sec">2FA, passwords & API keys</p>
+                      <p className="font-bold">{t('drawer.security')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.securityDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -612,8 +614,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <Bell className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Notifications</p>
-                      <p className="text-[10px] text-app-sec">Price alerts & activity updates</p>
+                      <p className="font-bold">{t('header.notifications')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.notificationsDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -631,8 +633,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <Sparkles className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Referral Program (Earn 40%)</p>
-                      <p className="text-[10px] text-app-sec">Invite friends & track commission</p>
+                      <p className="font-bold">{t('drawer.referralProgram')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.referralDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -650,8 +652,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       <HelpCircle className="w-4 h-4" />
                     </div>
                     <div className="text-left">
-                      <p className="font-bold">Help Center & Support</p>
-                      <p className="text-[10px] text-app-sec">24/7 support & platform guides</p>
+                      <p className="font-bold">{t('drawer.helpCenter')}</p>
+                      <p className="text-[10px] text-app-sec">{t('drawer.helpDesc')}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec" />
@@ -677,9 +679,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   </div>
                   <div className="text-left">
                     <p className="font-extrabold flex items-center gap-1.5">
-                      <span>🛡️ Admin Portal</span>
+                      <span>🛡️ {t('drawer.adminPortal')}</span>
                     </p>
-                    <p className="text-[10px] text-amber-500/80 font-medium">Restricted administrator access</p>
+                    <p className="text-[10px] text-amber-500/80 font-medium">{t('drawer.adminDesc')}</p>
                   </div>
                 </div>
                 <ChevronRight className="w-4 h-4 text-amber-500/70 group-hover:translate-x-0.5 transition-transform" />
@@ -694,7 +696,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 font-bold text-xs transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Sign Out of Oriviant Account</span>
+                <span>{t('drawer.signOutFull')}</span>
               </button>
             </div>
 
@@ -769,7 +771,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </div>
               ) : (
                 <div className="p-3 rounded-2xl bg-app-card border border-app shadow-sm space-y-2">
-                  <p className="text-xs font-semibold text-app">Welcome to Oriviant Exchange</p>
+                  <p className="text-xs font-semibold text-app">{t('drawer.welcomeExchange')}</p>
                   <div className="flex gap-2">
                     <button
                       onClick={() => {
@@ -778,7 +780,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       }}
                       className="flex-1 py-2 rounded-xl bg-accent text-white font-bold text-xs shadow-md shadow-accent/20"
                     >
-                      Sign In
+                      {t('common.signIn')}
                     </button>
                     <button
                       onClick={() => {
@@ -787,7 +789,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                       }}
                       className="flex-1 py-2 rounded-xl bg-app-sec text-app font-bold text-xs border border-app"
                     >
-                      Register
+                      {t('common.register')}
                     </button>
                   </div>
                 </div>
@@ -800,7 +802,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               {/* CATEGORY 1: TRADING & MARKETS */}
               <div className="space-y-1">
                 <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
-                  TRADING & MARKETS
+                  {t('mobileDrawer.tradingMarkets')}
                 </div>
 
                 <button
@@ -811,7 +813,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Home className="w-4 h-4 text-blue-500" />
-                    <span>Home Overview</span>
+                    <span>{t('mobileDrawer.homeOverview')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -824,7 +826,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <TrendingUp className="w-4 h-4 text-indigo-500" />
-                    <span>Markets Overview</span>
+                    <span>{t('mobileDrawer.marketsOverview')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -837,7 +839,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Layers className="w-4 h-4 text-blue-500" />
-                    <span>Spot Trading</span>
+                    <span>{t('mobileDrawer.spotTrading')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -850,7 +852,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Zap className="w-4 h-4 text-red-500" />
-                    <span>Futures Trading</span>
+                    <span>{t('mobileDrawer.futuresTrading')}</span>
                   </div>
                   <span className="px-1.5 py-0.5 text-[9px] font-black bg-red-500/15 text-red-500 rounded">
                     125x
@@ -865,7 +867,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Users className="w-4 h-4 text-emerald-500" />
-                    <span>Copy Trading</span>
+                    <span>{t('header.copyTrading')}</span>
                   </div>
                   <span className="px-1.5 py-0.5 text-[9px] font-black bg-emerald-500/15 text-emerald-500 rounded uppercase">
                     PRO
@@ -880,7 +882,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Wallet className="w-4 h-4 text-amber-500" />
-                    <span>Assets & Wallets</span>
+                    <span>{t('mobileDrawer.assetsWallets')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -893,7 +895,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Zap className="w-4 h-4 text-emerald-500" />
-                    <span>Practice Demo Mode</span>
+                    <span>{t('header.practiceDemoMode')}</span>
                   </div>
                   <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-500/15 text-emerald-500 rounded">
                     10,000 USDT
@@ -904,7 +906,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               {/* CATEGORY 2: REWARDS & GROWTH */}
               <div className="space-y-1 pt-2 border-t border-app">
                 <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
-                  REWARDS & EDUCATION
+                  {t('mobileDrawer.rewardsEducation')}
                 </div>
 
                 <button
@@ -915,10 +917,10 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Gift className="w-4 h-4 text-purple-500" />
-                    <span>Referral Hub & Rewards</span>
+                    <span>{t('mobileDrawer.referralHub')}</span>
                   </div>
                   <span className="px-1.5 py-0.5 text-[9px] font-bold bg-amber-500/15 text-amber-500 rounded">
-                    Earn 40%
+                    {t('mobileDrawer.earn40')}
                   </span>
                 </button>
 
@@ -930,7 +932,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <BookOpen className="w-4 h-4 text-indigo-500" />
-                    <span>Crypto Academy & Guides</span>
+                    <span>{t('mobileDrawer.cryptoAcademy')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -943,7 +945,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Star className="w-4 h-4 text-amber-500" />
-                    <span>Platform Reviews & Ratings</span>
+                    <span>{t('mobileDrawer.platformReviews')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -952,7 +954,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               {/* CATEGORY 4: ACCOUNT & SUPPORT */}
               <div className="space-y-1 pt-2 border-t border-app">
                 <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
-                  ACCOUNT & SUPPORT
+                  {t('mobileDrawer.accountSupport')}
                 </div>
 
                 <button
@@ -963,7 +965,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <User className="w-4 h-4 text-app-sec" />
-                    <span>User Profile & Verification</span>
+                    <span>{t('mobileDrawer.userProfile')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -976,7 +978,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <ShieldCheck className="w-4 h-4 text-app-sec" />
-                    <span>Security & Settings</span>
+                    <span>{t('mobileDrawer.securitySettings')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -989,7 +991,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <HelpCircle className="w-4 h-4 text-app-sec" />
-                    <span>Help Center & FAQ</span>
+                    <span>{t('mobileDrawer.helpFaq')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
@@ -1002,7 +1004,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <Lock className="w-4 h-4" />
-                    <span>Admin Control Portal</span>
+                    <span>{t('mobileDrawer.adminControlPortal')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 opacity-60" />
                 </button>
@@ -1016,7 +1018,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-red-500 hover:bg-red-500/10 transition-colors min-h-[44px]"
                   >
                     <LogOut className="w-4 h-4" />
-                    <span>Sign Out</span>
+                    <span>{t('profile.signOut')}</span>
                   </button>
                 )}
               </div>
@@ -1026,7 +1028,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
             {/* Footer info in Drawer */}
             <div className="p-4 border-t border-app bg-app-sec/20 text-center text-[10px] text-app-sec">
               <p className="font-bold text-app">ORIVIANT CRYPTO EXCHANGE</p>
-              <p>v2.4.0 • Built for High Performance</p>
+              <p>v2.4.0 • {t('mobileDrawer.builtForPerformance')}</p>
             </div>
 
           </div>

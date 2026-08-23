@@ -11,6 +11,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import marketRoutes from './routes/marketRoutes.js';
 import walletRoutes from './routes/walletRoutes.js';
 import tradingRoutes from './routes/tradingRoutes.js';
+import academyRoutes from './routes/academyRoutes.js';
 import copyTradingRoutes from './routes/copyTradingRoutes.js';
 import futuresRoutes from './routes/futuresRoutes.js';
 import { processRestingOrders } from './services/tradingService.js';
@@ -88,8 +89,12 @@ app.use('/api/markets', marketRoutes);
 app.use('/api/wallets', walletRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/copy', copyTradingRoutes);
+<<<<<<< HEAD
 app.use('/api/futures', futuresRoutes);
 app.use('/api/transfers', transferRoutes);
+=======
+app.use('/api/academy', academyRoutes);
+>>>>>>> 96e8d059d1f94e6fa080419cd20cce8e46294503
 
 // Database connection check
 pool.query('SELECT NOW()', (err, res) => {
