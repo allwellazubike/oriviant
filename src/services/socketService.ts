@@ -22,6 +22,21 @@ class SocketService {
     }
   }
 
+  /** Joins the caller's private `user_{id}` room so the server can push notifications and balance updates directly. */
+  authenticate(token: string) {
+    if (this.socket) {
+      this.socket.emit('authenticate', { token });
+    }
+  }
+
+  onNotification(callback: (notification: any) => void) {
+    this.socket?.on('notification', callback);
+  }
+
+  offNotification(callback: (notification: any) => void) {
+    this.socket?.off('notification', callback);
+  }
+
   subscribeToMarket(symbol: string) {
     if (this.socket) {
       this.socket.emit('subscribe_market', symbol);

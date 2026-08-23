@@ -148,7 +148,7 @@ export const futuresService = {
       );
 
       await client.query('COMMIT');
-      return closedPosRes.rows[0];
+      return { ...closedPosRes.rows[0], pnl, exit_price: exitPrice };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

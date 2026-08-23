@@ -76,6 +76,16 @@ export const adminApi = {
     return apiClient<{ success: boolean; data: any }>('/admin/analytics', { method: 'GET' });
   },
 
+  // --- BROADCAST BANNERS ---
+  getBroadcasts: async () => {
+    return apiClient<{ success: boolean; data: any[] }>('/admin/broadcasts', { method: 'GET' });
+  },
+  sendBroadcast: async (payload: { title: string; message: string; severity: string; audience: string }) => {
+    return apiClient<{ success: boolean; message: string; data: any }>('/admin/broadcasts', {
+      method: 'POST', body: JSON.stringify(payload),
+    });
+  },
+
   // --- LEADER TRADERS DESK ---
   getCopyTraders: async () => {
     return apiClient<{ success: boolean; data: any[] }>('/admin/copy-traders', { method: 'GET' });

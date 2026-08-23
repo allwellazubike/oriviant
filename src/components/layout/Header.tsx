@@ -785,7 +785,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     <button
                       onClick={() => {
                         setIsMobileMenuOpen(false);
-                        openAuthModal('register');
+                        openAuthModal('signup');
                       }}
                       className="flex-1 py-2 rounded-xl bg-app-sec text-app font-bold text-xs border border-app"
                     >

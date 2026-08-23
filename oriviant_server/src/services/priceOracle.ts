@@ -2,7 +2,10 @@
  * Authoritative price source for trade execution with built-in fallbacks.
  */
 
-const BINANCE_TICKER_URL = 'https://api.binance.com/api/v3/ticker/price';
+// data-api.binance.vision is Binance's public, read-only market-data mirror —
+// same REST shape as api.binance.com, but reachable from hosts (this app's
+// included) that the main trading API blocks at the network level.
+const BINANCE_TICKER_URL = 'https://data-api.binance.vision/api/v3/ticker/price';
 
 const CACHE_TTL_MS = 5_000;
 const MAX_ACCEPTABLE_AGE_MS = 60_000;

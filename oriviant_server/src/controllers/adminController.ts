@@ -4,6 +4,8 @@ import { applyMovement } from '../services/ledgerService.js';
 import { sendDepositApproved, sendDepositDenied } from '../services/emailService.js';
 import { marketDataService } from '../services/marketDataService.js'; 
 import { adminService } from '../services/adminService.js';
+import { notifyDepositCompleted, notifyDepositRejected } from '../services/notificationService.js';
+import { createBroadcast, listBroadcasts, BroadcastAudience } from '../services/notificationService.js';
 
 export const getPendingDeposits = async (req: Request, res: Response) => {
   try {
@@ -168,6 +170,7 @@ export const approveDeposit = async (req: Request, res: Response) => {
     if (depositor.rows[0]?.email) {
       void sendDepositApproved(depositor.rows[0].email, amountReceived, deposit.asset);
     }
+    void notifyDepositCompleted(deposit.user_id, deposit.asset, amountReceived);
 
     res.status(200).json({
       success: true,
@@ -204,6 +207,7 @@ export const denyDeposit = async (req: Request, res: Response) => {
     if (depositor.rows[0]?.email) {
       void sendDepositDenied(depositor.rows[0].email, denied.asset);
     }
+    void notifyDepositRejected(denied.user_id, denied.asset);
 
     res.status(200).json({ success: true, message: 'Deposit denied.' });
   } catch (error) {
@@ -357,6 +361,58 @@ export const updateSettings = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, message: 'Setting updated', setting: updated });
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+const ALLOWED_AUDIENCES: BroadcastAudience[] = ['all', 'active_traders'];
+
+export const sendBroadcast = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { title, message, severity, audience } = req.body ?? {};
+
+    if (typeof title !== 'string' || !title.trim() || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ success: false, error: 'Title and message are required.' });
+    }
+
+    const resolvedAudience: BroadcastAudience = ALLOWED_AUDIENCES.includes(audience) ? audience : 'all';
+
+    const broadcast = await createBroadcast({
+      title: title.trim(),
+      message: message.trim(),
+      severity: typeof severity === 'string' ? severity : 'info',
+      audience: resolvedAudience,
+      sentBy: adminId
+    });
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details)
+       VALUES ($1, 'SEND_BROADCAST', 'broadcast', $2, $3)`,
+      [adminId, broadcast.id.toString(), JSON.stringify({ title, audience: resolvedAudience, recipientCount: broadcast.recipient_count })]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Broadcast sent to ${broadcast.recipient_count} user(s).`,
+      data: broadcast
+    });
+  } catch (err: any) {
+    console.error('Error sending broadcast:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getBroadcasts = async (req: Request, res: Response) => {
+  try {
+    const broadcasts = await listBroadcasts();
+    return res.status(200).json({ success: true, data: broadcasts });
+  } catch (err: any) {
+    console.error('Error fetching broadcasts:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
 

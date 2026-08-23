@@ -95,6 +95,31 @@ export const YAHOO_SYMBOL_MAP: Record<string, string> = {
   BUND: '^TNX',
 };
 
+/**
+ * Crypto pairs, priced from Binance rather than Yahoo (see the module note
+ * above). Kept in one place so this list, the market_assets seed data, and
+ * the live-price fetcher can't drift from each other.
+ */
+export const CRYPTO_SYMBOL_MAP: Record<string, string> = {
+  'BTC/USDT': 'BTCUSDT',
+  'ETH/USDT': 'ETHUSDT',
+  'SOL/USDT': 'SOLUSDT',
+  'BNB/USDT': 'BNBUSDT',
+  'XRP/USDT': 'XRPUSDT',
+  'ADA/USDT': 'ADAUSDT',
+  'DOGE/USDT': 'DOGEUSDT',
+  'AVAX/USDT': 'AVAXUSDT',
+  'LINK/USDT': 'LINKUSDT',
+  'DOT/USDT': 'DOTUSDT',
+  'LTC/USDT': 'LTCUSDT',
+  'TRX/USDT': 'TRXUSDT',
+  'ATOM/USDT': 'ATOMUSDT',
+  'APT/USDT': 'APTUSDT',
+  'SUI/USDT': 'SUIUSDT',
+};
+
+export const ALL_CRYPTO_SYMBOLS = Object.keys(CRYPTO_SYMBOL_MAP);
+
 /** Reverse lookup, so a Yahoo response row can be matched back to our symbol. */
 export const ORIVIANT_SYMBOL_BY_YAHOO: Record<string, string[]> = Object.entries(
   YAHOO_SYMBOL_MAP

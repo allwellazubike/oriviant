@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/db.js';
 import { placeOrder, cancelOrder, TradeError, FEE_RATE } from '../services/tradingService.js';
 import { PriceUnavailableError, getMarketPrice } from '../services/priceOracle.js';
+import { notifyOrderPlaced, notifyOrderFilled, notifyOrderCancelled } from '../services/notificationService.js';
 
 export const createOrder = async (req: Request, res: Response) => {
   console.log('📥 INCOMING ORDER REQUEST:', req.body);
@@ -28,6 +29,12 @@ export const createOrder = async (req: Request, res: Response) => {
       amount,
       limitPrice,
     });
+
+    if (result.filled) {
+      void notifyOrderFilled(userId, pair, side, Number(result.order.amount), Number(result.order.fill_price));
+    } else {
+      void notifyOrderPlaced(userId, pair, side, amount);
+    }
 
     res.status(201).json({
       success: true,
@@ -58,6 +65,7 @@ export const deleteOrder = async (req: Request, res: Response) => {
     }
 
     const order = await cancelOrder(userId, orderId);
+    void notifyOrderCancelled(userId, order.pair, order.side, Number(order.amount));
     res.status(200).json({ success: true, message: 'Order cancelled.', data: order });
   } catch (error: any) {
     if (error instanceof TradeError) {

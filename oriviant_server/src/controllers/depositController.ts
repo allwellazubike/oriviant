@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import pool from '../config/db.js';
 import { DEPOSIT_ASSETS, getDepositAsset, SUPPORTED_DEPOSIT_SYMBOLS } from '../config/depositAddresses.js';
 import { uploadDepositProof, UploadError } from '../services/uploadService.js';
+import { notifyDepositPending } from '../services/notificationService.js';
 
 /**
  * The assets we accept and where to send them.
@@ -96,6 +97,8 @@ export const createDepositRequest = async (req: Request, res: Response) => {
        RETURNING *;`,
       [userId, depositAsset.symbol, amount, depositAsset.network, txHash, proofUrl]
     );
+
+    void notifyDepositPending(userId, depositAsset.symbol, amount);
 
     res.status(201).json({
       success: true,

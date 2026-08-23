@@ -12,7 +12,9 @@ import {
   getSettings,
   updateSettings,
   getSystemTelemetry, // <-- Add this!
-  getAnalyticsOverview
+  getAnalyticsOverview,
+  sendBroadcast,
+  getBroadcasts
 } from '../controllers/adminController.js';
 import { withdrawalController } from '../controllers/withdrawalController.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth.js';
@@ -64,5 +66,9 @@ router.get('/settings', getSettings);
 router.post('/settings', updateSettings);
 router.get('/telemetry', getSystemTelemetry);
 router.get('/analytics', getAnalyticsOverview);
+
+// Broadcast Banners
+router.get('/broadcasts', getBroadcasts);
+router.post('/broadcasts', sendBroadcast);
 
 export default router;

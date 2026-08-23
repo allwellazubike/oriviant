@@ -8,6 +8,7 @@ import {
   spendLockedFunds,
   InsufficientFundsError,
 } from './ledgerService.js';
+import { notifyOrderFilled } from './notificationService.js';
 
 /** Taker fee, charged on the asset the user receives. */
 export const FEE_RATE = 0.001; // 0.1%
@@ -359,6 +360,7 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
     }
 
     await client.query('COMMIT');
+    void notifyOrderFilled(order.user_id, order.pair, order.side, amount, price);
     return true;
   } catch (error) {
     await client.query('ROLLBACK');

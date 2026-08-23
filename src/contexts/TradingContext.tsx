@@ -194,18 +194,22 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const match = priceDict[asset.symbol] || priceDict[asset.symbol.replace('/', '-')];
           const price = match ? Number(match.price) : (asset.fallback_price || 100);
           const change = match ? Number(match.change24h) : parseFloat((Math.random() * 3 - 1.5).toFixed(2));
-          
+          const hasRealVolume = match && match.volume24h !== undefined && match.volume24h !== null;
+          const hasRealSparkline = Array.isArray(match?.sparkline) && match.sparkline.length > 1;
+
           return {
             id: asset.id.toString(),
             name: asset.name,
             symbol: asset.symbol,
             price: price,
             change24h: change,
-            volume24h: match ? Number(match.volume24h) : Math.random() * 50000000 + 20000000,
-            high24h: price * 1.05,
-            low24h: price * 0.95,
+            volume24h: hasRealVolume ? Number(match.volume24h) : Math.random() * 50000000 + 20000000,
+            high24h: match ? Number(match.high24h) : price * 1.05,
+            low24h: match ? Number(match.low24h) : price * 0.95,
             marketCap: 0,
-            sparkline: Array(20).fill(price).map(p => p + (Math.random() * p * 0.002 - p * 0.001)),
+            sparkline: hasRealSparkline
+              ? match.sparkline.map(Number)
+              : Array(20).fill(price).map(p => p + (Math.random() * p * 0.002 - p * 0.001)),
             precision: asset.price_precision || 2,
             category: asset.category.toLowerCase()
           };
@@ -278,7 +282,15 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (coin.symbol !== data.symbol) return coin;
         const newPrice = parseFloat(data.price);
         if (Math.abs(newPrice - coin.price) > 0.000001) triggerFlash(coin.symbol, newPrice > coin.price ? 'up' : 'down');
-        return { ...coin, price: newPrice, change24h: data.change24h || coin.change24h, sparkline: [...coin.sparkline.slice(1), newPrice] };
+        return {
+          ...coin,
+          price: newPrice,
+          change24h: data.change24h ?? coin.change24h,
+          volume24h: data.volume24h !== undefined && data.volume24h !== null ? Number(data.volume24h) : coin.volume24h,
+          high24h: data.high24h !== undefined ? Number(data.high24h) : coin.high24h,
+          low24h: data.low24h !== undefined ? Number(data.low24h) : coin.low24h,
+          sparkline: [...coin.sparkline.slice(1), newPrice]
+        };
       }));
     };
 

@@ -66,5 +66,12 @@ export const websocketService = {
     if (io) {
       io.to(`user_${userId.toString()}`).emit('balance_update', payload);
     }
+  },
+
+  // Pushes a freshly created notification row straight to its owner, if connected.
+  pushNotification: (userId: number, notification: any) => {
+    if (io) {
+      io.to(`user_${userId.toString()}`).emit('notification', notification);
+    }
   }
 };

@@ -463,6 +463,84 @@ const createTables = async () => {
 
     CREATE INDEX IF NOT EXISTS market_assets_category_idx ON market_assets (category, status);
 
+    /*
+     * In-app notifications: order lifecycle, deposit/withdrawal lifecycle, and
+     * admin broadcasts all write here. Read by the bell icon drawer.
+     */
+    CREATE TABLE IF NOT EXISTS notifications (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title VARCHAR(200) NOT NULL,
+      message TEXT NOT NULL,
+      category VARCHAR(20) NOT NULL DEFAULT 'system',
+      link_tab VARCHAR(30),
+      read BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications (user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS notifications_user_unread_idx ON notifications (user_id) WHERE read = false;
+
+    /*
+     * Log of admin broadcast banners, separate from the per-user notification
+     * rows they fan out into — this is what the Broadcast Log History reads,
+     * so a broadcast's record survives even after users read/clear their copy.
+     */
+    CREATE TABLE IF NOT EXISTS broadcasts (
+      id BIGSERIAL PRIMARY KEY,
+      title VARCHAR(200) NOT NULL,
+      message TEXT NOT NULL,
+      severity VARCHAR(20) NOT NULL DEFAULT 'info',
+      audience VARCHAR(40) NOT NULL DEFAULT 'all',
+      sent_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      recipient_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS broadcasts_created_idx ON broadcasts (created_at DESC);
+
+    /*
+     * Publish state for real Academy lessons (ACADEMY_LESSONS in the
+     * frontend). The lesson content itself stays in code — this table only
+     * tracks which real lesson ids are published vs. drafted, so the admin
+     * toggle is real and actually hides drafted lessons from users.
+     */
+    CREATE TABLE IF NOT EXISTS academy_lesson_status (
+      lesson_id VARCHAR(40) PRIMARY KEY,
+      status VARCHAR(20) NOT NULL DEFAULT 'Published',
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    /*
+     * Server-side record of Practice (paper trading) mode, so admins can see
+     * real per-user practice balances/activity and a real leaderboard instead
+     * of each browser's local simulation being invisible to the backend.
+     * The client still simulates fills instantly against live prices; it
+     * reports the outcome here.
+     */
+    CREATE TABLE IF NOT EXISTS practice_accounts (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      balance NUMERIC NOT NULL DEFAULT 10000,
+      starting_balance NUMERIC NOT NULL DEFAULT 10000,
+      total_trades INTEGER NOT NULL DEFAULT 0,
+      last_reset_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS practice_trades (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      pair VARCHAR(20) NOT NULL,
+      side VARCHAR(4) NOT NULL,
+      amount NUMERIC NOT NULL,
+      fill_price NUMERIC NOT NULL,
+      pnl NUMERIC NOT NULL DEFAULT 0,
+      balance_after NUMERIC NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS practice_trades_user_idx ON practice_trades (user_id, created_at DESC);
+
   `;
 
   try {

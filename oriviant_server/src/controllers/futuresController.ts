@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { futuresService } from '../services/futuresService.js';
+import { notifyPositionOpened, notifyPositionClosed } from '../services/notificationService.js';
 
 export const futuresController = {
   openPosition: async (req: Request, res: Response) => {
@@ -23,6 +24,8 @@ export const futuresController = {
         Number(leverage),
         Number(collateral_amount)
       );
+
+      void notifyPositionOpened(userId, position.market_symbol, position.side, Number(position.leverage));
 
       return res.status(201).json({
         success: true,
@@ -63,6 +66,7 @@ export const futuresController = {
       }
 
       const position = await futuresService.closePosition(positionId, userId);
+      void notifyPositionClosed(userId, position.market_symbol, position.side, Number(position.pnl));
 
       return res.status(200).json({
         success: true,

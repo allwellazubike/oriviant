@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { withdrawalService } from '../services/withdrawalService.js';
+import { notifyWithdrawalPending, notifyWithdrawalCompleted, notifyWithdrawalRejected } from '../services/notificationService.js';
 
 export const withdrawalController = {
   requestWithdrawal: async (req: Request, res: Response) => {
@@ -22,6 +23,8 @@ export const withdrawalController = {
         recipient_address,
         nickname
       );
+
+      void notifyWithdrawalPending(userId, asset, Number(amount));
 
       return res.status(201).json({
         success: true,
@@ -68,6 +71,7 @@ export const withdrawalController = {
       }
 
       const withdrawal = await withdrawalService.approveWithdrawal(withdrawalId, adminId, tx_hash);
+      void notifyWithdrawalCompleted(withdrawal.user_id, withdrawal.asset, Number(withdrawal.amount));
 
       return res.status(200).json({
         success: true,
@@ -95,6 +99,7 @@ export const withdrawalController = {
       }
 
       const withdrawal = await withdrawalService.denyWithdrawal(withdrawalId, adminId, notes || 'Rejected by admin');
+      void notifyWithdrawalRejected(withdrawal.user_id, withdrawal.asset, Number(withdrawal.amount));
 
       return res.status(200).json({
         success: true,
