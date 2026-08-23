@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
 import { sendPasswordResetCode } from '../services/emailService.js';
+import { uploadAvatarImage, UploadError } from '../services/uploadService.js';
+import { recordLoginAttempt } from '../services/loginHistoryService.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-for-development';
 
@@ -35,7 +37,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const newUserQuery = `
       INSERT INTO users (email, password_hash, nickname)
       VALUES ($1, $2, $3)
-      RETURNING id, email, nickname, role;
+      RETURNING id, email, nickname, role, avatar_url;
     `;
     const newUser = await pool.query(newUserQuery, [email, passwordHash, nickname || email.split('@')[0]]);
 
@@ -77,9 +79,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     // Check password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
+      await recordLoginAttempt(user.id, req, 'Failed');
       res.status(401).json({ success: false, error: 'Invalid email or password' });
       return;
     }
+
+    await recordLoginAttempt(user.id, req, 'Success');
 
     // Generate JWT
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
@@ -94,7 +99,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         id: user.id,
         email: user.email,
         nickname: user.nickname,
-        role: user.role
+        role: user.role,
+        avatar_url: user.avatar_url
       }
     });
   } catch (error) {
@@ -110,6 +116,111 @@ export const login = async (req: Request, res: Response): Promise<void> => {
  */
 export const me = async (req: Request, res: Response): Promise<void> => {
   res.status(200).json({ success: true, user: req.user });
+};
+
+/** Nickname is the only editable identity field — email doubles as the login credential. */
+const NICKNAME_MIN_LENGTH = 2;
+const NICKNAME_MAX_LENGTH = 40;
+
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const nickname = typeof req.body?.nickname === 'string' ? req.body.nickname.trim() : '';
+
+    if (nickname.length < NICKNAME_MIN_LENGTH || nickname.length > NICKNAME_MAX_LENGTH) {
+      res.status(400).json({
+        success: false,
+        error: `Display name must be between ${NICKNAME_MIN_LENGTH} and ${NICKNAME_MAX_LENGTH} characters.`,
+      });
+      return;
+    }
+
+    const updated = await pool.query(
+      `UPDATE users SET nickname = $1 WHERE id = $2
+       RETURNING id, email, nickname, role, avatar_url;`,
+      [nickname, userId]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: updated.rows[0],
+    });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ success: false, error: 'Server error while updating profile' });
+  }
+};
+
+export const updateAvatar = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const avatar = req.body?.avatar;
+    if (typeof avatar !== 'string' || !avatar) {
+      res.status(400).json({ success: false, error: 'An image is required.' });
+      return;
+    }
+
+    let avatarUrl: string;
+    try {
+      avatarUrl = await uploadAvatarImage(avatar, userId);
+    } catch (error) {
+      if (error instanceof UploadError) {
+        res.status(400).json({ success: false, error: error.message });
+        return;
+      }
+      throw error;
+    }
+
+    const updated = await pool.query(
+      `UPDATE users SET avatar_url = $1 WHERE id = $2
+       RETURNING id, email, nickname, role, avatar_url;`,
+      [avatarUrl, userId]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Avatar updated successfully',
+      user: updated.rows[0],
+    });
+  } catch (error) {
+    console.error('Update avatar error:', error);
+    res.status(500).json({ success: false, error: 'Server error while updating avatar' });
+  }
+};
+
+export const getLoginHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const result = await pool.query(
+      `SELECT id, ip_address, device, browser, os, status, created_at
+       FROM login_history
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 20;`,
+      [userId]
+    );
+
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get login history error:', error);
+    res.status(500).json({ success: false, error: 'Server error while fetching login history' });
+  }
 };
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
@@ -319,7 +430,7 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
     const updated = await pool.query(
       `UPDATE users SET password_hash = $1 WHERE id = $2
-       RETURNING id, email, nickname, role`,
+       RETURNING id, email, nickname, role, avatar_url`,
       [passwordHash, payload.id]
     );
 
