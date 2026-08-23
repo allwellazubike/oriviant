@@ -37,19 +37,8 @@ const splitPair = (pair: string): { base: string; quote: string } => {
   return { base: base.toUpperCase(), quote: quote.toUpperCase() };
 };
 
-/**
- * Rounds to 8 decimals — beyond Bitcoin's satoshi precision, and enough that
- * repeated trades do not accumulate dust the ledger cannot explain.
- */
 const round = (value: number): string => value.toFixed(8);
 
-/**
- * Executes a market order immediately at the oracle price, or rests a limit
- * order with its funds locked.
- *
- * Everything happens in one transaction: the debit, the credit, the fee, the
- * order row and the ledger entries commit together or not at all.
- */
 export const placeOrder = async ({
   userId,
   pair,
@@ -72,8 +61,6 @@ export const placeOrder = async ({
   }
 
   const { base, quote } = splitPair(pair);
-
-  // Always the server's price. A price from the request body is untrusted input.
   const marketPrice = await getMarketPrice(pair);
 
   const client = await pool.connect();
@@ -96,11 +83,7 @@ export const placeOrder = async ({
       return result;
     }
 
-    // ---- Limit order: lock the funds it would spend, then rest ----
     const price = limitPrice!;
-
-    // A limit order that would fill instantly executes now rather than resting,
-    // which is what every real exchange does with a marketable limit order.
     const marketable =
       (side === 'buy' && price >= marketPrice) || (side === 'sell' && price <= marketPrice);
 
@@ -114,7 +97,6 @@ export const placeOrder = async ({
         side,
         type,
         amount,
-        // Fill at the better of the two prices for the user, as an exchange would.
         fillPrice: marketPrice,
       });
       await client.query('COMMIT');
@@ -124,10 +106,10 @@ export const placeOrder = async ({
     const lockAsset = side === 'buy' ? quote : base;
     const lockAmount = side === 'buy' ? round(amount * price) : round(amount);
 
-    // Ensure the wallet row exists so lockFunds has something to update.
+    // FIX: Updated ON CONFLICT to match composite index (user_id, asset_symbol, wallet_type)
     await client.query(
-      `INSERT INTO wallets (user_id, asset_symbol, balance)
-       VALUES ($1, $2, 0) ON CONFLICT (user_id, asset_symbol) DO NOTHING;`,
+      `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
+       VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
       [userId, lockAsset]
     );
 
@@ -167,13 +149,6 @@ interface FillInput {
   fillPrice: number;
 }
 
-/**
- * Moves both legs of a trade and writes the order row.
- *
- * Buy:  debit quote (amount x price), credit base minus fee.
- * Sell: debit base, credit quote (amount x price) minus fee.
- * The fee is always taken from the asset being received.
- */
 const executeFill = async ({
   client,
   userId,
@@ -202,10 +177,10 @@ const executeFill = async ({
   let feeAsset: string;
 
   if (side === 'buy') {
-    // Make sure the base wallet row exists before crediting into it.
+    // FIX: Updated ON CONFLICT to match composite index
     await client.query(
-      `INSERT INTO wallets (user_id, asset_symbol, balance)
-       VALUES ($1, $2, 0) ON CONFLICT (user_id, asset_symbol) DO NOTHING;`,
+      `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
+       VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
       [userId, base]
     );
 
@@ -224,9 +199,10 @@ const executeFill = async ({
       metadata: { pair, fillPrice, grossAmount: round(amount), fee: round(fee) },
     });
   } else {
+    // FIX: Updated ON CONFLICT to match composite index
     await client.query(
-      `INSERT INTO wallets (user_id, asset_symbol, balance)
-       VALUES ($1, $2, 0) ON CONFLICT (user_id, asset_symbol) DO NOTHING;`,
+      `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
+       VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
       [userId, quote]
     );
 
@@ -255,12 +231,6 @@ const executeFill = async ({
   return { order: updated.rows[0], filled: true };
 };
 
-/**
- * Cancels a resting order and releases its locked funds.
- *
- * Scoped to the caller's own id so one user cannot cancel another's order, and
- * guarded on status = 'OPEN' so a cancel racing a fill cannot double-release.
- */
 export const cancelOrder = async (userId: number, orderId: number) => {
   const client = await pool.connect();
   try {
@@ -295,13 +265,6 @@ export const cancelOrder = async (userId: number, orderId: number) => {
   }
 };
 
-/**
- * Fills one resting order that the market has crossed.
- *
- * Re-reads the order FOR UPDATE inside the transaction: the sweep that selected
- * it may be acting on a snapshot where it was still open but has since been
- * cancelled or filled.
- */
 const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<boolean> => {
   const client = await pool.connect();
   try {
@@ -319,8 +282,6 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
     const order = found.rows[0];
     const amount = Number(order.amount);
     const price = Number(order.limit_price);
-
-    // The user gets their limit price, which is the promise a limit order makes.
     const grossQuote = amount * price;
 
     if (order.side === 'buy') {
@@ -334,9 +295,10 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
         orderId
       );
 
+      // FIX: Updated ON CONFLICT to match composite index
       await client.query(
-        `INSERT INTO wallets (user_id, asset_symbol, balance)
-         VALUES ($1, $2, 0) ON CONFLICT (user_id, asset_symbol) DO NOTHING;`,
+        `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
+         VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
         [order.user_id, order.base_asset]
       );
 
@@ -354,7 +316,7 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
 
       await client.query(
         `UPDATE orders SET status = 'FILLED', fill_price = $1, fee = $2, fee_asset = $3,
-                           locked_amount = 0, updated_at = CURRENT_TIMESTAMP
+                         locked_amount = 0, updated_at = CURRENT_TIMESTAMP
          WHERE id = $4;`,
         [round(price), round(fee), order.base_asset, orderId]
       );
@@ -369,9 +331,10 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
         orderId
       );
 
+      // FIX: Updated ON CONFLICT to match composite index
       await client.query(
-        `INSERT INTO wallets (user_id, asset_symbol, balance)
-         VALUES ($1, $2, 0) ON CONFLICT (user_id, asset_symbol) DO NOTHING;`,
+        `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
+         VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
         [order.user_id, order.quote_asset]
       );
 
@@ -389,7 +352,7 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
 
       await client.query(
         `UPDATE orders SET status = 'FILLED', fill_price = $1, fee = $2, fee_asset = $3,
-                           locked_amount = 0, updated_at = CURRENT_TIMESTAMP
+                         locked_amount = 0, updated_at = CURRENT_TIMESTAMP
          WHERE id = $4;`,
         [round(price), round(fee), order.quote_asset, orderId]
       );
@@ -406,13 +369,6 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
   }
 };
 
-/**
- * Sweeps open limit orders and fills any the market has reached.
- *
- * This is the stand-in for an order book: there is no counterparty matching,
- * the platform fills against the live market price. Good enough for a venue
- * that quotes external prices, and it is what the UI already implies.
- */
 export const processRestingOrders = async (): Promise<number> => {
   const open = await pool.query(
     `SELECT DISTINCT pair FROM orders WHERE status = 'OPEN';`
@@ -426,7 +382,7 @@ export const processRestingOrders = async (): Promise<number> => {
     try {
       marketPrice = await getMarketPrice(pair);
     } catch {
-      continue; // No trustworthy price for this pair right now; try next sweep.
+      continue;
     }
 
     const due = await pool.query(

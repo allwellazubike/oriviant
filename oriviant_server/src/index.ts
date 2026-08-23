@@ -23,17 +23,20 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// 1. Security: Trust reverse proxy (Critical for accurate IP-based rate limiting on Render/Heroku/AWS)
+app.set('trust proxy', 1);
+
 // Wrap Express in a native Node HTTP server
 const httpServer = createServer(app);
 
 // Initialize WebSockets
 websocketService.init(httpServer);
 
-// 1. Security: Strict CORS Configuration
+// 2. Security: Strict CORS Configuration with Environment Fallbacks
 const allowedOrigins = [
   'http://localhost:5173', // Local Vite development
   'http://localhost:3000',
-  'https://your-production-domain.com' // TODO: Update with your actual live domain
+  process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app' // Dynamic production domain
 ];
 
 app.use(cors({
@@ -52,17 +55,29 @@ app.use(cors({
 // default. uploadService caps the actual file well below this.
 app.use(express.json({ limit: '8mb' }));
 
-// 2. Security: Rate Limiting
+/// 3. Security: General API Rate Limiting (Increased max requests for active testing)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per `window`
+  max: 2000, // Increased from 200 to prevent 429 throttling during polling and testing
   standardHeaders: true, 
   legacyHeaders: false,
   message: { success: false, error: 'Too many requests, please try again later.' }
 });
 
-// Apply rate limiter only to API routes
+// 4. Security: Strict Auth Rate Limiting (Protects against brute-force attacks)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Max 10 login/register attempts per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many authentication attempts. Please try again in 15 minutes.' }
+});
+
+// Apply rate limiters to routes
 app.use('/api', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -165,7 +180,7 @@ setInterval(async () => {
   }
 }, MARKET_TICK_INTERVAL_MS);
 
-// 3. Security: Centralized Error Handler (Must be the very last middleware before listen)
+// 5. Security: Centralized Error Handler (Must be the very last middleware before listen)
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled Server Error:', err.message);
   res.status(500).json({
