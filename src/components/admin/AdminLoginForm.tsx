@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Shield, Eye, EyeOff, ShieldCheck, AlertCircle, KeyRound, ArrowLeft, Sparkles } from 'lucide-react';
+import { apiClient } from '../../api/client';
 
 interface AdminLoginFormProps {
   onLoginSuccess: () => void;
@@ -7,41 +8,58 @@ interface AdminLoginFormProps {
 }
 
 export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLoginSuccess, onExitToPlatform }) => {
-  const [email, setEmail] = useState('admin@oriviant.io');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    setTimeout(() => {
-      // Administrator credentials check
-      if (email.trim().toLowerCase() === 'admin@oriviant.io' && (password === 'admin123' || password.length >= 6)) {
-        if (rememberMe) {
-          localStorage.setItem('oriviant_admin_auth', JSON.stringify({
-            authenticated: true,
-            email: email.trim(),
-            timestamp: Date.now()
-          }));
-        } else {
-          sessionStorage.setItem('oriviant_admin_auth', JSON.stringify({
-            authenticated: true,
-            email: email.trim(),
-            timestamp: Date.now()
-          }));
+    try {
+      // Send credentials to real backend auth endpoint
+      const res = await apiClient<{ success?: boolean; token: string; user: any }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim(), password })
+      });
+      
+      if (res.token && res.user) {
+        // Strictly enforce admin role (backend verifyAdmin will also enforce this on API routes)
+        if (res.user.role !== 'admin' && res.user.role !== 'superadmin') {
+          setError('Access Denied: Administrator privileges required.');
+          setIsLoading(false);
+          return;
         }
+
+        const authData = JSON.stringify({
+          authenticated: true,
+          email: res.user.email,
+          timestamp: Date.now()
+        });
+
+        // Store real JWT token for secure API requests across the admin portal
+        if (rememberMe) {
+          localStorage.setItem('oriviant_token', res.token);
+          localStorage.setItem('oriviant_admin_auth', authData);
+        } else {
+          sessionStorage.setItem('oriviant_token', res.token);
+          sessionStorage.setItem('oriviant_admin_auth', authData);
+        }
+        
         onLoginSuccess();
       } else {
-        // Exact required error message
         setError('Invalid administrator credentials.');
-        setIsLoading(false);
       }
-    }, 700);
+    } catch (err: any) {
+      console.error('Admin login error:', err);
+      setError(err.message || 'Invalid administrator credentials.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

@@ -1,25 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  TrendingUp, 
-  Plus, 
-  Settings2, 
-  AlertTriangle, 
-  CheckCircle2, 
-  X, 
-  Percent, 
-  Zap, 
-  Sliders, 
-  Activity,
-  Layers,
-  Edit,
-  Trash2,
-  Star,
-  Sparkles,
-  Flame,
-  Globe,
-  DollarSign,
-  Eye
+  TrendingUp, Plus, Settings2, AlertTriangle, CheckCircle2, X, Percent, 
+  Zap, Sliders, Activity, Layers, Edit, Trash2, Star, Sparkles, Flame, 
+  Globe, DollarSign, Eye, RefreshCw
 } from 'lucide-react';
+import { marketsApi } from '../../../api/markets';
 
 export interface MarketAsset {
   id: string;
@@ -42,7 +27,6 @@ export interface MarketAsset {
   isFeatured: boolean;
   isTrending: boolean;
   isNewListing: boolean;
-  // Stats
   volume24h: string;
   activeTraders: number;
   openPositions: number;
@@ -53,178 +37,8 @@ export interface MarketAsset {
 }
 
 export const AdminMarketsTab: React.FC = () => {
-  const [assets, setAssets] = useState<MarketAsset[]>([
-    {
-      id: 'ast-1',
-      name: 'Bitcoin',
-      symbol: 'BTC/USDT',
-      category: 'Crypto',
-      logoUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&q=80&w=100',
-      description: 'The world\'s primary digital store of value & decentralized settlement network.',
-      status: 'Active',
-      spotAvailable: true,
-      futuresAvailable: true,
-      copyTradingAvailable: true,
-      demoAvailable: true,
-      minOrder: 10,
-      maxOrder: 1000000,
-      tradingFee: '0.015% / 0.035%',
-      leverageLimits: '125x',
-      pricePrecision: 2,
-      qtyPrecision: 4,
-      isFeatured: true,
-      isTrending: true,
-      isNewListing: false,
-      volume24h: '$2.14B',
-      activeTraders: 42100,
-      openPositions: 18400,
-      buyOrdersCount: 29400,
-      sellOrdersCount: 26100,
-      popularityScore: 99,
-      price: '$94,250.00'
-    },
-    {
-      id: 'ast-2',
-      name: 'Ethereum',
-      symbol: 'ETH/USDT',
-      category: 'Crypto',
-      description: 'Leading smart contract framework for decentralized finance.',
-      status: 'Active',
-      spotAvailable: true,
-      futuresAvailable: true,
-      copyTradingAvailable: true,
-      demoAvailable: true,
-      minOrder: 10,
-      maxOrder: 500000,
-      tradingFee: '0.015% / 0.035%',
-      leverageLimits: '100x',
-      pricePrecision: 2,
-      qtyPrecision: 4,
-      isFeatured: true,
-      isTrending: true,
-      isNewListing: false,
-      volume24h: '$1.12B',
-      activeTraders: 31200,
-      openPositions: 12100,
-      buyOrdersCount: 19800,
-      sellOrdersCount: 17400,
-      popularityScore: 96,
-      price: '$3,480.50'
-    },
-    {
-      id: 'ast-3',
-      name: 'Euro / US Dollar',
-      symbol: 'EUR/USD',
-      category: 'Forex',
-      description: 'Major fiat currency forex exchange pair.',
-      status: 'Active',
-      spotAvailable: true,
-      futuresAvailable: false,
-      copyTradingAvailable: true,
-      demoAvailable: true,
-      minOrder: 50,
-      maxOrder: 2000000,
-      tradingFee: '0.005%',
-      leverageLimits: '500x',
-      pricePrecision: 5,
-      qtyPrecision: 2,
-      isFeatured: false,
-      isTrending: true,
-      isNewListing: false,
-      volume24h: '$840M',
-      activeTraders: 14200,
-      openPositions: 8900,
-      buyOrdersCount: 12100,
-      sellOrdersCount: 11900,
-      popularityScore: 92,
-      price: '1.08945'
-    },
-    {
-      id: 'ast-4',
-      name: 'Apple Inc.',
-      symbol: 'AAPL',
-      category: 'Stocks',
-      description: 'Global tech leader in consumer devices and software platforms.',
-      status: 'Active',
-      spotAvailable: true,
-      futuresAvailable: true,
-      copyTradingAvailable: true,
-      demoAvailable: true,
-      minOrder: 20,
-      maxOrder: 250000,
-      tradingFee: '0.050%',
-      leverageLimits: '20x',
-      pricePrecision: 2,
-      qtyPrecision: 2,
-      isFeatured: true,
-      isTrending: false,
-      isNewListing: false,
-      volume24h: '$410M',
-      activeTraders: 9400,
-      openPositions: 4100,
-      buyOrdersCount: 6200,
-      sellOrdersCount: 5800,
-      popularityScore: 88,
-      price: '$224.50'
-    },
-    {
-      id: 'ast-5',
-      name: 'Gold Spot',
-      symbol: 'XAU/USD',
-      category: 'Metals',
-      description: 'Precious metal safe-haven asset class.',
-      status: 'Active',
-      spotAvailable: true,
-      futuresAvailable: true,
-      copyTradingAvailable: true,
-      demoAvailable: true,
-      minOrder: 20,
-      maxOrder: 1000000,
-      tradingFee: '0.020%',
-      leverageLimits: '100x',
-      pricePrecision: 2,
-      qtyPrecision: 2,
-      isFeatured: true,
-      isTrending: true,
-      isNewListing: false,
-      volume24h: '$1.45B',
-      activeTraders: 24100,
-      openPositions: 11200,
-      buyOrdersCount: 18400,
-      sellOrdersCount: 16200,
-      popularityScore: 95,
-      price: '$2,420.80'
-    },
-    {
-      id: 'ast-6',
-      name: 'Crude Oil WTI',
-      symbol: 'USOIL',
-      category: 'Energy',
-      description: 'West Texas Intermediate crude energy benchmark.',
-      status: 'Maintenance',
-      spotAvailable: false,
-      futuresAvailable: true,
-      copyTradingAvailable: false,
-      demoAvailable: true,
-      minOrder: 50,
-      maxOrder: 100000,
-      tradingFee: '0.040%',
-      leverageLimits: '50x',
-      pricePrecision: 2,
-      qtyPrecision: 2,
-      isFeatured: false,
-      isTrending: false,
-      isNewListing: false,
-      volume24h: '$290M',
-      activeTraders: 4200,
-      openPositions: 1900,
-      buyOrdersCount: 2100,
-      sellOrdersCount: 2300,
-      popularityScore: 74,
-      price: '$78.40'
-    }
-  ]);
-
+  const [assets, setAssets] = useState<MarketAsset[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -258,6 +72,54 @@ export const AdminMarketsTab: React.FC = () => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
   };
+
+  const fetchMarkets = async () => {
+    setIsLoading(true);
+    try {
+      const res = await marketsApi.getMarkets();
+      if (res.success && res.data) {
+        const mapped: MarketAsset[] = res.data.map((d: any) => ({
+          id: d.id.toString(),
+          name: d.name,
+          symbol: d.symbol,
+          category: d.category,
+          description: d.description || '',
+          status: d.status,
+          spotAvailable: d.spot_available,
+          futuresAvailable: d.futures_available,
+          copyTradingAvailable: d.copy_trading_available,
+          demoAvailable: d.demo_available,
+          minOrder: Number(d.min_order),
+          maxOrder: Number(d.max_order),
+          tradingFee: d.trading_fee,
+          leverageLimits: d.leverage_limits,
+          pricePrecision: d.price_precision,
+          qtyPrecision: d.qty_precision,
+          isFeatured: d.is_featured,
+          isTrending: d.is_trending,
+          isNewListing: d.is_new_listing,
+          // Live price feeds will stream via websockets, setting 0s to prep the engine
+          volume24h: '$0.00',
+          activeTraders: 0,
+          openPositions: 0,
+          buyOrdersCount: 0,
+          sellOrdersCount: 0,
+          popularityScore: 50,
+          price: '0.00'
+        }));
+        setAssets(mapped);
+      }
+    } catch (error) {
+      console.error('Failed to load markets:', error);
+      showToast('Error loading live market data.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMarkets();
+  }, []);
 
   const handleOpenCreateModal = () => {
     setEditingAsset(null);
@@ -307,81 +169,54 @@ export const AdminMarketsTab: React.FC = () => {
     setIsAssetModalOpen(true);
   };
 
-  const handleSaveAsset = (e: React.FormEvent) => {
+  const handleSaveAsset = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formSymbol) return;
 
-    if (editingAsset) {
-      setAssets(prev => prev.map(a => a.id === editingAsset.id ? {
-        ...a,
-        name: formName,
-        symbol: formSymbol,
-        category: formCategory,
-        logoUrl: formLogoUrl || undefined,
-        description: formDescription,
-        status: formStatus,
-        spotAvailable: formSpot,
-        futuresAvailable: formFutures,
-        copyTradingAvailable: formCopy,
-        demoAvailable: formDemo,
-        minOrder: Number(formMinOrder),
-        maxOrder: Number(formMaxOrder),
-        tradingFee: formFee,
-        leverageLimits: formLeverage,
-        pricePrecision: Number(formPricePrec),
-        qtyPrecision: Number(formQtyPrec),
-        isFeatured: formIsFeatured,
-        isTrending: formIsTrending,
-        isNewListing: formIsNewListing,
-      } : a));
-      showToast(`Asset parameters for ${formSymbol} updated successfully.`);
-    } else {
-      const newAsset: MarketAsset = {
-        id: `ast-${Date.now()}`,
-        name: formName,
-        symbol: formSymbol,
-        category: formCategory,
-        logoUrl: formLogoUrl || undefined,
-        description: formDescription,
-        status: formStatus,
-        spotAvailable: formSpot,
-        futuresAvailable: formFutures,
-        copyTradingAvailable: formCopy,
-        demoAvailable: formDemo,
-        minOrder: Number(formMinOrder),
-        maxOrder: Number(formMaxOrder),
-        tradingFee: formFee,
-        leverageLimits: formLeverage,
-        pricePrecision: Number(formPricePrec),
-        qtyPrecision: Number(formQtyPrec),
-        isFeatured: formIsFeatured,
-        isTrending: formIsTrending,
-        isNewListing: formIsNewListing,
-        volume24h: '$0',
-        activeTraders: 0,
-        openPositions: 0,
-        buyOrdersCount: 0,
-        sellOrdersCount: 0,
-        popularityScore: 50,
-        price: '$1.00'
-      };
-      setAssets([newAsset, ...assets]);
-      showToast(`Successfully listed new market asset ${formSymbol}!`);
-    }
+    const payload = {
+      name: formName, symbol: formSymbol, category: formCategory, description: formDescription,
+      status: formStatus, spotAvailable: formSpot, futuresAvailable: formFutures,
+      copyTradingAvailable: formCopy, demoAvailable: formDemo, minOrder: formMinOrder,
+      maxOrder: formMaxOrder, tradingFee: formFee, leverageLimits: formLeverage,
+      pricePrecision: formPricePrec, qtyPrecision: formQtyPrec, isFeatured: formIsFeatured,
+      isTrending: formIsTrending, isNewListing: formIsNewListing
+    };
 
-    setIsAssetModalOpen(false);
+    try {
+      if (editingAsset) {
+        await marketsApi.updateMarket(editingAsset.id, payload);
+        showToast(`Asset parameters for ${formSymbol} updated successfully.`);
+      } else {
+        await marketsApi.createMarket(payload);
+        showToast(`Successfully listed new market asset ${formSymbol}!`);
+      }
+      await fetchMarkets();
+      setIsAssetModalOpen(false);
+    } catch (error) {
+      showToast('Error saving market asset to database.');
+    }
   };
 
-  const handleDeleteAsset = (id: string, symbol: string) => {
+  const handleDeleteAsset = async (id: string, symbol: string) => {
     if (confirm(`Are you sure you want to permanently delete market asset ${symbol}?`)) {
-      setAssets(prev => prev.filter(a => a.id !== id));
-      showToast(`Asset ${symbol} deleted.`);
+      try {
+        await marketsApi.deleteMarket(id);
+        showToast(`Asset ${symbol} deleted.`);
+        await fetchMarkets();
+      } catch (error) {
+        showToast('Failed to delete asset.');
+      }
     }
   };
 
-  const handleQuickStatusChange = (id: string, newStatus: MarketAsset['status']) => {
-    setAssets(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
-    showToast(`Market status changed to ${newStatus}`);
+  const handleQuickStatusChange = async (id: string, newStatus: MarketAsset['status']) => {
+    try {
+      await marketsApi.updateMarketStatus(id, newStatus);
+      showToast(`Market status changed to ${newStatus}`);
+      await fetchMarkets();
+    } catch (error) {
+      showToast('Failed to update status.');
+    }
   };
 
   const filteredAssets = assets.filter(a => {
@@ -440,122 +275,128 @@ export const AdminMarketsTab: React.FC = () => {
             <span>Multi-Asset Market Directory ({filteredAssets.length} Assets)</span>
           </h3>
 
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search asset name or symbol..."
-            className="bg-app-sec border border-app rounded-xl px-3 py-1.5 text-xs text-app focus:outline-none"
-          />
+          <div className="flex items-center gap-2">
+            <button onClick={fetchMarkets} className="p-2 rounded-xl bg-app-sec border border-app text-app-sec hover:text-app transition-colors" title="Refresh Live Markets">
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search asset name or symbol..."
+              className="bg-app-sec border border-app rounded-xl px-3 py-1.5 text-xs text-app focus:outline-none"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-app text-[11px] font-extrabold text-app-sec uppercase tracking-wider">
-                <th className="pb-3 pl-2">Asset Name & Symbol</th>
-                <th className="pb-3">Category</th>
-                <th className="pb-3">Status</th>
-                <th className="pb-3">Trading Channels</th>
-                <th className="pb-3">Price / 24h Vol</th>
-                <th className="pb-3">Traders & Orders</th>
-                <th className="pb-3">Badges</th>
-                <th className="pb-3 pr-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-app/60 text-xs font-medium">
-              {filteredAssets.map((asset) => (
-                <tr key={asset.id} className="hover:bg-app-sec/30 transition-colors">
-                  <td className="py-3.5 pl-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 font-bold flex items-center justify-center text-xs shrink-0">
-                        {asset.symbol.substring(0, 3)}
-                      </div>
-                      <div>
-                        <div className="font-extrabold text-app text-sm">{asset.symbol}</div>
-                        <div className="text-[10px] text-app-sec">{asset.name}</div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-3.5">
-                    <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-app-sec text-app-sec border border-app">
-                      {asset.category}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold ${
-                      asset.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
-                      asset.status === 'Maintenance' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
-                      asset.status === 'Suspended' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
-                      'bg-app-sec text-app-sec border border-app'
-                    }`}>
-                      {asset.status}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {asset.spotAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-500">Spot</span>}
-                      {asset.futuresAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500">Futures ({asset.leverageLimits})</span>}
-                      {asset.copyTradingAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-500">Copy</span>}
-                      {asset.demoAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/10 text-accent">Demo</span>}
-                    </div>
-                  </td>
-
-                  <td className="py-3.5 font-mono">
-                    <div className="font-bold text-app">{asset.price}</div>
-                    <div className="text-[10px] text-app-sec">{asset.volume24h}</div>
-                  </td>
-
-                  <td className="py-3.5 text-[11px]">
-                    <div className="font-bold text-app">{asset.activeTraders.toLocaleString()} Traders</div>
-                    <div className="text-[10px] text-app-sec">{asset.buyOrdersCount} Buy / {asset.sellOrdersCount} Sell</div>
-                  </td>
-
-                  <td className="py-3.5">
-                    <div className="flex items-center gap-1">
-                      {asset.isFeatured && <span className="p-1 rounded bg-amber-500/20 text-amber-500" title="Featured"><Star className="w-3 h-3 fill-amber-500" /></span>}
-                      {asset.isTrending && <span className="p-1 rounded bg-red-500/20 text-red-500" title="Trending"><Flame className="w-3 h-3 fill-red-500" /></span>}
-                      {asset.isNewListing && <span className="p-1 rounded bg-emerald-500/20 text-emerald-500" title="New Listing"><Sparkles className="w-3 h-3" /></span>}
-                    </div>
-                  </td>
-
-                  <td className="py-3.5 pr-2 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => handleOpenEditModal(asset)}
-                        className="p-1.5 rounded-xl bg-app-sec text-app-sec hover:text-app"
-                        title="Edit Asset"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-
-                      <select
-                        value={asset.status}
-                        onChange={(e) => handleQuickStatusChange(asset.id, e.target.value as any)}
-                        className="bg-app-sec border border-app rounded-xl px-2 py-1 text-[11px] font-bold text-app focus:outline-none"
-                      >
-                        <option value="Active font-bold">Active</option>
-                        <option value="Maintenance">Maintenance</option>
-                        <option value="Suspended">Suspended</option>
-                        <option value="Delisted">Delisted</option>
-                      </select>
-
-                      <button
-                        onClick={() => handleDeleteAsset(asset.id, asset.symbol)}
-                        className="p-1.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20"
-                        title="Delete Asset"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          {isLoading ? (
+             <div className="py-10 text-center text-app-sec text-xs font-bold flex flex-col items-center justify-center gap-2">
+               <RefreshCw className="w-5 h-5 animate-spin text-accent" />
+               Querying Postgres Database...
+             </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-app text-[11px] font-extrabold text-app-sec uppercase tracking-wider">
+                  <th className="pb-3 pl-2">Asset Name & Symbol</th>
+                  <th className="pb-3">Category</th>
+                  <th className="pb-3">Status</th>
+                  <th className="pb-3">Trading Channels</th>
+                  <th className="pb-3">Price Feed</th>
+                  <th className="pb-3">Badges</th>
+                  <th className="pb-3 pr-2 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-app/60 text-xs font-medium">
+                {filteredAssets.map((asset) => (
+                  <tr key={asset.id} className="hover:bg-app-sec/30 transition-colors">
+                    <td className="py-3.5 pl-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 font-bold flex items-center justify-center text-xs shrink-0">
+                          {asset.symbol.substring(0, 3)}
+                        </div>
+                        <div>
+                          <div className="font-extrabold text-app text-sm">{asset.symbol}</div>
+                          <div className="text-[10px] text-app-sec">{asset.name}</div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-3.5">
+                      <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-app-sec text-app-sec border border-app">
+                        {asset.category}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold ${
+                        asset.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                        asset.status === 'Maintenance' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                        asset.status === 'Suspended' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
+                        'bg-app-sec text-app-sec border border-app'
+                      }`}>
+                        {asset.status}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {asset.spotAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-500/10 text-blue-500">Spot</span>}
+                        {asset.futuresAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-500">Futures ({asset.leverageLimits})</span>}
+                        {asset.copyTradingAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-500">Copy</span>}
+                        {asset.demoAvailable && <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/10 text-accent">Demo</span>}
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 font-mono">
+                      <div className="font-bold text-app">{asset.price}</div>
+                      <div className="text-[10px] text-emerald-500">Awaiting WS Feed</div>
+                    </td>
+
+                    <td className="py-3.5">
+                      <div className="flex items-center gap-1">
+                        {asset.isFeatured && <span className="p-1 rounded bg-amber-500/20 text-amber-500" title="Featured"><Star className="w-3 h-3 fill-amber-500" /></span>}
+                        {asset.isTrending && <span className="p-1 rounded bg-red-500/20 text-red-500" title="Trending"><Flame className="w-3 h-3 fill-red-500" /></span>}
+                        {asset.isNewListing && <span className="p-1 rounded bg-emerald-500/20 text-emerald-500" title="New Listing"><Sparkles className="w-3 h-3" /></span>}
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 pr-2 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleOpenEditModal(asset)}
+                          className="p-1.5 rounded-xl bg-app-sec text-app-sec hover:text-app"
+                          title="Edit Asset"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+
+                        <select
+                          value={asset.status}
+                          onChange={(e) => handleQuickStatusChange(asset.id, e.target.value as any)}
+                          className="bg-app-sec border border-app rounded-xl px-2 py-1 text-[11px] font-bold text-app focus:outline-none cursor-pointer"
+                        >
+                          <option value="Active">Active</option>
+                          <option value="Maintenance">Maintenance</option>
+                          <option value="Suspended">Suspended</option>
+                          <option value="Delisted">Delisted</option>
+                        </select>
+
+                        <button
+                          onClick={() => handleDeleteAsset(asset.id, asset.symbol)}
+                          className="p-1.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20"
+                          title="Delete Asset"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -606,7 +447,7 @@ export const AdminMarketsTab: React.FC = () => {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value as any)}
-                    className="w-full bg-app-sec border border-app rounded-xl px-3.5 py-2 text-xs text-app font-bold"
+                    className="w-full bg-app-sec border border-app rounded-xl px-3.5 py-2 text-xs text-app font-bold cursor-pointer"
                   >
                     <option value="Crypto">Crypto</option>
                     <option value="Forex">Forex</option>
@@ -624,7 +465,7 @@ export const AdminMarketsTab: React.FC = () => {
                   <select
                     value={formStatus}
                     onChange={(e) => setFormStatus(e.target.value as any)}
-                    className="w-full bg-app-sec border border-app rounded-xl px-3.5 py-2 text-xs text-app font-bold"
+                    className="w-full bg-app-sec border border-app rounded-xl px-3.5 py-2 text-xs text-app font-bold cursor-pointer"
                   >
                     <option value="Active">Active</option>
                     <option value="Maintenance">Maintenance</option>
@@ -652,7 +493,7 @@ export const AdminMarketsTab: React.FC = () => {
                   onChange={(e) => setFormDescription(e.target.value)}
                   placeholder="Asset description and market details..."
                   rows={2}
-                  className="w-full bg-app-sec border border-app rounded-xl p-2.5 text-xs text-app"
+                  className="w-full bg-app-sec border border-app rounded-xl p-2.5 text-xs text-app focus:outline-none"
                 />
               </div>
 
@@ -742,7 +583,7 @@ export const AdminMarketsTab: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAssetModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-app-sec text-app-sec font-bold"
+                  className="px-4 py-2 rounded-xl bg-app-sec text-app-sec hover:text-app font-bold"
                 >
                   Cancel
                 </button>

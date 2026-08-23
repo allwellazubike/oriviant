@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Users, 
   Star, 
@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { useCopyTrading } from '../../contexts/CopyTradingContext';
 import { LeadTrader } from '../../types';
-import { copyTradingApi } from '../../api/copyTrading';
 
 export const CopyTradingView: React.FC = () => {
   const { traders, followedTraders, followTrader, stopCopyTrader, addReview } = useCopyTrading();
@@ -28,6 +27,9 @@ export const CopyTradingView: React.FC = () => {
   const [reviewRating, setReviewRating] = useState<number>(5);
   const [reviewComment, setReviewComment] = useState('');
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+
+  // FIX: Dynamically sum up the actual USDT allocations for the top banner
+  const totalCopiedValue = Object.values(followedTraders).reduce((sum, sub) => sum + sub.allocatedUsdt, 0);
 
   const showToast = (msg: string) => {
     setNotificationMsg(msg);
@@ -44,36 +46,22 @@ export const CopyTradingView: React.FC = () => {
   const handleConfirmCopy = async () => {
     if (!selectedTrader) return;
     
-    // Execute local context update
-    followTrader(selectedTrader.id, copyAllocation, stopLossPct);
-
-    try {
-      // Sync with backend API
-      const res = await copyTradingApi.startCopying({
-        master_trader_id: selectedTrader.id,
-        allocation_amount: copyAllocation,
-        leverage_mode: 'PROPORTIONAL',
-        stop_loss_pct: stopLossPct
-      });
-      if (res.success) {
-        showToast(res.message || `Successfully started copying ${selectedTrader.name}`);
-      }
-    } catch (err: any) {
-      console.error('Backend copy trading sync error:', err);
-      showToast('Started copying locally (offline mode active)');
-    } finally {
-      setIsCopyModalOpen(false);
+    // FIX: Just call the Context method (which handles the API and wallet syncing automatically)
+    const res = await followTrader(selectedTrader.id, copyAllocation, stopLossPct);
+    
+    if (res.success) {
+      showToast(res.message);
+    } else {
+      showToast(res.message);
     }
+    
+    setIsCopyModalOpen(false);
   };
 
   const handleStopCopyingBackend = async (traderId: string | number) => {
-    stopCopyTrader(String(traderId));
-    try {
-      await copyTradingApi.stopCopying(traderId);
-      showToast('Successfully stopped copying trader.');
-    } catch (err) {
-      showToast('Stopped copying locally.');
-    }
+    // FIX: Use the Context method correctly to stop the duplicate errors
+    const res = await stopCopyTrader(String(traderId));
+    showToast(res.message);
   };
 
   const handleReviewSubmit = (e: React.FormEvent) => {
@@ -114,7 +102,7 @@ export const CopyTradingView: React.FC = () => {
         <div className="flex items-center gap-2">
           <div className="px-4 py-2 rounded-2xl bg-white/10 border border-white/15 text-center">
             <span className="text-[10px] text-slate-300 block">Total Copied</span>
-            <span className="text-lg font-black text-emerald-400">${Object.keys(followedTraders).length * 5000} USDT</span>
+            <span className="text-lg font-black text-emerald-400">${totalCopiedValue.toLocaleString()} USDT</span>
           </div>
         </div>
       </div>

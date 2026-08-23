@@ -51,9 +51,9 @@ const COUNTRY_CODES: CountryCode[] = [
   { code: 'TR', name: 'Turkey', dialCode: '+90', flag: '🇹🇷' },
 ];
 
-// Simulated existing emails and phones for duplication checks
-const REGISTERED_EMAILS = ['admin@oriviant.io', 'taken@oriviant.io', 'test@oriviant.io'];
-const REGISTERED_PHONES = ['+15550199', '+447911123456'];
+// Cleared simulated existing emails and phones so real users can register
+const REGISTERED_EMAILS: string[] = [];
+const REGISTERED_PHONES: string[] = [];
 
 interface SignUpFormProps {
   onSwitchToLogin: () => void;

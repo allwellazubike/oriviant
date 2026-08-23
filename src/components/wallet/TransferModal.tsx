@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { X, ArrowRightLeft, Check, AlertCircle } from 'lucide-react';
+import { X, ArrowRightLeft, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { WalletAssetDetail, WalletSubAccount } from '../../types/wallet';
+import { apiClient } from '../../api/client';
+import { useUser } from '../../contexts/UserContext';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -15,11 +17,13 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   walletDetails,
   onExecuteTransfer
 }) => {
+  const { fetchLiveWallets } = useUser();
   const [selectedSymbol, setSelectedSymbol] = useState<string>('USDT');
   const [fromWallet, setFromWallet] = useState<WalletSubAccount>('spot');
   const [toWallet, setToWallet] = useState<WalletSubAccount>('futures');
   const [amountInput, setAmountInput] = useState<string>('500');
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -39,7 +43,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     setToWallet(temp);
   };
 
-  const handleTransferSubmit = (e: React.FormEvent) => {
+  const handleTransferSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
     const amt = parseFloat(amountInput);
@@ -53,15 +57,36 @@ export const TransferModal: React.FC<TransferModalProps> = ({
       return;
     }
 
-    const ok = onExecuteTransfer(selectedSymbol, amt, fromWallet, toWallet);
-    if (ok) {
-      setMsg({ type: 'success', text: `Transferred ${amt} ${selectedSymbol} from ${fromWallet.toUpperCase()} to ${toWallet.toUpperCase()} instantly with ZERO fees!` });
-      setTimeout(() => {
-        setMsg(null);
-        onClose();
-      }, 2000);
-    } else {
-      setMsg({ type: 'error', text: 'Transfer failed.' });
+    setIsSubmitting(true);
+
+    try {
+      // Execute the genuine backend transaction
+      const res = await apiClient<{ success: boolean; message: string }>('/transfers', {
+        method: 'POST',
+        body: JSON.stringify({
+          asset: selectedSymbol,
+          amount: amt,
+          from_wallet: fromWallet,
+          to_wallet: toWallet
+        })
+      });
+
+      if (res.success) {
+        setMsg({ type: 'success', text: `Transferred ${amt} ${selectedSymbol} from ${fromWallet.toUpperCase()} to ${toWallet.toUpperCase()} instantly with ZERO fees!` });
+        
+        // Sync the frontend balances immediately with the updated database state
+        await fetchLiveWallets();
+
+        setTimeout(() => {
+          setMsg(null);
+          onClose();
+        }, 2000);
+      }
+    } catch (err: any) {
+      console.error('Transfer API Error:', err);
+      setMsg({ type: 'error', text: err.message || 'Transfer failed on the server.' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -80,7 +105,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               <p className="text-[11px] text-app-sec">Instant zero-fee transfer between sub-accounts</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 rounded-xl text-app-sec hover:text-app">
+          <button onClick={onClose} className="p-2 rounded-xl text-app-sec hover:text-app" disabled={isSubmitting}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -104,7 +129,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
             <select
               value={selectedSymbol}
               onChange={(e) => setSelectedSymbol(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl bg-app-sub border border-app text-xs font-bold text-app focus:outline-none focus:border-accent"
+              disabled={isSubmitting}
+              className="w-full px-4 py-2.5 rounded-xl bg-app-sub border border-app text-xs font-bold text-app focus:outline-none focus:border-accent disabled:opacity-50"
             >
               {walletDetails.map((a) => (
                 <option key={a.symbol} value={a.symbol}>
@@ -121,7 +147,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               <select
                 value={fromWallet}
                 onChange={(e) => setFromWallet(e.target.value as WalletSubAccount)}
-                className="w-full px-3 py-2 rounded-xl bg-app-card border border-app text-xs font-extrabold text-app"
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 rounded-xl bg-app-card border border-app text-xs font-extrabold text-app disabled:opacity-50"
               >
                 <option value="spot">Spot Wallet (Available: {currentAsset.spotBalance})</option>
                 <option value="futures">Futures Wallet (Available: {currentAsset.futuresBalance})</option>
@@ -133,7 +160,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               <button
                 type="button"
                 onClick={handleSwap}
-                className="p-2 rounded-full bg-accent hover:bg-accent/90 text-white shadow-md transition-transform hover:scale-110 cursor-pointer"
+                disabled={isSubmitting}
+                className="p-2 rounded-full bg-accent hover:bg-accent/90 text-white shadow-md transition-transform hover:scale-110 cursor-pointer disabled:opacity-50"
                 title="Swap From and To Wallets"
               >
                 <ArrowRightLeft className="w-4 h-4" />
@@ -145,7 +173,8 @@ export const TransferModal: React.FC<TransferModalProps> = ({
               <select
                 value={toWallet}
                 onChange={(e) => setToWallet(e.target.value as WalletSubAccount)}
-                className="w-full px-3 py-2 rounded-xl bg-app-card border border-app text-xs font-extrabold text-app"
+                disabled={isSubmitting}
+                className="w-full px-3 py-2 rounded-xl bg-app-card border border-app text-xs font-extrabold text-app disabled:opacity-50"
               >
                 <option value="spot">Spot Wallet (Available: {currentAsset.spotBalance})</option>
                 <option value="futures">Futures Wallet (Available: {currentAsset.futuresBalance})</option>
@@ -165,12 +194,14 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 type="number"
                 value={amountInput}
                 onChange={(e) => setAmountInput(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-app-sub border border-app text-xs font-mono font-bold text-app focus:outline-none focus:border-accent pr-16"
+                disabled={isSubmitting}
+                className="w-full px-4 py-2.5 rounded-xl bg-app-sub border border-app text-xs font-mono font-bold text-app focus:outline-none focus:border-accent pr-16 disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={() => setAmountInput(availableBalance.toString())}
-                className="absolute right-2 top-1.5 px-2.5 py-1 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent font-extrabold text-[10px]"
+                disabled={isSubmitting}
+                className="absolute right-2 top-1.5 px-2.5 py-1 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent font-extrabold text-[10px] disabled:opacity-50"
               >
                 MAX
               </button>
@@ -179,9 +210,17 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-xl bg-accent text-white font-extrabold text-xs shadow-md shadow-accent/20 hover:opacity-90 transition-all cursor-pointer"
+            disabled={isSubmitting}
+            className="w-full py-3 rounded-xl bg-accent text-white font-extrabold text-xs shadow-md shadow-accent/20 hover:opacity-90 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            Confirm Internal Transfer
+            {isSubmitting ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Processing Transfer...</span>
+              </>
+            ) : (
+              <span>Confirm Internal Transfer</span>
+            )}
           </button>
         </form>
 

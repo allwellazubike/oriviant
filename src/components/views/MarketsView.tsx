@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, Star, ArrowUpDown, Zap, ArrowUpRight, ArrowDownRight, Layers } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { NavigationTab } from '../../types';
+import { socketService } from '../../services/socketService';
 
 interface MarketsViewProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -14,6 +15,37 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortField, setSortField] = useState<'name' | 'price' | 'change24h' | 'volume24h'>('volume24h');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [liveData, setLiveData] = useState<Record<string, any>>({});
+
+  // Connect to WebSocket and listen for live market ticks
+  useEffect(() => {
+    socketService.connect();
+    
+    // Subscribe to all available coins
+    coins.forEach(coin => socketService.subscribeToMarket(coin.symbol));
+
+    const handleTick = (data: any) => {
+      // Safely patch the live data into our local state overlay
+      if (data && (data.symbol || data.s)) {
+        const symbol = data.symbol || data.s;
+        setLiveData(prev => ({ ...prev, [symbol]: data }));
+      }
+    };
+
+    const initSocket = () => {
+      if (socketService.socket) {
+        socketService.socket.on('market_tick', handleTick);
+      } else {
+        setTimeout(initSocket, 500);
+      }
+    };
+    initSocket();
+
+    return () => {
+      coins.forEach(coin => socketService.unsubscribeFromMarket(coin.symbol));
+      socketService.socket?.off('market_tick', handleTick);
+    };
+  }, [coins]);
 
   const categories = [
     { id: 'all', label: 'All Markets' },
@@ -191,6 +223,12 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                   const flash = priceFlashes[coin.symbol];
                   const flashClass = flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : '';
 
+                  // Overlay live tick data directly onto the rendered row
+                  const live = liveData[coin.symbol];
+                  const displayPrice = live?.price !== undefined ? live.price : coin.price;
+                  const displayChange = live?.change24h !== undefined ? live.change24h : coin.change24h;
+                  const displayVolume = live?.volume24h !== undefined ? live.volume24h : coin.volume24h;
+
                   return (
                     <tr
                       key={coin.id}
@@ -218,20 +256,20 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-extrabold text-xs text-app">
-                        ${coin.price.toLocaleString(undefined, { minimumFractionDigits: coin.precision, maximumFractionDigits: coin.precision })}
+                        ${displayPrice.toLocaleString(undefined, { minimumFractionDigits: coin.precision, maximumFractionDigits: coin.precision })}
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
                         <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs font-bold ${
-                          coin.change24h >= 0 ? 'bg-emerald-500/10 text-positive' : 'bg-red-500/10 text-negative'
+                          displayChange >= 0 ? 'bg-emerald-500/10 text-positive' : 'bg-red-500/10 text-negative'
                         }`}>
-                          {coin.change24h >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-                          {coin.change24h >= 0 ? '+' : ''}{coin.change24h}%
+                          {displayChange >= 0 ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                          {displayChange >= 0 ? '+' : ''}{displayChange}%
                         </span>
                       </td>
 
                       <td className="py-3.5 px-4 text-right text-xs text-app-sec font-medium hidden md:table-cell">
-                        ${(coin.volume24h / 1e6).toFixed(2)}M
+                        ${(displayVolume / 1e6).toFixed(2)}M
                       </td>
 
                       <td className="py-3.5 px-4 hidden lg:table-cell">
@@ -244,7 +282,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                               <div
                                 key={idx}
                                 style={{ height: `${heightPercent}%` }}
-                                className={`w-1 rounded-full ${coin.change24h >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                                className={`w-1 rounded-full ${displayChange >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
                               />
                             );
                           })}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   Zap, 
@@ -6,9 +6,7 @@ import {
   RefreshCcw, 
   X, 
   ShieldAlert,
-  Sliders,
-  BarChart2,
-  BookOpen
+  BarChart2
 } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
@@ -17,6 +15,7 @@ import { MarginMode, PositionSide } from '../../types';
 import { TradingChart } from '../trading/TradingChart';
 import { TradeConfirmationModal } from '../layout/TradeConfirmationModal';
 import { futuresApi } from '../../api/futures';
+import { socketService } from '../../services/socketService';
 
 export const FuturesTradingView: React.FC = () => {
   const { 
@@ -26,35 +25,82 @@ export const FuturesTradingView: React.FC = () => {
     positions, 
     openFuturesPosition, 
     closePosition, 
-    reversePosition 
+    reversePosition,
+    refreshLiveOrders // FIX: Imported the refresh function
   } = useTrading();
 
   const { isDemoMode, demoBalance } = useDemoMode();
-  const { fetchLiveWallets } = useUser();
+  const { fetchLiveWallets, walletDetails } = useUser();
+
+  const liveFuturesUsdt = walletDetails.find(w => w.symbol === 'USDT')?.futuresBalance || 0;
+  const activeAvailableBalance = isDemoMode ? demoBalance : liveFuturesUsdt;
 
   const [leverage, setLeverage] = useState<number>(20);
   const [marginMode, setMarginMode] = useState<MarginMode>('cross');
   const [positionSide, setPositionSide] = useState<PositionSide>('long');
-  const [marginAmount, setMarginAmount] = useState<string>('500');
+  const [marginAmount, setMarginAmount] = useState<string>('50');
   const [tpPrice, setTpPrice] = useState<string>('');
   const [slPrice, setSlPrice] = useState<string>('');
   const [isLeverageModalOpen, setIsLeverageModalOpen] = useState<boolean>(false);
   const [tempLeverage, setTempLeverage] = useState<number>(20);
   const [msg, setMsg] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<'chart' | 'positions'>('chart');
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
   useOverlayRegistration('futures-leverage-modal', isLeverageModalOpen, () => setIsLeverageModalOpen(false));
   useOverlayRegistration('futures-confirm-modal', isConfirmModalOpen, () => setIsConfirmModalOpen(false));
 
-  const prec = activeCoin.precision;
-  const currentPrice = activeCoin.price;
+  useEffect(() => {
+    socketService.connect();
+
+    if (activeCoin?.symbol) {
+      socketService.subscribeToMarket(activeCoin.symbol);
+    }
+
+    const handleTick = (data: any) => {
+      if (data && data.price) {
+        setLivePrice(data.price);
+      }
+    };
+
+    const initSocket = () => {
+      if (socketService.socket) {
+        socketService.socket.on('market_tick', handleTick);
+      } else {
+        setTimeout(initSocket, 500);
+      }
+    };
+    initSocket();
+
+    return () => {
+      if (activeCoin?.symbol) {
+        socketService.unsubscribeFromMarket(activeCoin.symbol);
+      }
+      socketService.socket?.off('market_tick', handleTick);
+    };
+  }, [activeCoin?.symbol]);
+
+  if (!activeCoin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-app-sec space-y-4">
+        <RefreshCcw className="w-8 h-8 animate-spin text-accent" />
+        <p className="text-sm font-bold tracking-wider uppercase">Syncing Futures Market Data...</p>
+      </div>
+    );
+  }
+
+  const prec = activeCoin.precision || 2;
+  
+  // FIX: Ensure price is never 0 to prevent "Infinity" calculations
+  const currentPrice = (livePrice && livePrice > 0) ? livePrice : (activeCoin.price > 0 ? activeCoin.price : 92450.80);
+  
   const numMargin = parseFloat(marginAmount) || 0;
   const notionalValue = numMargin * leverage;
   const positionSize = notionalValue / currentPrice;
 
-  // Estimated Liquidation Price
   const liqFactor = (100 / leverage) * 0.9;
   const estLiqPrice = positionSide === 'long'
     ? currentPrice * (1 - liqFactor / 100)
@@ -76,8 +122,10 @@ export const FuturesTradingView: React.FC = () => {
   };
 
   const executeFuturesPositionInternal = async () => {
+    setIsSubmitting(true);
+    
     if (isDemoMode) {
-      const res = openFuturesPosition({
+      const res = await openFuturesPosition({
         pair: activeCoin.symbol,
         side: positionSide,
         leverage,
@@ -88,6 +136,7 @@ export const FuturesTradingView: React.FC = () => {
       });
 
       setMsg(res.message);
+      setIsSubmitting(false);
       setTimeout(() => setMsg(null), 3500);
       setIsConfirmModalOpen(false);
       return;
@@ -103,10 +152,16 @@ export const FuturesTradingView: React.FC = () => {
       });
 
       setMsg(res.message || 'Futures position opened successfully!');
+      
+      // FIX: Force frontend to fetch the new position from the database
       await fetchLiveWallets();
+      await refreshLiveOrders();
+      setRightTab('positions'); 
+      
     } catch (err: any) {
       setMsg(err.message || 'Failed to open futures position.');
     } finally {
+      setIsSubmitting(false);
       setTimeout(() => setMsg(null), 3500);
       setIsConfirmModalOpen(false);
     }
@@ -114,14 +169,17 @@ export const FuturesTradingView: React.FC = () => {
 
   const handleClosePositionBackend = async (positionId: string | number) => {
     if (isDemoMode) {
-      closePosition(String(positionId));
+      await closePosition(String(positionId));
       return;
     }
 
     try {
       const res = await futuresApi.closePosition(positionId);
       setMsg(res.message || 'Position closed successfully.');
+      
+      // FIX: Refresh the positions table to remove it immediately
       await fetchLiveWallets();
+      await refreshLiveOrders();
     } catch (err: any) {
       setMsg(err.message || 'Failed to close position.');
     } finally {
@@ -135,8 +193,11 @@ export const FuturesTradingView: React.FC = () => {
 
     if (!isDemoMode) {
       try {
-        await futuresApi.updateLeverage(activeCoin.symbol, newLev);
-        setMsg(`Leverage updated to ${newLev}x`);
+        const res = await futuresApi.updateLeverage(activeCoin.symbol, newLev);
+        setMsg(res.message || `Leverage set to ${newLev}x`);
+        
+        // Refresh to get updated Liquidation Price from backend
+        await refreshLiveOrders();
       } catch (err: any) {
         setMsg('Failed to update leverage on server.');
       } finally {
@@ -160,7 +221,6 @@ export const FuturesTradingView: React.FC = () => {
         }}
       />
 
-      {/* Pair Header & Funding Ticker Bar */}
       <div className="p-3.5 sm:p-4 rounded-2xl bg-app-card border border-app shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
         <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">
           <div className="relative shrink-0">
@@ -180,7 +240,7 @@ export const FuturesTradingView: React.FC = () => {
 
           <div className="text-right sm:text-left">
             <div className="text-base sm:text-lg font-black text-app font-mono">
-              ${activeCoin.price.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}
+              ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}
             </div>
             <span className={`text-[11px] font-bold ${activeCoin.change24h >= 0 ? 'text-positive' : 'text-negative'}`}>
               {activeCoin.change24h >= 0 ? '+' : ''}{activeCoin.change24h}%
@@ -188,7 +248,6 @@ export const FuturesTradingView: React.FC = () => {
           </div>
         </div>
 
-        {/* Funding Rate & Countdown */}
         <div className="flex items-center justify-between sm:justify-end gap-3 text-xs border-t sm:border-t-0 border-app/60 pt-2 sm:pt-0">
           <div className="p-2 rounded-xl bg-app-sec border border-app flex-1 sm:flex-initial">
             <span className="text-app-sec block text-[10px]">Funding / Countdown</span>
@@ -204,13 +263,8 @@ export const FuturesTradingView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Grid: Position Form & Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        
-        {/* Left Futures Control Panel (4 Cols on Desktop) */}
         <div className="lg:col-span-4 bg-app-card border border-app rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-          
-          {/* Toast Message */}
           {msg && (
             <div className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-accent text-xs font-bold flex items-center justify-between animate-in fade-in">
               <span className="break-words">{msg}</span>
@@ -220,11 +274,11 @@ export const FuturesTradingView: React.FC = () => {
             </div>
           )}
 
-          {/* Margin Mode & Leverage Selector Bar */}
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setMarginMode(marginMode === 'cross' ? 'isolated' : 'cross')}
-              className="py-3 px-3 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app font-extrabold text-xs border border-app transition-colors uppercase min-h-[44px]"
+              disabled={isSubmitting}
+              className="py-3 px-3 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app font-extrabold text-xs border border-app transition-colors uppercase min-h-[44px] disabled:opacity-50"
             >
               {marginMode} Margin
             </button>
@@ -234,18 +288,19 @@ export const FuturesTradingView: React.FC = () => {
                 setTempLeverage(leverage);
                 setIsLeverageModalOpen(true);
               }}
-              className="py-3 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-extrabold text-xs border border-red-500/20 transition-colors flex items-center justify-center gap-1 min-h-[44px]"
+              disabled={isSubmitting}
+              className="py-3 px-3 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 font-extrabold text-xs border border-red-500/20 transition-colors flex items-center justify-center gap-1 min-h-[44px] disabled:opacity-50"
             >
               <Zap className="w-3.5 h-3.5 shrink-0" />
               <span>{leverage}x Leverage</span>
             </button>
           </div>
 
-          {/* Position Side Toggle */}
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setPositionSide('long')}
-              className={`py-3 rounded-xl font-black text-xs transition-all min-h-[44px] ${
+              disabled={isSubmitting}
+              className={`py-3 rounded-xl font-black text-xs transition-all min-h-[44px] disabled:opacity-50 ${
                 positionSide === 'long'
                   ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
                   : 'bg-app-sec text-app-sec hover:text-app'
@@ -255,7 +310,8 @@ export const FuturesTradingView: React.FC = () => {
             </button>
             <button
               onClick={() => setPositionSide('short')}
-              className={`py-3 rounded-xl font-black text-xs transition-all min-h-[44px] ${
+              disabled={isSubmitting}
+              className={`py-3 rounded-xl font-black text-xs transition-all min-h-[44px] disabled:opacity-50 ${
                 positionSide === 'short'
                   ? 'bg-red-500 text-white shadow-md shadow-red-500/20'
                   : 'bg-app-sec text-app-sec hover:text-app'
@@ -265,33 +321,35 @@ export const FuturesTradingView: React.FC = () => {
             </button>
           </div>
 
-          {/* Margin Input */}
           <form onSubmit={handleOpenPosition} className="space-y-3">
             <div>
-              <label className="block text-xs font-semibold text-app-sec mb-1">Margin Amount (USDT)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-app-sec">Margin Amount (USDT)</label>
+                <span className="text-[10px] text-app-sec font-mono">Avail: <strong className="text-emerald-500">${activeAvailableBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></span>
+              </div>
               <input
                 type="number"
                 value={marginAmount}
                 onChange={(e) => setMarginAmount(e.target.value)}
-                className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none focus:border-accent min-h-[44px]"
+                disabled={isSubmitting}
+                className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none focus:border-accent min-h-[44px] disabled:opacity-50 font-mono"
               />
             </div>
 
-            {/* Quick Percentages */}
             <div className="grid grid-cols-4 gap-1.5">
               {[25, 50, 75, 100].map((pct) => (
                 <button
                   key={pct}
                   type="button"
-                  onClick={() => setMarginAmount(((demoBalance * pct) / 100).toFixed(0))}
-                  className="py-2 text-[11px] font-bold rounded-xl bg-app-sec hover:bg-app-sec/80 text-app border border-app min-h-[38px]"
+                  disabled={isSubmitting}
+                  onClick={() => setMarginAmount(((activeAvailableBalance * pct) / 100).toFixed(0))}
+                  className="py-2 text-[11px] font-bold rounded-xl bg-app-sec hover:bg-app-sec/80 text-app border border-app min-h-[38px] disabled:opacity-50"
                 >
                   {pct}%
                 </button>
               ))}
             </div>
 
-            {/* TP / SL Inputs */}
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[11px] font-semibold text-app-sec mb-1">Take Profit ($)</label>
@@ -300,7 +358,8 @@ export const FuturesTradingView: React.FC = () => {
                   placeholder="Optional TP"
                   value={tpPrice}
                   onChange={(e) => setTpPrice(e.target.value)}
-                  className="w-full bg-app-sec border border-app rounded-xl px-3 py-2 text-xs text-app focus:outline-none min-h-[40px]"
+                  disabled={isSubmitting}
+                  className="w-full bg-app-sec border border-app rounded-xl px-3 py-2 text-xs text-app focus:outline-none min-h-[40px] disabled:opacity-50 font-mono"
                 />
               </div>
               <div>
@@ -310,12 +369,12 @@ export const FuturesTradingView: React.FC = () => {
                   placeholder="Optional SL"
                   value={slPrice}
                   onChange={(e) => setSlPrice(e.target.value)}
-                  className="w-full bg-app-sec border border-app rounded-xl px-3 py-2 text-xs text-app focus:outline-none min-h-[40px]"
+                  disabled={isSubmitting}
+                  className="w-full bg-app-sec border border-app rounded-xl px-3 py-2 text-xs text-app focus:outline-none min-h-[40px] disabled:opacity-50 font-mono"
                 />
               </div>
             </div>
 
-            {/* Position Calculation Metrics */}
             <div className="p-3 rounded-xl bg-app-sec/60 border border-app space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-app-sec">Notional Value:</span>
@@ -333,19 +392,25 @@ export const FuturesTradingView: React.FC = () => {
 
             <button
               type="submit"
-              className={`w-full py-3.5 rounded-xl font-black text-xs text-white shadow-lg transition-all min-h-[48px] ${
+              disabled={isSubmitting}
+              className={`w-full py-3.5 rounded-xl font-black text-xs text-white shadow-lg transition-all min-h-[48px] flex items-center justify-center gap-2 disabled:opacity-50 ${
                 positionSide === 'long'
                   ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
                   : 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
               }`}
             >
-              EXECUTE {leverage}X {positionSide.toUpperCase()} POSITION
+              {isSubmitting ? (
+                <>
+                  <RefreshCcw className="w-4 h-4 animate-spin" />
+                  <span>EXECUTING...</span>
+                </>
+              ) : (
+                <span>EXECUTE {leverage}X {positionSide.toUpperCase()} POSITION</span>
+              )}
             </button>
           </form>
-
         </div>
 
-        {/* Right Open Positions & Chart (8 Cols on Desktop) */}
         <div className="lg:col-span-8 bg-app-card border border-app rounded-2xl p-4 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-app pb-3 mb-3">
@@ -369,7 +434,7 @@ export const FuturesTradingView: React.FC = () => {
                   <span>Open Positions ({positions.length})</span>
                 </button>
               </div>
-              <span className="text-[10px] sm:text-xs text-app-sec font-mono">{activeCoin.symbol} ${activeCoin.price.toLocaleString()}</span>
+              <span className="text-[10px] sm:text-xs text-app-sec font-mono">{activeCoin.symbol} ${currentPrice.toLocaleString()}</span>
             </div>
 
             {rightTab === 'chart' ? (
@@ -381,17 +446,12 @@ export const FuturesTradingView: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* ========================================================= */}
-                {/* MOBILE RESPONSIVE CARDS VIEW (< MD)                      */}
-                {/* Stacked trading position cards with zero column congestion*/}
-                {/* ========================================================= */}
                 <div className="block md:hidden space-y-3">
                   {positions.map((pos) => (
                     <div 
                       key={pos.id} 
                       className="p-4 rounded-2xl bg-app-sec/40 border border-app/80 shadow-xs space-y-3"
                     >
-                      {/* Top Header Row */}
                       <div className="flex items-center justify-between pb-2 border-b border-app/60">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase ${
@@ -410,7 +470,6 @@ export const FuturesTradingView: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Position Details Grid */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="p-2 rounded-xl bg-app-card border border-app">
                           <span className="text-[10px] text-app-sec block">Position Size</span>
@@ -438,7 +497,6 @@ export const FuturesTradingView: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Mobile Actions Buttons Row */}
                       <div className="flex items-center gap-2 pt-1">
                         <button
                           onClick={() => reversePosition(pos.id)}
@@ -447,7 +505,7 @@ export const FuturesTradingView: React.FC = () => {
                           <RefreshCcw className="w-3.5 h-3.5 text-accent" />
                           <span>Reverse Position</span>
                         </button>
-                        
+
                         <button
                           onClick={() => handleClosePositionBackend(pos.id)}
                           className="flex-1 py-2 px-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold text-xs shadow-md shadow-red-500/20 min-h-[40px] flex items-center justify-center"
@@ -459,9 +517,6 @@ export const FuturesTradingView: React.FC = () => {
                   ))}
                 </div>
 
-                {/* ========================================================= */}
-                {/* DESKTOP TABLE VIEW (MD & UP)                              */}
-                {/* ========================================================= */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -478,7 +533,6 @@ export const FuturesTradingView: React.FC = () => {
                     <tbody className="divide-y divide-app text-xs font-medium">
                       {positions.map((pos) => (
                         <tr key={pos.id} className="hover:bg-app-sec/40 transition-colors">
-                          
                           <td className="py-3">
                             <div className="flex items-center gap-1.5">
                               <span className={`px-1.5 py-0.5 text-[9px] font-black rounded uppercase ${
@@ -490,16 +544,13 @@ export const FuturesTradingView: React.FC = () => {
                             </div>
                             <span className="text-[10px] text-app-sec uppercase">{pos.marginMode}</span>
                           </td>
-
                           <td className="py-3">
                             <div className="font-bold text-app font-mono">{pos.size} {pos.pair.split('/')[0]}</div>
                             <span className="text-[10px] text-app-sec font-mono">${pos.margin.toFixed(2)} USDT</span>
                           </td>
-
                           <td className="py-3 text-app font-mono">${pos.entryPrice.toFixed(2)}</td>
                           <td className="py-3 text-app font-bold font-mono">${pos.markPrice.toFixed(2)}</td>
                           <td className="py-3 text-negative font-bold font-mono">${pos.liquidationPrice.toFixed(2)}</td>
-
                           <td className="py-3 text-right">
                             <div className={`font-extrabold font-mono ${pos.pnl >= 0 ? 'text-positive' : 'text-negative'}`}>
                               {pos.pnl >= 0 ? '+' : ''}${pos.pnl.toFixed(2)}
@@ -508,7 +559,6 @@ export const FuturesTradingView: React.FC = () => {
                               ({pos.roe >= 0 ? '+' : ''}{pos.roe}%)
                             </span>
                           </td>
-
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
                               <button
@@ -526,7 +576,6 @@ export const FuturesTradingView: React.FC = () => {
                               </button>
                             </div>
                           </td>
-
                         </tr>
                       ))}
                     </tbody>
@@ -536,10 +585,8 @@ export const FuturesTradingView: React.FC = () => {
             )}
           </div>
         </div>
-
       </div>
 
-      {/* Leverage Adjustment Modal */}
       {isLeverageModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-sm bg-app-card border border-app rounded-2xl p-6 shadow-2xl space-y-4">

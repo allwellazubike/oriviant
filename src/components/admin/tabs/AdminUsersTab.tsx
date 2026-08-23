@@ -1,33 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Users, 
-  Search, 
-  Filter, 
-  ShieldCheck, 
-  X, 
-  RefreshCw, 
-  Ban, 
-  CheckCircle2, 
-  Trash2, 
-  Eye, 
-  User, 
-  Lock, 
-  Mail, 
-  DollarSign, 
-  Activity,
-  History,
-  Key,
-  ShieldAlert,
-  Sliders,
-  ArrowDownLeft,
-  ArrowUpRight,
-  UserPlus,
-  Check,
-  Edit,
-  Globe,
-  Laptop
+  Users, Search, Filter, ShieldCheck, X, RefreshCw, Ban, CheckCircle2, 
+  Trash2, Eye, User, Lock, Mail, DollarSign, Activity, History, Key,
+  ShieldAlert, Sliders, ArrowDownLeft, ArrowUpRight, UserPlus, Check, Edit, Globe, Laptop
 } from 'lucide-react';
 import { useDemoMode } from '../../../contexts/DemoModeContext';
+import { adminApi } from '../../../api/admin';
 
 export interface MockUser {
   id: string;
@@ -47,14 +25,8 @@ export interface MockUser {
 export const AdminUsersTab: React.FC = () => {
   const { refillDemoFunds } = useDemoMode();
 
-  const [usersList, setUsersList] = useState<MockUser[]>([
-    { id: '892014', name: 'Alex Thompson', email: 'alex.t@oriviant.io', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 24500, lastLogin: '2 mins ago', ip: '185.220.101.5', joinDate: '2026-01-10', referralsCount: 12 },
-    { id: '741290', name: 'Sarah Jenkins', email: 's.jenkins@gmail.com', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 112000, lastLogin: '1 hour ago', ip: '82.165.197.1', joinDate: '2026-02-14', referralsCount: 45 },
-    { id: '652811', name: 'David Kim', email: 'dkim_trader@yahoo.com', accountType: 'Demo', kycLevel: 'Level 1', status: 'Active', demoBalance: 10000, realBalance: 0, lastLogin: '3 hours ago', ip: '198.51.100.42', joinDate: '2026-03-01', referralsCount: 2 },
-    { id: '910243', name: 'Elena Rostova', email: 'elena.rostova@proton.me', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 580000, lastLogin: '5 mins ago', ip: '194.26.29.12', joinDate: '2025-11-20', referralsCount: 89 },
-    { id: '310922', name: 'Marcus Vance', email: 'marcus.vance@corp.net', accountType: 'Demo', kycLevel: 'Unverified', status: 'Suspended', demoBalance: 1200, realBalance: 0, lastLogin: '3 days ago', ip: '203.0.113.88', joinDate: '2026-04-12', referralsCount: 0 },
-    { id: '552109', name: 'Chloe Dubois', email: 'chloe.dubois@free.fr', accountType: 'Live', kycLevel: 'Level 2 Verified', status: 'Active', demoBalance: 10000, realBalance: 84200, lastLogin: '12 mins ago', ip: '51.15.222.10', joinDate: '2026-02-28', referralsCount: 18 },
-  ]);
+  const [usersList, setUsersList] = useState<MockUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Active' | 'Suspended' | 'Banned' | 'Verified'>('All');
@@ -62,7 +34,6 @@ export const AdminUsersTab: React.FC = () => {
   const [activeUserTab, setActiveUserTab] = useState<'profile' | 'security' | 'history' | 'referrals'>('profile');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Edit / Balance Adjust State
   const [adjustingBalanceUser, setAdjustingBalanceUser] = useState<MockUser | null>(null);
   const [newRealBalance, setNewRealBalance] = useState<number>(0);
   const [newDemoBalance, setNewDemoBalance] = useState<number>(10000);
@@ -72,57 +43,146 @@ export const AdminUsersTab: React.FC = () => {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  const handleToggleStatus = (id: string, newStatus: MockUser['status']) => {
-    setUsersList(prev => prev.map(u => {
-      if (u.id === id) {
-        showToast(`Account #${u.id} (${u.name}) set to ${newStatus}.`);
-        return { ...u, status: newStatus };
+  // Fetch Live Users via secure adminApi
+  const fetchUsers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await adminApi.getUsers();
+      
+      // FIX: Safely unpack the array, because the backend sends it inside `res.data`
+      const rawList = Array.isArray(res) ? res : (res as any).data || (res as any).users || [];
+
+      if (rawList && Array.isArray(rawList)) {
+        const mappedUsers: MockUser[] = rawList.map((u: any) => {
+          
+          // FIX: The backend sends wallet balances grouped inside a `holdings` JSON array. 
+          // We will sum them up to get the user's true total balance.
+          let totalRealBalance = 0;
+          if (Array.isArray(u.holdings)) {
+            totalRealBalance = u.holdings.reduce((sum: number, h: any) => sum + Number(h.balance || 0), 0);
+          } else {
+            totalRealBalance = Number(u.real_balance) || 0;
+          }
+
+          return {
+            id: u.id?.toString() || Math.random().toString(),
+            name: u.nickname || u.name || 'Trader',
+            email: u.email || 'No Email',
+            accountType: u.account_type || 'Live',
+            kycLevel: u.kyc_level || 'Level 1 Basic', // Default to Level 1
+            status: u.is_suspended ? 'Suspended' : (u.status || 'Active'),
+            demoBalance: Number(u.demo_balance) || 10000,
+            realBalance: totalRealBalance,
+            lastLogin: u.last_login ? new Date(u.last_login).toLocaleString() : 'Recently Active',
+            ip: u.last_ip || 'Secure',
+            joinDate: u.created_at ? new Date(u.created_at).toISOString().split('T')[0] : 'Unknown',
+            referralsCount: Number(u.referrals_count) || 0
+          };
+        });
+        setUsersList(mappedUsers);
       }
-      return u;
-    }));
-    if (selectedUser?.id === id) {
-      setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to load live users from backend.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const handleToggleStatus = async (id: string, newStatus: MockUser['status']) => {
+    try {
+      await adminApi.updateUserStatus(id, newStatus);
+
+      setUsersList(prev => prev.map(u => {
+        if (u.id === id) {
+          showToast(`Account #${u.id} (${u.name}) set to ${newStatus}.`);
+          return { ...u, status: newStatus };
+        }
+        return u;
+      }));
+      
+      if (selectedUser?.id === id) {
+        setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update user status.');
     }
   };
 
-  const handleKycAction = (id: string, approve: boolean) => {
+  const handleKycAction = async (id: string, approve: boolean) => {
     const nextKyc: MockUser['kycLevel'] = approve ? 'Level 2 Verified' : 'Unverified';
-    setUsersList(prev => prev.map(u => u.id === id ? { ...u, kycLevel: nextKyc } : u));
-    showToast(`KYC for user #${id} set to ${nextKyc}.`);
-    if (selectedUser?.id === id) {
-      setSelectedUser(prev => prev ? { ...prev, kycLevel: nextKyc } : null);
+    try {
+      await adminApi.updateKycLevel(id, nextKyc);
+
+      setUsersList(prev => prev.map(u => u.id === id ? { ...u, kycLevel: nextKyc } : u));
+      showToast(`KYC for user #${id} set to ${nextKyc}.`);
+      
+      if (selectedUser?.id === id) {
+        setSelectedUser(prev => prev ? { ...prev, kycLevel: nextKyc } : null);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update KYC level.');
     }
   };
 
-  const handleResetDemoBalance = (user: MockUser) => {
-    refillDemoFunds(10000);
-    setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, demoBalance: 10000 } : u));
-    showToast(`Refilled demo balance for ${user.name} to $10,000 USDT.`);
-    if (selectedUser?.id === user.id) {
-      setSelectedUser(prev => prev ? { ...prev, demoBalance: 10000 } : null);
+  const handleResetDemoBalance = async (user: MockUser) => {
+    try {
+      await adminApi.updateUserBalance(user.id, user.realBalance, 10000);
+
+      refillDemoFunds(10000);
+      setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, demoBalance: 10000 } : u));
+      showToast(`Refilled demo balance for ${user.name} to $10,000 USDT.`);
+      
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(prev => prev ? { ...prev, demoBalance: 10000 } : null);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to reset demo balance.');
     }
   };
 
-  const handleSaveBalanceAdjust = () => {
+  const handleSaveBalanceAdjust = async () => {
     if (!adjustingBalanceUser) return;
-    setUsersList(prev => prev.map(u => u.id === adjustingBalanceUser.id ? {
-      ...u,
-      realBalance: newRealBalance,
-      demoBalance: newDemoBalance
-    } : u));
-    showToast(`Balances updated for user #${adjustingBalanceUser.id}`);
-    setAdjustingBalanceUser(null);
+    
+    try {
+      await adminApi.updateUserBalance(adjustingBalanceUser.id, newRealBalance, newDemoBalance);
+
+      setUsersList(prev => prev.map(u => u.id === adjustingBalanceUser.id ? {
+        ...u,
+        realBalance: newRealBalance,
+        demoBalance: newDemoBalance
+      } : u));
+      
+      showToast(`Balances updated for user #${adjustingBalanceUser.id}`);
+      setAdjustingBalanceUser(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update user balances.');
+    }
   };
 
-  const handleResetPassword = (user: MockUser) => {
-    showToast(`Temporary password reset link generated and sent to ${user.email}`);
+  const handleResetPassword = async (user: MockUser) => {
+    try {
+      await adminApi.resetUserPassword(user.id);
+      showToast(`Temporary password reset link generated and sent to ${user.email}`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to generate reset link.');
+    }
   };
 
-  const handleDeleteUser = (id: string, name: string) => {
+  const handleDeleteUser = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to permanently delete user account ${name} (#${id})?`)) {
-      setUsersList(prev => prev.filter(u => u.id !== id));
-      showToast(`User account #${id} (${name}) deleted successfully.`);
-      if (selectedUser?.id === id) setSelectedUser(null);
+      try {
+        await adminApi.deleteUser(id);
+        
+        setUsersList(prev => prev.filter(u => u.id !== id));
+        showToast(`User account #${id} (${name}) deleted successfully.`);
+        if (selectedUser?.id === id) setSelectedUser(null);
+      } catch (err: any) {
+        showToast(err.message || 'Failed to delete user.');
+      }
     }
   };
 
@@ -190,6 +250,13 @@ export const AdminUsersTab: React.FC = () => {
             <Users className="w-4 h-4 text-accent" />
             <span>Master User Directory ({filteredUsers.length} Registered Accounts)</span>
           </h3>
+          <button 
+            onClick={fetchUsers} 
+            className="p-2 rounded-xl bg-app-sec text-app hover:bg-app-sec/80 transition-colors"
+            title="Refresh Live Data"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -207,107 +274,124 @@ export const AdminUsersTab: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-app/60 text-xs font-medium">
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-app-sec/30 transition-colors">
-                  <td className="py-3.5 pl-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-accent/10 text-accent font-bold flex items-center justify-center text-xs shrink-0">
-                        {u.name.charAt(0)}
-                      </div>
-                      <div>
-                        <span className="font-bold text-app block">{u.name}</span>
-                        <span className="text-[10px] text-app-sec">{u.email}</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="py-3.5 font-mono text-app font-bold">#{u.id}</td>
-
-                  <td className="py-3.5">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold ${
-                      u.kycLevel === 'Level 2 Verified'
-                        ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
-                    }`}>
-                      <ShieldCheck className="w-3 h-3" />
-                      {u.kycLevel}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5">
-                    <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold ${
-                      u.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500' :
-                      u.status === 'Suspended' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'
-                    }`}>
-                      {u.status}
-                    </span>
-                  </td>
-
-                  <td className="py-3.5 font-bold text-app font-mono">
-                    ${u.realBalance.toLocaleString()} USDT
-                  </td>
-
-                  <td className="py-3.5 font-bold text-emerald-500 font-mono">
-                    ${u.demoBalance.toLocaleString()} USDT
-                  </td>
-
-                  <td className="py-3.5 text-app-sec text-[11px] font-mono">
-                    {u.lastLogin}
-                  </td>
-
-                  <td className="py-3.5 pr-2 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => { setSelectedUser(u); setActiveUserTab('profile'); }}
-                        className="p-1.5 rounded-lg bg-app-sec text-app hover:bg-app-sec/80 transition-colors"
-                        title="View Full Profile"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          setAdjustingBalanceUser(u);
-                          setNewRealBalance(u.realBalance);
-                          setNewDemoBalance(u.demoBalance);
-                        }}
-                        className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-colors"
-                        title="Adjust Wallet Balances"
-                      >
-                        <Sliders className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={() => handleResetDemoBalance(u)}
-                        className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
-                        title="Reset Demo Funds to $10k"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-
-                      <button
-                        onClick={() => handleToggleStatus(u.id, u.status === 'Active' ? 'Suspended' : 'Active')}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          u.status === 'Active'
-                            ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
-                            : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
-                        }`}
-                        title={u.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
-                      >
-                        {u.status === 'Active' ? <Ban className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteUser(u.id, u.name)}
-                        className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
-                        title="Delete User"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-app-sec">
+                    <div className="flex flex-col items-center justify-center space-y-3">
+                      <div className="w-8 h-8 rounded-full border-2 border-app-sec border-t-accent animate-spin" />
+                      <p className="text-xs font-bold">Querying User Database...</p>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center text-app-sec">
+                    No users found matching your criteria.
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((u) => (
+                  <tr key={u.id} className="hover:bg-app-sec/30 transition-colors">
+                    <td className="py-3.5 pl-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-accent/10 text-accent font-bold flex items-center justify-center text-xs shrink-0 uppercase">
+                          {u.name.charAt(0)}
+                        </div>
+                        <div>
+                          <span className="font-bold text-app block">{u.name}</span>
+                          <span className="text-[10px] text-app-sec">{u.email}</span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="py-3.5 font-mono text-app font-bold">#{u.id}</td>
+
+                    <td className="py-3.5">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold ${
+                        u.kycLevel === 'Level 2 Verified'
+                          ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                      }`}>
+                        <ShieldCheck className="w-3 h-3" />
+                        {u.kycLevel}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5">
+                      <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold ${
+                        u.status === 'Active' ? 'bg-emerald-500/10 text-emerald-500' :
+                        u.status === 'Suspended' ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'
+                      }`}>
+                        {u.status}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 font-bold text-app font-mono">
+                      ${u.realBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT
+                    </td>
+
+                    <td className="py-3.5 font-bold text-emerald-500 font-mono">
+                      ${u.demoBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT
+                    </td>
+
+                    <td className="py-3.5 text-app-sec text-[11px] font-mono">
+                      {u.lastLogin}
+                    </td>
+
+                    <td className="py-3.5 pr-2 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => { setSelectedUser(u); setActiveUserTab('profile'); }}
+                          className="p-1.5 rounded-lg bg-app-sec text-app hover:bg-app-sec/80 transition-colors"
+                          title="View Full Profile"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setAdjustingBalanceUser(u);
+                            setNewRealBalance(u.realBalance);
+                            setNewDemoBalance(u.demoBalance);
+                          }}
+                          className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-colors"
+                          title="Adjust Wallet Balances"
+                        >
+                          <Sliders className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleResetDemoBalance(u)}
+                          className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+                          title="Reset Demo Funds to $10k"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleStatus(u.id, u.status === 'Active' ? 'Suspended' : 'Active')}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            u.status === 'Active'
+                              ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/20'
+                              : 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20'
+                          }`}
+                          title={u.status === 'Active' ? 'Suspend Account' : 'Reactivate Account'}
+                        >
+                          {u.status === 'Active' ? <Ban className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+                        </button>
+
+                        <button
+                          onClick={() => handleDeleteUser(u.id, u.name)}
+                          className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -366,7 +450,7 @@ export const AdminUsersTab: React.FC = () => {
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-app">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-500 font-extrabold flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-500 font-extrabold flex items-center justify-center uppercase">
                   <User className="w-5 h-5" />
                 </div>
                 <div>
@@ -418,14 +502,14 @@ export const AdminUsersTab: React.FC = () => {
                   </div>
                   <div>
                     <span className="text-app-sec block text-[10px]">Account Status</span>
-                    <span className="font-black text-amber-500">{selectedUser.status}</span>
+                    <span className={`font-black ${selectedUser.status === 'Active' ? 'text-emerald-500' : 'text-amber-500'}`}>{selectedUser.status}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-app-sec/40 border border-app">
                   <div>
                     <span className="text-app-sec block text-[10px]">Live Real Wallet Balance</span>
-                    <span className="font-bold text-app font-mono">${selectedUser.realBalance.toLocaleString()} USDT</span>
+                    <span className="font-bold text-app font-mono">${selectedUser.realBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT</span>
                   </div>
                   <div>
                     <span className="text-app-sec block text-[10px]">Simulator Demo Funds</span>
@@ -488,8 +572,7 @@ export const AdminUsersTab: React.FC = () => {
                 <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app space-y-2">
                   <span className="font-bold text-app block">Recent Trading Activity</span>
                   <div className="space-y-1 text-[11px] text-app-sec">
-                    <div className="flex justify-between"><span>BTC/USDT Long 10x</span><span className="text-emerald-500 font-bold">+$1,420 USDT</span></div>
-                    <div className="flex justify-between"><span>ETH/USDT Short 5x</span><span className="text-red-400 font-bold">-$210 USDT</span></div>
+                    <div className="py-4 text-center">Live trading ledger sync complete. Wait for user trades.</div>
                   </div>
                 </div>
               </div>
@@ -498,7 +581,7 @@ export const AdminUsersTab: React.FC = () => {
             {activeUserTab === 'referrals' && (
               <div className="p-4 rounded-2xl bg-app-sec/40 border border-app text-xs space-y-2">
                 <span className="font-bold text-app block">Affiliate Referral Network</span>
-                <p className="text-app-sec">This user has referred <strong>{selectedUser.referralsCount} active traders</strong> and earned <strong>$1,240 USDT</strong> in fee shares.</p>
+                <p className="text-app-sec">This user has referred <strong>{selectedUser.referralsCount} active traders</strong> and earned <strong>$0 USDT</strong> in fee shares.</p>
               </div>
             )}
 

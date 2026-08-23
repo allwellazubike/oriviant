@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Radio, 
   Activity, 
@@ -16,23 +16,49 @@ import {
   Power
 } from 'lucide-react';
 import { useTrading, MarketCategoryConfig } from '../../contexts/TradingContext';
+import { adminApi } from '../../api/admin';
 
 export const MarketFeedsManagementView: React.FC = () => {
   const { 
     coins, 
-    feedStatus, 
     categoryConfig, 
     toggleCategoryFeed, 
     manualRefreshFeed 
   } = useTrading();
 
-  const [volatilityMultiplier, setVolatilityMultiplier] = useState<number>(1.0);
+  // ---> NEW: Real Telemetry State <---
+  const [telemetry, setTelemetry] = useState<any>({
+    isOnline: false,
+    latencyMs: 0,
+    totalTicksReceived: 0,
+    lastUpdated: 0,
+    provider: 'Connecting...'
+  });
+
   const [overrideSymbol, setOverrideSymbol] = useState<string>('BTC/USDT');
   const [overridePrice, setOverridePrice] = useState<string>('');
   const [overrideMessage, setOverrideMessage] = useState<string | null>(null);
 
+  // ---> NEW: Fetch real telemetry from backend every 3 seconds <---
+  useEffect(() => {
+    const fetchTelemetry = async () => {
+      try {
+        const res = await adminApi.getSystemTelemetry();
+        if (res.success && res.telemetry) {
+          setTelemetry(res.telemetry);
+        }
+      } catch (err) {
+        console.error('Failed to fetch system telemetry');
+      }
+    };
+
+    fetchTelemetry(); // Initial fetch
+    const interval = setInterval(fetchTelemetry, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   const categoriesList: { key: keyof MarketCategoryConfig; label: string; count: number }[] = [
-    { key: 'crypto', label: 'Cryptocurrency (Binance WS Stream)', count: coins.filter(c => c.assetClass === 'crypto' || c.category === 'crypto').length },
+    { key: 'crypto', label: 'Cryptocurrency (Live Feed)', count: coins.filter(c => c.assetClass === 'crypto' || c.category === 'crypto').length },
     { key: 'forex', label: 'Forex Pairs (Live FX Stream)', count: coins.filter(c => c.assetClass === 'forex' || c.category === 'forex').length },
     { key: 'stocks', label: 'Global Stocks (NASDAQ / NYSE Feed)', count: coins.filter(c => c.assetClass === 'stocks' || c.category === 'stocks').length },
     { key: 'etfs', label: 'ETFs & Index Funds', count: coins.filter(c => c.assetClass === 'etfs' || c.category === 'etfs').length },
@@ -59,7 +85,7 @@ export const MarketFeedsManagementView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-app tracking-tight flex items-center gap-2">
-            <Radio className="w-5 h-5 text-emerald-500 animate-pulse" />
+            <Radio className={`w-5 h-5 ${telemetry.isOnline ? 'text-emerald-500 animate-pulse' : 'text-red-500'}`} />
             <span>Real-Time Market Feeds & Price Engine</span>
           </h2>
           <p className="text-xs text-app-sec">Manage live market data sources, WebSocket connections, latency, category switches, and price calibration.</p>
@@ -69,7 +95,7 @@ export const MarketFeedsManagementView: React.FC = () => {
           onClick={manualRefreshFeed}
           className="px-4 py-2 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
         >
-          <RefreshCw className="w-4 h-4 animate-spin" />
+          <RefreshCw className="w-4 h-4" />
           <span>Force Instant Feed Sync</span>
         </button>
       </div>
@@ -79,13 +105,13 @@ export const MarketFeedsManagementView: React.FC = () => {
         <div className="p-4 rounded-2xl bg-app-card border border-app shadow-sm space-y-1">
           <div className="flex items-center justify-between text-app-sec text-xs">
             <span>Primary Feed Status</span>
-            <Server className="w-4 h-4 text-emerald-500" />
+            <Server className={`w-4 h-4 ${telemetry.isOnline ? 'text-emerald-500' : 'text-red-500'}`} />
           </div>
-          <p className="text-lg font-black text-emerald-500 flex items-center gap-1.5">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>ONLINE</span>
+          <p className={`text-lg font-black flex items-center gap-1.5 ${telemetry.isOnline ? 'text-emerald-500' : 'text-red-500'}`}>
+            {telemetry.isOnline ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <span>{telemetry.isOnline ? 'ONLINE' : 'OFFLINE'}</span>
           </p>
-          <p className="text-[11px] text-app-sec">WebSocket: {feedStatus.isWsConnected ? 'Connected (Binance)' : 'Polling (REST)'}</p>
+          <p className="text-[11px] text-app-sec">Provider: {telemetry.provider}</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-app-card border border-app shadow-sm space-y-1">
@@ -93,8 +119,8 @@ export const MarketFeedsManagementView: React.FC = () => {
             <span>Average Latency</span>
             <Zap className="w-4 h-4 text-amber-500" />
           </div>
-          <p className="text-lg font-black text-app">{feedStatus.latencyMs} ms</p>
-          <p className="text-[11px] text-app-sec">High-speed low-latency stream</p>
+          <p className="text-lg font-black text-app">{telemetry.latencyMs} ms</p>
+          <p className="text-[11px] text-app-sec">Time to resolve upstream HTTP poll</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-app-card border border-app shadow-sm space-y-1">
@@ -103,16 +129,16 @@ export const MarketFeedsManagementView: React.FC = () => {
             <Database className="w-4 h-4 text-indigo-500" />
           </div>
           <p className="text-lg font-black text-app">{coins.length} Assets</p>
-          <p className="text-[11px] text-app-sec">Across 9 Global Market Categories</p>
+          <p className="text-[11px] text-app-sec">Across configured Market Categories</p>
         </div>
 
         <div className="p-4 rounded-2xl bg-app-card border border-app shadow-sm space-y-1">
           <div className="flex items-center justify-between text-app-sec text-xs">
-            <span>Ticks Processed</span>
+            <span>Server Ticks Processed</span>
             <Activity className="w-4 h-4 text-blue-500" />
           </div>
-          <p className="text-lg font-black text-app">{feedStatus.totalTicksReceived.toLocaleString()}</p>
-          <p className="text-[11px] text-app-sec">Last Tick: {feedStatus.lastUpdated}</p>
+          <p className="text-lg font-black text-app">{telemetry.totalTicksReceived.toLocaleString()}</p>
+          <p className="text-[11px] text-app-sec">Last: {telemetry.lastUpdated ? new Date(telemetry.lastUpdated).toLocaleTimeString() : 'Never'}</p>
         </div>
       </div>
 
@@ -225,14 +251,17 @@ export const MarketFeedsManagementView: React.FC = () => {
           </div>
 
           <div className="bg-zinc-950 text-zinc-300 font-mono text-[11px] p-3.5 rounded-xl h-52 overflow-y-auto space-y-1.5 border border-zinc-800">
-            <p className="text-emerald-400">[WS-CONNECT] Connected to wss://stream.binance.com:9443/ws/!ticker@arr</p>
-            <p className="text-zinc-500">[REST-FX] Polled OpenExchangeRates API: EUR/USD, GBP/USD, USD/JPY</p>
-            {coins.slice(0, 8).map((coin, idx) => (
+            {telemetry.isOnline ? (
+              <p className="text-emerald-400">[REST-POLL] Connected to query1.finance.yahoo.com/v7/finance/spark</p>
+            ) : (
+              <p className="text-red-400">[REST-POLL] Fetching market data failed. Using local cache.</p>
+            )}
+            {coins.slice(0, 8).map((coin) => (
               <div key={coin.id} className="flex items-center justify-between py-0.5 border-b border-zinc-900/80">
                 <span className="text-zinc-400">{coin.symbol}</span>
                 <span className="text-emerald-400 font-bold">${coin.price.toLocaleString(undefined, { minimumFractionDigits: coin.precision, maximumFractionDigits: coin.precision })}</span>
                 <span className={coin.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}>{coin.change24h >= 0 ? '+' : ''}{coin.change24h}%</span>
-                <span className="text-zinc-600 text-[10px]">{new Date().toLocaleTimeString()}</span>
+                <span className="text-zinc-600 text-[10px]">{telemetry.lastUpdated ? new Date(telemetry.lastUpdated).toLocaleTimeString() : 'N/A'}</span>
               </div>
             ))}
           </div>

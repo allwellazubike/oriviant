@@ -4,7 +4,7 @@ export interface OpenFuturesPositionPayload {
   market_symbol: string; // e.g., "BTC/USDT"
   side: 'LONG' | 'SHORT';
   margin_mode: 'ISOLATED' | 'CROSS';
-  leverage: number;       // e.g., 10, 20, 50
+  leverage: number;      // e.g., 10, 20, 50
   collateral_amount: number; // USDT margin supplied
 }
 

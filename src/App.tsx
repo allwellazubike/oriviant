@@ -162,8 +162,8 @@ export default function App() {
   return (
     <ThemeProvider>
       <DemoModeProvider>
-        <TradingProvider>
-          <UserProvider>
+        <UserProvider>              {/* <-- FIX: UserProvider is now wrapping TradingProvider */}
+          <TradingProvider>
             <CopyTradingProvider>
               <NotificationProvider>
                 <SearchProvider>
@@ -173,8 +173,8 @@ export default function App() {
                 </SearchProvider>
               </NotificationProvider>
             </CopyTradingProvider>
-          </UserProvider>
-        </TradingProvider>
+          </TradingProvider>
+        </UserProvider>
       </DemoModeProvider>
     </ThemeProvider>
   );

@@ -7,21 +7,13 @@ import {
   ArrowRightLeft, 
   BookOpen, 
   Search, 
-  Filter, 
-  Clock, 
-  CheckCircle2, 
-  AlertCircle, 
-  XCircle, 
-  ExternalLink, 
-  ShieldCheck, 
-  Info, 
   RefreshCw,
-  Lock,
   PieChart as PieIcon,
   Layers,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck,
+  TrendingUp
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useUser } from '../../contexts/UserContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
 import { DepositModal } from '../wallet/DepositModal';
@@ -29,7 +21,7 @@ import { WithdrawModal } from '../wallet/WithdrawModal';
 import { TransferModal } from '../wallet/TransferModal';
 import { AddressBookModal } from '../wallet/AddressBookModal';
 import { TransactionDetailModal } from '../wallet/TransactionDetailModal';
-import { DepositRecord, WithdrawalRecord, WalletSubAccount } from '../../types/wallet';
+import { DepositRecord, WithdrawalRecord } from '../../types/wallet';
 
 import { depositApi } from '../../api/deposits';
 import { withdrawalApi } from '../../api/withdrawals';
@@ -81,7 +73,6 @@ export const AssetsView: React.FC = () => {
   const [liveWithdrawals, setLiveWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [isFetchingHistory, setIsFetchingHistory] = useState<boolean>(false);
 
-  // Fetch Live Transaction History
   const fetchLiveHistory = async () => {
     if (isDemoMode) return;
     setIsFetchingHistory(true);
@@ -145,7 +136,6 @@ export const AssetsView: React.FC = () => {
     fetchLiveHistory();
   }, [isDemoMode]);
 
-  // Use live data if available and not in demo mode, otherwise fallback to context
   const activeDeposits = isDemoMode ? deposits : (liveDeposits.length > 0 ? liveDeposits : deposits);
   const activeWithdrawals = isDemoMode ? withdrawals : (liveWithdrawals.length > 0 ? liveWithdrawals : withdrawals);
 
@@ -159,14 +149,12 @@ export const AssetsView: React.FC = () => {
   const totalPortfolioValue = totalSpotValue + totalFuturesValue + totalFundingValue + totalLockedValue;
   const totalAvailableValue = totalSpotValue + totalFuturesValue + totalFundingValue;
 
-  const chartData = walletDetails.map((asset) => ({
-    name: asset.symbol,
-    value: (asset.spotBalance + asset.futuresBalance + asset.fundingBalance) * asset.priceUsdt
-  })).filter(item => item.value > 0);
+  const currentTabBalance = 
+    activeSubAccount === 'spot' ? totalSpotValue :
+    activeSubAccount === 'futures' ? totalFuturesValue :
+    activeSubAccount === 'funding' ? totalFundingValue :
+    totalPortfolioValue;
 
-  const COLORS = ['#10B981', '#2962FF', '#FFB300', '#9C27B0', '#00BCD4', '#FF5722', '#E91E63'];
-
-  // Filtered History Records
   const combinedHistory = React.useMemo(() => {
     let list: Array<{ record: any; type: 'deposit' | 'withdrawal' | 'transfer'; date: string }> = [];
 
@@ -180,10 +168,8 @@ export const AssetsView: React.FC = () => {
       internalTransfers.forEach(t => list.push({ record: t, type: 'transfer', date: t.createdAt }));
     }
 
-    // Sort descending by date
     list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Filter by status & search
     return list.filter(item => {
       const r = item.record;
       if (statusFilter !== 'all' && r.status !== statusFilter) return false;
@@ -265,19 +251,21 @@ export const AssetsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Balance KPI Grid */}
+        {/* Dynamic Balance KPI Grid based on selected Tab */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Total Portfolio Value</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">
+              {activeSubAccount.toUpperCase()} BALANCE
+            </span>
             <div className="text-xl font-black text-app font-mono">
-              ${totalPortfolioValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${currentTabBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <span className="text-[10px] text-emerald-500 font-bold">≈ {(totalPortfolioValue / 92450.8).toFixed(4)} BTC</span>
+            <span className="text-[10px] text-emerald-500 font-bold">≈ {(currentTabBalance / 92450.8).toFixed(4)} BTC</span>
           </div>
 
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Available Balance</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">Total Available</span>
             <div className="text-xl font-black text-emerald-500 font-mono">
               ${totalAvailableValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
@@ -301,11 +289,11 @@ export const AssetsView: React.FC = () => {
           </div>
 
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-1 sm:col-span-2 lg:col-span-1">
-            <span className="text-[10px] font-bold text-app-sec uppercase">Estimated Account</span>
+            <span className="text-[10px] font-bold text-app-sec uppercase">Account Tier</span>
             <div className="text-xl font-black text-blue-400 font-mono">
               VIP LEVEL 2
             </div>
-            <span className="text-[10px] text-emerald-500 font-bold">0% Maker / 0.02% Taker Fee</span>
+            <span className="text-[10px] text-emerald-500 font-bold">0% Maker / 0.02% Taker</span>
           </div>
 
         </div>
@@ -339,18 +327,22 @@ export const AssetsView: React.FC = () => {
 
       </div>
 
-      {/* Asset Balances Table */}
+      {/* Dynamic Asset Balances Table */}
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-base font-extrabold text-app">Asset Balances</h2>
-            <p className="text-xs text-app-sec">Breakdown across Spot, Futures, and Funding sub-wallets</p>
+            <h2 className="text-base font-extrabold text-app capitalize">{activeSubAccount} Asset Balances</h2>
+            <p className="text-xs text-app-sec">
+              {activeSubAccount === 'overview' 
+                ? 'Consolidated view across Spot, Futures, and Funding sub-wallets' 
+                : `Active balance holdings dedicated to your ${activeSubAccount} account`}
+            </p>
           </div>
           <button
             onClick={() => setIsTransferOpen(true)}
             className="text-xs font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer"
           >
-            <span>Transfer Funds Between Wallets</span>
+            <span>Transfer Funds</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -360,18 +352,32 @@ export const AssetsView: React.FC = () => {
             <thead>
               <tr className="border-b border-app text-[11px] font-bold text-app-sec uppercase">
                 <th className="py-3 px-4">Asset</th>
-                <th className="py-3 px-4">Available (Spot)</th>
-                <th className="py-3 px-4">Futures</th>
-                <th className="py-3 px-4">Funding</th>
-                <th className="py-3 px-4">Locked / Frozen</th>
-                <th className="py-3 px-4">Estimated Value</th>
+                {activeSubAccount === 'overview' && (
+                  <>
+                    <th className="py-3 px-4">Spot</th>
+                    <th className="py-3 px-4">Futures</th>
+                    <th className="py-3 px-4">Funding</th>
+                  </>
+                )}
+                {activeSubAccount !== 'overview' && (
+                  <>
+                    <th className="py-3 px-4">Available</th>
+                    <th className="py-3 px-4">Locked / In-Trade</th>
+                  </>
+                )}
+                <th className="py-3 px-4">Total Value</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-app/50 text-xs">
               {walletDetails.map((asset) => {
-                const totalBalance = asset.spotBalance + asset.futuresBalance + asset.fundingBalance;
-                const totalValue = totalBalance * asset.priceUsdt;
+                const specificBal = 
+                  activeSubAccount === 'spot' ? asset.spotBalance :
+                  activeSubAccount === 'futures' ? asset.futuresBalance :
+                  activeSubAccount === 'funding' ? asset.fundingBalance :
+                  (asset.spotBalance + asset.futuresBalance + asset.fundingBalance);
+
+                const totalVal = specificBal * asset.priceUsdt;
 
                 return (
                   <tr key={asset.symbol} className="hover:bg-app-sub/40 transition-colors">
@@ -392,24 +398,31 @@ export const AssetsView: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="py-4 px-4 font-mono font-bold text-app">
-                      {asset.spotBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
-                    </td>
-
-                    <td className="py-4 px-4 font-mono font-bold text-app-sec">
-                      {asset.futuresBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
-                    </td>
-
-                    <td className="py-4 px-4 font-mono font-bold text-app-sec">
-                      {asset.fundingBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
-                    </td>
-
-                    <td className="py-4 px-4 font-mono font-bold text-amber-500">
-                      {asset.lockedBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
-                    </td>
+                    {activeSubAccount === 'overview' ? (
+                      <>
+                        <td className="py-4 px-4 font-mono font-bold text-app">
+                          {asset.spotBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
+                        </td>
+                        <td className="py-4 px-4 font-mono font-bold text-app-sec">
+                          {asset.futuresBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
+                        </td>
+                        <td className="py-4 px-4 font-mono font-bold text-app-sec">
+                          {asset.fundingBalance} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-4 px-4 font-mono font-bold text-emerald-500">
+                          {specificBal} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
+                        </td>
+                        <td className="py-4 px-4 font-mono font-bold text-amber-500">
+                          {activeSubAccount === 'spot' ? asset.lockedBalance : 0} <span className="text-[10px] text-app-sec">{asset.symbol}</span>
+                        </td>
+                      </>
+                    )}
 
                     <td className="py-4 px-4 font-mono font-black text-app">
-                      ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${totalVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
 
                     <td className="py-4 px-4 text-right">
@@ -417,30 +430,12 @@ export const AssetsView: React.FC = () => {
                         <button
                           onClick={() => {
                             setSelectedSymbol(asset.symbol);
-                            setIsDepositOpen(true);
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 font-bold text-[11px] border border-emerald-500/20 transition-all cursor-pointer"
-                        >
-                          Deposit
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedSymbol(asset.symbol);
-                            setIsWithdrawOpen(true);
-                          }}
-                          className="px-2.5 py-1.5 rounded-lg bg-app-sub hover:bg-app-card text-app font-bold text-[11px] border border-app transition-all cursor-pointer"
-                        >
-                          Withdraw
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedSymbol(asset.symbol);
                             setIsTransferOpen(true);
                           }}
-                          className="p-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 transition-all cursor-pointer"
-                          title="Transfer Sub-Accounts"
+                          className="px-2.5 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 font-bold text-[11px] border border-purple-500/20 transition-all cursor-pointer flex items-center gap-1"
                         >
-                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                          <ArrowRightLeft className="w-3 h-3" />
+                          <span>Transfer</span>
                         </button>
                       </div>
                     </td>
@@ -452,7 +447,7 @@ export const AssetsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Transaction Center & History Filters */}
+      {/* Transaction Center */}
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-app pb-4">
           <div>
@@ -463,7 +458,6 @@ export const AssetsView: React.FC = () => {
             <p className="text-xs text-app-sec">Real-time ledger of deposits, withdrawals, and internal transfers</p>
           </div>
 
-          {/* Search & Filters */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={fetchLiveHistory}
@@ -498,7 +492,6 @@ export const AssetsView: React.FC = () => {
           </div>
         </div>
 
-        {/* History Type Sub-Tabs */}
         <div className="flex items-center gap-2">
           {[
             { id: 'all', label: `All Activity (${combinedHistory.length})` },
@@ -520,7 +513,6 @@ export const AssetsView: React.FC = () => {
           ))}
         </div>
 
-        {/* History Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -611,7 +603,6 @@ export const AssetsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Modals */}
       <DepositModal
         isOpen={isDepositOpen}
         onClose={() => setIsDepositOpen(false)}

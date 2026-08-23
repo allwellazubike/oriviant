@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   ChevronDown, 
@@ -6,7 +6,8 @@ import {
   Zap,
   ShieldCheck,
   BookOpen,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
@@ -26,7 +27,8 @@ export const SpotTradingView: React.FC = () => {
     openOrders, 
     orderHistory, 
     placeOrder, 
-    cancelOrder 
+    cancelOrder,
+    refreshLiveOrders
   } = useTrading();
 
   const { isDemoMode, demoBalance } = useDemoMode();
@@ -34,15 +36,30 @@ export const SpotTradingView: React.FC = () => {
 
   const [orderSide, setOrderSide] = useState<OrderSide>('buy');
   const [orderType, setOrderType] = useState<OrderType>('limit');
-  const [limitPrice, setLimitPrice] = useState<string>(activeCoin.price.toString());
-  const [amount, setAmount] = useState<string>('0.1');
-  const [selectedTimeframe, setSelectedTimeframe] = useState<string>('1h');
-  const [chartMode, setChartMode] = useState<'candle' | 'line'>('candle');
+  const [limitPrice, setLimitPrice] = useState<string>('');
+  const [amount, setAmount] = useState<string>('0.01');
   const [activeBottomTab, setActiveBottomTab] = useState<'open' | 'history'>('open');
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   useOverlayRegistration('spot-confirm-modal', isConfirmModalOpen, () => setIsConfirmModalOpen(false));
+
+  // Auto-set the limit price slightly below/above market so it's never 0
+  useEffect(() => {
+    if (activeCoin && (!limitPrice || limitPrice === '0' || limitPrice === '')) {
+      setLimitPrice((activeCoin.price * 0.995).toFixed(activeCoin.precision));
+    }
+  }, [activeCoin, limitPrice]);
+
+  if (!activeCoin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-app-sec space-y-4">
+        <RefreshCw className="w-8 h-8 animate-spin text-accent" />
+        <p className="text-sm font-bold tracking-wider uppercase">Syncing Live Market Data...</p>
+      </div>
+    );
+  }
 
   const prec = activeCoin.precision;
   const currentPrice = activeCoin.price;
@@ -79,9 +96,11 @@ export const SpotTradingView: React.FC = () => {
   const executeOrderInternal = async () => {
     const numAmount = parseFloat(amount);
     const numPrice = orderType === 'market' ? currentPrice : parseFloat(limitPrice);
+    
+    setIsSubmitting(true);
 
     if (isDemoMode) {
-      const res = placeOrder({
+      const res = await placeOrder({
         pair: activeCoin.symbol,
         side: orderSide,
         type: orderType,
@@ -90,6 +109,7 @@ export const SpotTradingView: React.FC = () => {
       });
 
       setNotificationMsg(res.message);
+      setIsSubmitting(false);
       setTimeout(() => setNotificationMsg(null), 3500);
       setIsConfirmModalOpen(false);
       return;
@@ -106,12 +126,15 @@ export const SpotTradingView: React.FC = () => {
 
       setNotificationMsg(res.message || 'Order placed successfully!');
       
-      // Dynamically sync updated balances from the backend
+      // Refresh DB data and switch tabs to display it!
       await fetchLiveWallets();
+      await refreshLiveOrders();
+      setActiveBottomTab(orderType === 'market' ? 'history' : 'open');
 
     } catch (err: any) {
       setNotificationMsg(err.message || 'Failed to execute order.');
     } finally {
+      setIsSubmitting(false);
       setTimeout(() => setNotificationMsg(null), 3500);
       setIsConfirmModalOpen(false);
     }
@@ -132,10 +155,7 @@ export const SpotTradingView: React.FC = () => {
         }}
       />
 
-      {/* Pair Header & Live Ticker Bar */}
       <div className="p-3.5 sm:p-4 rounded-2xl bg-app-card border border-app shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
-        
-        {/* Pair Selector Dropdown */}
         <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">
           <div className="relative shrink-0">
             <select
@@ -165,7 +185,6 @@ export const SpotTradingView: React.FC = () => {
           </div>
         </div>
 
-        {/* 24h Market Metrics (Horizontally scrollable on small screens) */}
         <div className="flex items-center gap-4 sm:gap-6 text-xs overflow-x-auto no-scrollbar border-t sm:border-t-0 border-app/60 pt-2 sm:pt-0">
           <div className="shrink-0">
             <span className="text-app-sec block text-[10px]">24h High</span>
@@ -180,25 +199,19 @@ export const SpotTradingView: React.FC = () => {
             <span className="font-bold text-app font-mono">${(activeCoin.volume24h / 1e6).toFixed(2)}M</span>
           </div>
         </div>
-
       </div>
 
-      {/* Main Grid: Chart + Orderbook + Order Form */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        
-        {/* Chart View (8 Cols on Desktop) */}
         <div className="lg:col-span-8 bg-app-card border border-app rounded-2xl p-4 flex flex-col justify-between min-h-[420px] shadow-sm">
           <TradingChart height={360} />
         </div>
 
-        {/* Orderbook (4 Cols on Desktop) */}
         <div className="lg:col-span-4 bg-app-card border border-app rounded-2xl p-3 flex flex-col justify-between shadow-sm min-h-[360px]">
           <div className="flex items-center justify-between border-b border-app pb-2 mb-2">
             <span className="text-xs font-bold text-app">Order Book</span>
             <span className="text-[10px] text-app-sec">Spread: 0.01%</span>
           </div>
 
-          {/* Asks (Red) */}
           <div className="space-y-1 text-xs">
             {orderBookAsks.slice(0, 5).map((row, idx) => (
               <div key={idx} className="relative flex items-center justify-between py-0.5 px-1 font-mono">
@@ -212,7 +225,6 @@ export const SpotTradingView: React.FC = () => {
             ))}
           </div>
 
-          {/* Current Mid Price */}
           <div className="my-2 py-1.5 px-3 rounded-xl bg-app-sec text-center font-extrabold text-sm text-app flex items-center justify-between">
             <span className="font-mono">${currentPrice.toFixed(prec)}</span>
             <span className={`text-xs ${activeCoin.change24h >= 0 ? 'text-positive' : 'text-negative'}`}>
@@ -220,7 +232,6 @@ export const SpotTradingView: React.FC = () => {
             </span>
           </div>
 
-          {/* Bids (Green) */}
           <div className="space-y-1 text-xs">
             {orderBookBids.slice(0, 5).map((row, idx) => (
               <div key={idx} className="relative flex items-center justify-between py-0.5 px-1 font-mono">
@@ -234,13 +245,9 @@ export const SpotTradingView: React.FC = () => {
             ))}
           </div>
         </div>
-
       </div>
 
-      {/* Order Entry Form Panel */}
       <div className="bg-app-card border border-app rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
-        
-        {/* Toast Feedback */}
         {notificationMsg && (
           <div className="p-3 rounded-xl bg-accent/15 border border-accent/30 text-accent text-xs font-bold flex items-center justify-between animate-in fade-in">
             <span className="break-words">{notificationMsg}</span>
@@ -251,8 +258,6 @@ export const SpotTradingView: React.FC = () => {
         )}
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-app pb-4">
-          
-          {/* Buy vs Sell Tab Toggle */}
           <div className="grid grid-cols-2 sm:flex items-center gap-2">
             <button
               onClick={() => setOrderSide('buy')}
@@ -272,7 +277,6 @@ export const SpotTradingView: React.FC = () => {
             </button>
           </div>
 
-          {/* Limit / Market Order Type */}
           <div className="flex items-center gap-1 bg-app-sec p-1 rounded-xl border border-app">
             <button
               onClick={() => setOrderType('limit')}
@@ -291,25 +295,21 @@ export const SpotTradingView: React.FC = () => {
               Market Order
             </button>
           </div>
-
         </div>
 
         <form onSubmit={handleExecuteOrder} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Price Input */}
           <div>
             <label className="block text-xs font-semibold text-app-sec mb-1">Order Price (USDT)</label>
             <input
               type="number"
               step="any"
-              disabled={orderType === 'market'}
-              value={orderType === 'market' ? currentPrice : limitPrice}
+              disabled={orderType === 'market' || isSubmitting}
+              value={orderType === 'market' ? currentPrice.toFixed(prec) : limitPrice}
               onChange={(e) => setLimitPrice(e.target.value)}
               className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none focus:border-accent disabled:opacity-60 min-h-[44px] font-mono"
             />
           </div>
 
-          {/* Amount Input */}
           <div>
             <label className="block text-xs font-semibold text-app-sec mb-1">
               Amount ({activeCoin.symbol.split('/')[0]})
@@ -317,13 +317,13 @@ export const SpotTradingView: React.FC = () => {
             <input
               type="number"
               step="any"
+              disabled={isSubmitting}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none focus:border-accent min-h-[44px] font-mono"
+              className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app focus:outline-none focus:border-accent min-h-[44px] font-mono disabled:opacity-60"
             />
           </div>
 
-          {/* Quick Percentage Allocation Selector */}
           <div>
             <label className="block text-xs font-semibold text-app-sec mb-1">Allocation %</label>
             <div className="grid grid-cols-4 gap-1.5">
@@ -331,8 +331,9 @@ export const SpotTradingView: React.FC = () => {
                 <button
                   key={pct}
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => handlePercentageSelect(pct)}
-                  className="py-2.5 text-[11px] font-bold rounded-xl bg-app-sec hover:bg-app-sec/80 text-app border border-app min-h-[44px]"
+                  className="py-2.5 text-[11px] font-bold rounded-xl bg-app-sec hover:bg-app-sec/80 text-app border border-app min-h-[44px] disabled:opacity-50"
                 >
                   {pct}%
                 </button>
@@ -340,7 +341,6 @@ export const SpotTradingView: React.FC = () => {
             </div>
           </div>
 
-          {/* Submit Button */}
           <div className="md:col-span-3 pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-app mt-2">
             <div className="text-xs text-app-sec space-y-0.5">
               <div>Est. Order Value: <strong className="text-app font-mono">${totalValue.toFixed(2)} USDT</strong></div>
@@ -351,21 +351,26 @@ export const SpotTradingView: React.FC = () => {
 
             <button
               type="submit"
-              className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-xs text-white shadow-lg transition-all min-h-[48px] ${
+              disabled={isSubmitting}
+              className={`w-full sm:w-auto px-8 py-3.5 rounded-xl font-black text-xs text-white shadow-lg transition-all min-h-[48px] flex items-center justify-center gap-2 disabled:opacity-50 ${
                 orderSide === 'buy'
                   ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-500/20'
                   : 'bg-red-500 hover:bg-red-600 shadow-red-500/20'
               }`}
             >
-              {orderSide === 'buy' ? 'PLACE BUY ORDER' : 'PLACE SELL ORDER'}
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>PROCESSING...</span>
+                </>
+              ) : (
+                <span>{orderSide === 'buy' ? 'PLACE BUY ORDER' : 'PLACE SELL ORDER'}</span>
+              )}
             </button>
           </div>
-
         </form>
-
       </div>
 
-      {/* Orders & History Tabs */}
       <div className="bg-app-card border border-app rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-4 border-b border-app pb-3 mb-3">
           <button
@@ -377,26 +382,23 @@ export const SpotTradingView: React.FC = () => {
             Open Orders ({openOrders.length})
             {activeBottomTab === 'open' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
           </button>
-
           <button
             onClick={() => setActiveBottomTab('history')}
             className={`text-xs font-bold pb-1 transition-colors relative ${
               activeBottomTab === 'history' ? 'text-accent' : 'text-app-sec'
             }`}
           >
-            Order History
+            Order History ({orderHistory.length})
             {activeBottomTab === 'history' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
           </button>
         </div>
 
-        {/* Orders List Container */}
         <div>
           {activeBottomTab === 'open' ? (
             openOrders.length === 0 ? (
               <p className="text-center py-8 text-xs text-app-sec">No active open orders.</p>
             ) : (
               <>
-                {/* Mobile Open Orders Cards View (< MD) */}
                 <div className="block md:hidden space-y-3">
                   {openOrders.map((ord) => (
                     <div key={ord.id} className="p-3.5 rounded-2xl bg-app-sec/30 border border-app space-y-2">
@@ -410,7 +412,6 @@ export const SpotTradingView: React.FC = () => {
                           <span className="font-extrabold text-xs text-app">{ord.pair}</span>
                           <span className="text-[10px] text-app-sec uppercase">{ord.type}</span>
                         </div>
-                        
                         <button
                           onClick={() => cancelOrder(ord.id)}
                           className="px-2.5 py-1 text-[10px] font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-lg"
@@ -437,7 +438,6 @@ export const SpotTradingView: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Desktop Open Orders Table View (MD & UP) */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -479,7 +479,6 @@ export const SpotTradingView: React.FC = () => {
             )
           ) : (
             <>
-              {/* Mobile Order History Cards View (< MD) */}
               <div className="block md:hidden space-y-3">
                 {orderHistory.map((ord) => (
                   <div key={ord.id} className="p-3.5 rounded-2xl bg-app-sec/20 border border-app space-y-2">
@@ -493,7 +492,6 @@ export const SpotTradingView: React.FC = () => {
                         <span className="font-extrabold text-xs text-app">{ord.pair}</span>
                         <span className="text-[10px] text-app-sec uppercase">{ord.type}</span>
                       </div>
-                      
                       <span className="text-[10px] font-extrabold text-emerald-500 uppercase px-2 py-0.5 bg-emerald-500/10 rounded">
                         {ord.status}
                       </span>
@@ -513,7 +511,6 @@ export const SpotTradingView: React.FC = () => {
                 ))}
               </div>
 
-              {/* Desktop Order History Table View (MD & UP) */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -545,9 +542,7 @@ export const SpotTradingView: React.FC = () => {
             </>
           )}
         </div>
-
       </div>
-
     </div>
   );
 };

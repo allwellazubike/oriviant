@@ -1,34 +1,35 @@
 /// <reference types="vite/client" />
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Uses your environment variable, or falls back to your local backend
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-export const apiClient = async <T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> => {
-  // Retrieve the actual JWT rather than the simulated token
-  const token = localStorage.getItem('oriviant_token');
+export const apiClient = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
+  // 1. Force the browser to pull a completely fresh token on every single click
+  const token = localStorage.getItem('oriviant_token') || sessionStorage.getItem('oriviant_token');
   
-  // Explicitly define headers as a key-value record
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> || {}),
-  };
-
-  // Automatically attach the Authorization header if a token exists
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  const headers = new Headers(options.headers);
+  
+  // 2. Set default JSON content type
+  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
+  
+  // 3. Attach the Bearer token ONLY if it is a valid string
+  if (token && token !== 'undefined' && token !== 'null') {
+    headers.set('Authorization', `Bearer ${token}`);
   }
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  // 4. Fire Request
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
     headers,
   });
 
-  const data = await response.json();
+  // 5. Parse JSON securely
+  const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'An API error occurred');
+    throw new Error(data.error || data.message || 'API request failed');
   }
 
   return data as T;
