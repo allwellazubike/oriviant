@@ -2,18 +2,13 @@ import { Request, Response } from 'express';
 import pool from '../config/db.js';
 import { applyMovement } from '../services/ledgerService.js';
 import { sendDepositApproved, sendDepositDenied } from '../services/emailService.js';
+import { marketDataService } from '../services/marketDataService.js'; 
 import { adminService } from '../services/adminService.js';
 
-/**
- * Deposit requests for the admin queue.
- *
- * Defaults to PENDING (the actionable queue) but accepts ?status=ALL or a
- * specific status so the admin can review what was already approved or denied.
- */
 export const getPendingDeposits = async (req: Request, res: Response) => {
   try {
     const requested = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'PENDING';
-    const allowed = ['PENDING', 'APPROVED', 'DENIED'];
+    const allowed = ['PENDING', 'APPROVED', 'DENIED', 'COMPLETED'];
 
     const filterByStatus = allowed.includes(requested);
     if (!filterByStatus && requested !== 'ALL') {
@@ -36,12 +31,6 @@ export const getPendingDeposits = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Withdrawal requests for the admin queue.
- *
- * Defaults to PENDING (the actionable queue) but accepts ?status=ALL or a
- * specific status so the admin can review what was already approved or denied.
- */
 export const getPendingWithdrawals = async (req: Request, res: Response) => {
   try {
     const requested = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'PENDING';
@@ -68,12 +57,6 @@ export const getPendingWithdrawals = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Everyone using the platform, with their holdings and deposit activity.
- *
- * Balances are aggregated in SQL rather than looped in JS to avoid an N+1 as
- * the user table grows.
- */
 export const getUsers = async (req: Request, res: Response) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
@@ -105,7 +88,7 @@ export const getUsers = async (req: Request, res: Response) => {
       LEFT JOIN (
         SELECT
           user_id,
-          COUNT(*)                                                        AS deposit_count,
+          COUNT(*)                                                      AS deposit_count,
           COUNT(*) FILTER (WHERE status = 'PENDING')                      AS pending_count,
           MAX(created_at)                                                 AS last_deposit_at
         FROM deposit_requests
@@ -124,33 +107,14 @@ export const getUsers = async (req: Request, res: Response) => {
   }
 };
 
-/**
- * Headline counters for the admin dashboard.
- */
 export const getAdminStats = async (req: Request, res: Response) => {
   try {
-    const result = await pool.query(`
-      SELECT
-        (SELECT COUNT(*) FROM users)                                      AS total_users,
-        (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '7 days') AS new_users_7d,
-        (SELECT COUNT(*) FROM deposit_requests WHERE status = 'PENDING')          AS pending_deposits,
-        (SELECT COUNT(*) FROM deposit_requests WHERE status = 'APPROVED')         AS approved_deposits,
-        (SELECT COUNT(*) FROM wallets WHERE balance > 0)                          AS funded_wallets;
-    `);
-
-    // Held balances are per-asset; converting to a single fiat total needs a
-    // price feed the payouts work will introduce, so report them separately.
-    const byAsset = await pool.query(`
-      SELECT asset_symbol, SUM(balance) AS total
-      FROM wallets
-      WHERE balance > 0
-      GROUP BY asset_symbol
-      ORDER BY asset_symbol
-    `);
-
+    const aggregations = await adminService.getDashboardAggregations();
+    
     res.status(200).json({
       success: true,
-      data: { ...result.rows[0], balances_by_asset: byAsset.rows },
+      stats: aggregations,
+      data: aggregations
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
@@ -162,19 +126,14 @@ export const approveDeposit = async (req: Request, res: Response) => {
   const client = await pool.connect();
   try {
     const depositId = req.params.id;
-    // The admin types the amount that actually landed on-chain, which may differ
-    // from what the user claimed they sent. What we credit is this number.
     const amountReceived = Number(req.body?.amount_received);
 
     if (!Number.isFinite(amountReceived) || amountReceived <= 0) {
-      return res
-        .status(400)
-        .json({ success: false, error: 'A positive amount_received is required to approve.' });
+      return res.status(400).json({ success: false, error: 'A positive amount_received is required to approve.' });
     }
 
     await client.query('BEGIN');
 
-    // 1. Get the pending deposit
     const depositQuery = `SELECT * FROM deposit_requests WHERE id = $1 AND status = 'PENDING' FOR UPDATE;`;
     const depositResult = await client.query(depositQuery, [depositId]);
 
@@ -185,23 +144,13 @@ export const approveDeposit = async (req: Request, res: Response) => {
 
     const deposit = depositResult.rows[0];
 
-    // 2. Update deposit status to APPROVED.
-    //    amount_credited is written alongside amount_expected rather than over
-    //    it: the gap between what the user claimed and what actually arrived is
-    //    exactly what a later dispute turns on.
     await client.query(
       `UPDATE deposit_requests
-       SET status = 'APPROVED',
-           amount_credited = $1,
-           reviewed_by = $2,
-           updated_at = CURRENT_TIMESTAMP
+       SET status = 'APPROVED', amount_credited = $1, reviewed_by = $2, updated_at = CURRENT_TIMESTAMP
        WHERE id = $3`,
       [amountReceived, req.user?.id ?? null, depositId]
     );
 
-    // 3. Credit the wallet through the ledger so the deposit appears in the
-    //    user's balance history alongside their trades. Crediting directly here
-    //    would leave a balance that its own history cannot account for.
     const balanceAfter = await applyMovement({
       client,
       userId: deposit.user_id,
@@ -215,8 +164,6 @@ export const approveDeposit = async (req: Request, res: Response) => {
 
     await client.query('COMMIT');
 
-    // Only after the money is committed, and never awaited into the response:
-    // the credit is done whether or not the mail server is having a good day.
     const depositor = await pool.query('SELECT email FROM users WHERE id = $1', [deposit.user_id]);
     if (depositor.rows[0]?.email) {
       void sendDepositApproved(depositor.rows[0].email, amountReceived, deposit.asset);
@@ -225,11 +172,7 @@ export const approveDeposit = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       message: `Credited ${amountReceived} ${deposit.asset}.`,
-      data: {
-        user_id: deposit.user_id,
-        asset_symbol: deposit.asset,
-        balance: balanceAfter,
-      },
+      data: { user_id: deposit.user_id, asset_symbol: deposit.asset, balance: balanceAfter },
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -308,7 +251,6 @@ export const denyWithdrawal = async (req: Request, res: Response) => {
 
     await client.query('BEGIN');
 
-    // 1. Lock and fetch pending withdrawal
     const wthQuery = `SELECT * FROM withdrawals WHERE id = $1 AND status = 'PENDING' FOR UPDATE;`;
     const wthResult = await client.query(wthQuery, [withdrawalId]);
 
@@ -319,17 +261,13 @@ export const denyWithdrawal = async (req: Request, res: Response) => {
 
     const withdrawal = wthResult.rows[0];
 
-    // 2. Update status to DENIED
     await client.query(
       `UPDATE withdrawals
-       SET status = 'DENIED',
-           reviewed_by = $1,
-           updated_at = CURRENT_TIMESTAMP
+       SET status = 'DENIED', reviewed_by = $1, updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
       [req.user?.id ?? null, withdrawalId]
     );
 
-    // 3. Refund the deducted balance back to user's wallet via ledger
     const refundAmount = Number(withdrawal.amount);
     const balanceAfter = await applyMovement({
       client,
@@ -347,11 +285,7 @@ export const denyWithdrawal = async (req: Request, res: Response) => {
     res.status(200).json({
       success: true,
       message: `Withdrawal denied and ${refundAmount} ${withdrawal.asset} refunded.`,
-      data: {
-        user_id: withdrawal.user_id,
-        asset_symbol: withdrawal.asset,
-        balance: balanceAfter,
-      },
+      data: { user_id: withdrawal.user_id, asset_symbol: withdrawal.asset, balance: balanceAfter },
     });
   } catch (error) {
     await client.query('ROLLBACK');
@@ -362,8 +296,6 @@ export const denyWithdrawal = async (req: Request, res: Response) => {
   }
 };
 
-// --- NEW PHASE 12: ADMIN GOVERNANCE METHODS ---
-
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const adminId = req.user?.id;
@@ -371,12 +303,11 @@ export const updateUser = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
     const targetUserId = parseInt(req.params.id, 10);
-    const { is_suspended, vip_level, role } = req.body;
+    // FIX: Removed is_suspended to match the service update!
+    const { vip_level, role } = req.body;
 
     const updatedUser = await adminService.updateUserStatus(adminId, targetUserId, {
-      is_suspended,
-      vip_level,
-      role
+      vip_level, role
     });
 
     return res.status(200).json({ success: true, message: 'User updated', user: updatedUser });
@@ -426,5 +357,14 @@ export const updateSettings = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, message: 'Setting updated', setting: updated });
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+export const getSystemTelemetry = async (req: Request, res: Response) => {
+  try {
+    const telemetry = marketDataService.getTelemetry();
+    return res.status(200).json({ success: true, telemetry });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 };

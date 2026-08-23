@@ -1,10 +1,14 @@
 import { Router } from 'express';
-import { transferController } from '../controllers/transferController.js';
+import { handleTransfer } from '../controllers/transferController.js';
 import { verifyToken } from '../middleware/auth.js';
 
 const router = Router();
 
-router.post('/', verifyToken, transferController.transferFunds);
-router.get('/history', verifyToken, transferController.getHistory);
+// Require authentication for all transfer actions
+router.use(verifyToken);
+
+// Route requests to our bulletproof transfer controller
+router.post('/', handleTransfer);
+router.post('/internal', handleTransfer);
 
 export default router;

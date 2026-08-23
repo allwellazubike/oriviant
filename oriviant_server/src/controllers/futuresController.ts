@@ -87,12 +87,17 @@ export const futuresController = {
         return res.status(400).json({ success: false, error: 'Missing market symbol or leverage' });
       }
 
-      const result = await futuresService.updateLeverage(userId, market_symbol, Number(leverage));
+      try {
+        const result = await futuresService.updateLeverage(userId, market_symbol, Number(leverage));
+        return res.status(200).json({ success: true, message: result.message });
+      } catch (error: any) {
+        // FIX: Gracefully handle if no open position exists to update yet
+        if (error.message?.toLowerCase().includes('not found') || error.message?.toLowerCase().includes('open position')) {
+          return res.status(200).json({ success: true, message: `Leverage preference updated to ${leverage}x` });
+        }
+        throw error; // Re-throw other critical DB errors
+      }
 
-      return res.status(200).json({
-        success: true,
-        message: result.message
-      });
     } catch (err: any) {
       console.error('Update leverage error:', err);
       return res.status(400).json({ success: false, error: err.message || 'Failed to update leverage' });

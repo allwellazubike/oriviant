@@ -22,8 +22,6 @@ export const getTraders = async (_req: Request, res: Response) => {
   try {
     const traders = await listTraders();
 
-    // Each card shows a sparkline, so the curves come back with the list rather
-    // than as N follow-up requests from the browser.
     const withCurves = await Promise.all(
       traders.map(async (t) => ({ ...t, performance_chart: await traderPerformance(t.id) }))
     );
@@ -60,11 +58,13 @@ export const getTrader = async (req: Request, res: Response) => {
 
 export const postFollow = async (req: Request, res: Response) => {
   try {
-    const { trader_id, allocated, stop_loss_pct } = req.body ?? {};
+    // FIX: Extract the exact properties sent by the frontend payload
+    const { master_trader_id, allocation_amount, stop_loss_pct } = req.body ?? {};
+    
     const sub = await followTrader(
       req.user!.id,
-      Number(trader_id),
-      Number(allocated),
+      Number(master_trader_id),
+      Number(allocation_amount),
       stop_loss_pct === undefined ? undefined : Number(stop_loss_pct)
     );
 

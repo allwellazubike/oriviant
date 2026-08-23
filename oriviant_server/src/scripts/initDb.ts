@@ -24,11 +24,22 @@ const createTables = async () => {
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       asset_symbol VARCHAR(10) NOT NULL,
+      wallet_type VARCHAR(20) NOT NULL DEFAULT 'spot',
       balance NUMERIC DEFAULT 0,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(user_id, asset_symbol)
+      UNIQUE(user_id, asset_symbol, wallet_type)
     );
+
+    -- Migration for databases created before wallet segregation existed.
+    ALTER TABLE wallets ADD COLUMN IF NOT EXISTS wallet_type VARCHAR(20) NOT NULL DEFAULT 'spot';
+    ALTER TABLE wallets DROP CONSTRAINT IF EXISTS wallets_user_id_asset_symbol_key;
+    
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'wallets_user_id_asset_symbol_wallet_type_key') THEN
+        ALTER TABLE wallets ADD CONSTRAINT wallets_user_id_asset_symbol_wallet_type_key UNIQUE(user_id, asset_symbol, wallet_type);
+      END IF;
+    END $$;
 
     -- 'locked' is the portion reserved by resting limit orders. Spendable funds
     -- are always (balance - locked); balance alone would let a user spend the
@@ -339,6 +350,40 @@ const createTables = async () => {
         ALTER TABLE orders ADD CONSTRAINT orders_amount_positive CHECK (amount > 0);
       END IF;
     END $$;
+
+    /* ================= INTERNAL TRANSFERS ================= */
+    CREATE TABLE IF NOT EXISTS internal_transfers (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      asset VARCHAR(10) NOT NULL,
+      amount NUMERIC NOT NULL,
+      from_wallet VARCHAR(20) NOT NULL,
+      to_wallet VARCHAR(20) NOT NULL,
+      status VARCHAR(20) DEFAULT 'COMPLETED',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS internal_transfers_user_idx ON internal_transfers (user_id, created_at DESC);
+
+    /* ================= FUTURES POSITIONS ================= */
+    CREATE TABLE IF NOT EXISTS futures_positions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      market_symbol VARCHAR(20) NOT NULL,
+      side VARCHAR(10) NOT NULL,
+      margin_mode VARCHAR(20) NOT NULL DEFAULT 'cross',
+      leverage NUMERIC NOT NULL DEFAULT 1,
+      size NUMERIC NOT NULL DEFAULT 0,
+      margin NUMERIC NOT NULL DEFAULT 0,
+      entry_price NUMERIC NOT NULL,
+      liquidation_price NUMERIC,
+      status VARCHAR(20) DEFAULT 'OPEN',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS futures_positions_user_idx ON futures_positions (user_id, status);
+
   `;
 
   try {

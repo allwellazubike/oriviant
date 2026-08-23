@@ -1,26 +1,9 @@
 import pool from '../config/db.js';
 import type { PoolClient } from 'pg';
 import { getMarketPrice } from './priceOracle.js';
-import { applyMovement, debitAvailable, InsufficientFundsError } from './ledgerService.js';
+import { applyMovement, debitAvailable, lockFunds, unlockFunds, spendLockedFunds, InsufficientFundsError } from './ledgerService.js';
 import { FEE_RATE } from './tradingService.js';
 
-/**
- * Copy trading.
- *
- * A follower allocates an amount to a leader. When that leader opens a
- * position, every active follower opens a proportional one; when the leader
- * closes it, every follower's copy closes. The follower's own wallet is
- * debited and credited through the same ledger as a manual trade, so a copied
- * trade is not a special kind of money — it is an ordinary spot fill that
- * happened to be triggered by someone else's decision.
- *
- * Sizing is proportional, never absolute: a leader committing 5% of their
- * equity causes each follower to commit 5% of *their* allocation. That is what
- * makes a $200 follower and a $200,000 follower take the same relative risk,
- * and it is how every real copy-trading venue works.
- */
-
-/** Below this, a copied position is not worth the fees or the row. */
 export const MIN_COPY_NOTIONAL = 1; // in quote asset (USDT)
 
 export class CopyTradeError extends Error {
@@ -35,7 +18,7 @@ export class CopyTradeError extends Error {
 const round = (v: number): string => v.toFixed(8);
 
 /* ------------------------------------------------------------------ *
- * Subscriptions
+ * Subscriptions & Fund Locking
  * ------------------------------------------------------------------ */
 
 export const followTrader = async (
@@ -74,51 +57,53 @@ export const followTrader = async (
     throw new CopyTradeError('This trader has reached their follower limit.');
   }
 
-  /*
-   * The allocation is checked against the wallet but deliberately NOT locked.
-   *
-   * Locking the whole allocation up front would freeze funds that may never be
-   * deployed — a leader might commit 5% of equity at a time and never use the
-   * rest. Each individual copied trade checks spendable balance at the moment
-   * it fills, which is both more honest about what is committed and what a real
-   * venue does. The cost is that a follower who spends the money elsewhere will
-   * see copies skipped, which is reported to them on the subscription.
-   */
-  const wallet = await pool.query(
-    `SELECT (balance - locked)::text AS available FROM wallets
-     WHERE user_id = $1 AND asset_symbol = 'USDT'`,
-    [followerId]
-  );
-  const available = Number(wallet.rows[0]?.available ?? 0);
-  if (available < allocated) {
-    throw new CopyTradeError(
-      `You have ${available.toFixed(2)} USDT available but tried to allocate ${allocated.toFixed(2)}.`
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Verify sufficient available funds in the Spot Wallet
+    const wallet = await client.query(
+      `SELECT (balance - locked)::text AS available FROM wallets
+       WHERE user_id = $1 AND asset_symbol = 'USDT' AND wallet_type = 'spot' FOR UPDATE`,
+      [followerId]
     );
+    const available = Number(wallet.rows[0]?.available ?? 0);
+    if (available < allocated) {
+      throw new CopyTradeError(
+        `You have ${available.toFixed(2)} USDT available but tried to allocate ${allocated.toFixed(2)}.`
+      );
+    }
+
+    // 2. Lock the allocation! This prevents double-spending in manual Spot/Futures trades
+    await lockFunds(client, followerId, 'USDT', allocated);
+
+    // 3. Create the Database Record
+    const created = await client.query(
+      `INSERT INTO copy_subscriptions (follower_id, trader_id, allocated, stop_loss_pct)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [followerId, traderId, round(allocated), stopLossPct ?? null]
+    );
+
+    await client.query('COMMIT');
+    return created.rows[0];
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
-
-  const created = await pool.query(
-    `INSERT INTO copy_subscriptions (follower_id, trader_id, allocated, stop_loss_pct)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [followerId, traderId, round(allocated), stopLossPct ?? null]
-  );
-
-  return created.rows[0];
 };
 
-/**
- * Stops copying and closes every open copied position at market.
- *
- * Leaving positions open after unfollowing would strand a follower in trades
- * they can no longer see the reasoning for and whose exit nobody is watching.
- */
 export const stopCopying = async (followerId: number, subscriptionId: number) => {
-  const sub = await pool.query(
+  const subRes = await pool.query(
     `SELECT * FROM copy_subscriptions
      WHERE id = $1 AND follower_id = $2 AND status = 'ACTIVE'`,
     [subscriptionId, followerId]
   );
-  if (sub.rows.length === 0) throw new CopyTradeError('Active subscription not found.', 404);
+  if (subRes.rows.length === 0) throw new CopyTradeError('Active subscription not found.', 404);
+  const sub = subRes.rows[0];
 
+  // 1. Close every open copied position at market price
   const open = await pool.query(
     `SELECT * FROM copy_positions WHERE subscription_id = $1 AND status = 'OPEN'`,
     [subscriptionId]
@@ -134,24 +119,42 @@ export const stopCopying = async (followerId: number, subscriptionId: number) =>
     }
   }
 
-  await pool.query(
-    `UPDATE copy_subscriptions SET status = 'STOPPED', stopped_at = CURRENT_TIMESTAMP WHERE id = $1`,
+  // 2. Calculate remaining unspent allocation to unlock
+  const spentRes = await pool.query(
+    `SELECT SUM(quote_spent) AS total_spent FROM copy_positions WHERE subscription_id = $1`,
     [subscriptionId]
   );
+  const totalSpent = Number(spentRes.rows[0]?.total_spent || 0);
+  const remainingToUnlock = Number(sub.allocated) - totalSpent;
 
-  return { closed };
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // 3. Unlock the unused funds back to Available Balance
+    if (remainingToUnlock > 0) {
+      await unlockFunds(client, followerId, 'USDT', remainingToUnlock);
+    }
+
+    await client.query(
+      `UPDATE copy_subscriptions SET status = 'STOPPED', stopped_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [subscriptionId]
+    );
+
+    await client.query('COMMIT');
+    return { closed };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 /* ------------------------------------------------------------------ *
  * Replication
  * ------------------------------------------------------------------ */
 
-/**
- * Opens one follower's copy of a leader trade.
- *
- * Runs in its own transaction per follower: one follower being short of funds
- * must not roll back the copies that already succeeded for everyone else.
- */
 const openCopyPosition = async (
   sub: any,
   trade: any,
@@ -168,7 +171,8 @@ const openCopyPosition = async (
   try {
     await client.query('BEGIN');
 
-    await debitAvailable(
+    // FIX: Spend directly from the locked copy-trading allocation, not the available balance!
+    await spendLockedFunds(
       client,
       sub.follower_id,
       trade.quote_asset,
@@ -178,9 +182,10 @@ const openCopyPosition = async (
       trade.id
     );
 
+    // FIX: Sub-wallet Composite Index fix for 42P10 crash!
     await client.query(
-      `INSERT INTO wallets (user_id, asset_symbol, balance) VALUES ($1, $2, 0)
-       ON CONFLICT (user_id, asset_symbol) DO NOTHING`,
+      `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance) VALUES ($1, $2, 'spot', 0)
+       ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING`,
       [sub.follower_id, trade.base_asset]
     );
 
@@ -198,7 +203,7 @@ const openCopyPosition = async (
     await client.query(
       `INSERT INTO copy_positions
          (subscription_id, trader_trade_id, follower_id, pair, base_asset, quote_asset,
-          quantity, entry_price, quote_spent, status)
+         quantity, entry_price, quote_spent, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'OPEN')
        ON CONFLICT (subscription_id, trader_trade_id) DO NOTHING`,
       [
@@ -218,13 +223,6 @@ const openCopyPosition = async (
   }
 };
 
-/**
- * Closes one copied position at the given price and settles the profit share.
- *
- * The leader's cut is charged only on a gain, and only on the gain — never on
- * the principal, and never on a loss. Charging a performance fee on a losing
- * trade is the classic way these systems quietly eat a follower's balance.
- */
 export const closeCopyPosition = async (position: any, price: number) => {
   const quantity = Number(position.quantity);
   const grossQuote = quantity * price;
@@ -264,13 +262,7 @@ export const closeCopyPosition = async (position: any, price: number) => {
       reason: 'TRADE_SELL',
       refType: 'copy_trade',
       refId: position.trader_trade_id,
-      metadata: {
-        pair: position.pair,
-        price,
-        tradingFee: round(tradingFee),
-        profitShareFee: round(profitShareFee),
-        pnl: round(pnl),
-      },
+      metadata: { pair: position.pair, price, tradingFee: round(tradingFee), profitShareFee: round(profitShareFee), pnl: round(pnl) },
     });
 
     await client.query(
@@ -299,18 +291,7 @@ export const closeCopyPosition = async (position: any, price: number) => {
   }
 };
 
-/**
- * Publishes a new leader position and replicates it to every active follower.
- *
- * Returns per-follower outcomes so the caller (and the admin view) can see who
- * was copied and who was skipped for lack of funds.
- */
-export const publishTraderTrade = async (opts: {
-  traderId: number;
-  pair: string;
-  sizePct: number;
-  price?: number;
-}) => {
+export const publishTraderTrade = async (opts: { traderId: number; pair: string; sizePct: number; price?: number; }) => {
   const { traderId, pair, sizePct } = opts;
   const [base, quote] = pair.split('/');
   const price = opts.price ?? (await getMarketPrice(pair));
@@ -347,7 +328,6 @@ export const replicateOpen = async (trade: any, price: number) => {
   return { opened, insufficient, skipped };
 };
 
-/** Closes a leader trade and every follower copy of it. */
 export const closeTraderTrade = async (tradeId: number, price?: number) => {
   const found = await pool.query(
     `SELECT * FROM copy_trader_trades WHERE id = $1 AND status = 'OPEN'`,
@@ -388,13 +368,6 @@ export const closeTraderTrade = async (tradeId: number, price?: number) => {
  * Reading
  * ------------------------------------------------------------------ */
 
-/**
- * Leader list with statistics derived from their actual trade history.
- *
- * Every number here is computed from copy_trader_trades rather than stored on
- * the trader row, so a displayed win rate cannot drift from the trades that
- * produced it.
- */
 export const listTraders = async () => {
   const result = await pool.query(`
     SELECT
@@ -431,22 +404,17 @@ export const listTraders = async () => {
     WHERE t.status = 'active'
     ORDER BY roi_30d DESC;
   `);
-
   return result.rows;
 };
 
-/** Daily cumulative return, for the sparkline on a leader card. */
 export const traderPerformance = async (traderId: number, days = 30): Promise<number[]> => {
   const result = await pool.query(
-    `
-    SELECT DATE(closed_at) AS day, SUM(pnl_pct * size_pct) AS daily
-    FROM copy_trader_trades
-    WHERE trader_id = $1 AND status = 'CLOSED' AND closed_at > NOW() - ($2 || ' days')::interval
-    GROUP BY DATE(closed_at) ORDER BY day ASC;
-    `,
+    `SELECT DATE(closed_at) AS day, SUM(pnl_pct * size_pct) AS daily
+     FROM copy_trader_trades
+     WHERE trader_id = $1 AND status = 'CLOSED' AND closed_at > NOW() - ($2 || ' days')::interval
+     GROUP BY DATE(closed_at) ORDER BY day ASC;`,
     [traderId, days]
   );
-
   let cumulative = 0;
   return result.rows.map((r) => {
     cumulative += Number(r.daily);
@@ -465,7 +433,6 @@ export const traderTrades = async (traderId: number, limit = 50) => {
   return result.rows;
 };
 
-/** A follower's subscriptions, with live unrealised PnL on open copies. */
 export const listSubscriptions = async (followerId: number) => {
   const subs = await pool.query(
     `SELECT s.*, t.handle, t.display_name, t.avatar_url, t.profit_share
@@ -489,10 +456,7 @@ export const listSubscriptions = async (followerId: number) => {
       try {
         const price = await getMarketPrice(p.pair);
         unrealised += Number(p.quantity) * price - Number(p.quote_spent);
-      } catch {
-        // No price right now: report the position without a mark rather than
-        // guessing a value for it.
-      }
+      } catch {}
     }
 
     out.push({
@@ -502,7 +466,6 @@ export const listSubscriptions = async (followerId: number) => {
       unrealised_pnl: unrealised.toFixed(2),
     });
   }
-
   return out;
 };
 

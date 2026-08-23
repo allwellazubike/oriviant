@@ -16,28 +16,14 @@ export interface Quote {
 
 const SPARK_URL = 'https://query1.finance.yahoo.com/v7/finance/spark';
 
-/**
- * Yahoo rejects requests without a browser-ish UA.
- */
 const REQUEST_HEADERS = {
   'User-Agent':
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
   Accept: 'application/json',
 };
 
-/**
- * Cache TTL. Traditional markets do not tick meaningfully faster than this, and
- * it keeps us to ~4 upstream calls a minute no matter how many users are online.
- */
 const CACHE_TTL_MS = 15_000;
-
-/** How long we keep serving stale data when upstream is failing. */
 const STALE_GRACE_MS = 10 * 60 * 1000;
-
-/**
- * Yahoo rejects the spark endpoint above ~20 symbols per request (verified:
- * 20 succeeds, 25 returns 400), so requests are chunked.
- */
 const MAX_SYMBOLS_PER_REQUEST = 20;
 
 interface CacheEntry {
@@ -46,8 +32,16 @@ interface CacheEntry {
 }
 
 let cache: CacheEntry | null = null;
-// Collapses concurrent requests onto a single upstream fetch.
 let inFlight: Promise<Record<string, Quote>> | null = null;
+
+// ---> NEW: Real-Time Server Telemetry Tracker <---
+export const feedTelemetry = {
+  isOnline: false,
+  latencyMs: 0,
+  totalTicksReceived: 0,
+  lastUpdated: 0,
+  provider: 'Yahoo Finance (REST)'
+};
 
 const num = (value: unknown): number | null => {
   const n = typeof value === 'string' ? parseFloat(value) : (value as number);
@@ -79,13 +73,13 @@ const fetchBatch = async (symbols: string[]): Promise<any[]> => {
 };
 
 const fetchFromYahoo = async (): Promise<Record<string, Quote>> => {
+  const startTime = Date.now(); // Start latency timer
+
   const batches: string[][] = [];
   for (let i = 0; i < ALL_YAHOO_SYMBOLS.length; i += MAX_SYMBOLS_PER_REQUEST) {
     batches.push(ALL_YAHOO_SYMBOLS.slice(i, i + MAX_SYMBOLS_PER_REQUEST));
   }
 
-  // allSettled: one failing batch should cost us that batch's symbols, not
-  // every price on the platform.
   const settled = await Promise.allSettled(batches.map(fetchBatch));
 
   const results: any[] = [];
@@ -108,12 +102,10 @@ const fetchFromYahoo = async (): Promise<Record<string, Quote>> => {
 
     const previousClose = num(meta.chartPreviousClose) ?? price;
 
-    // Intraday closes, used to drive the sparkline and the day's range.
     const closes: number[] = (result?.response?.[0]?.indicators?.quote?.[0]?.close ?? [])
       .map(num)
       .filter((c: number | null): c is number => c !== null && c > 0);
 
-    // Yahoo's meta high/low are unreliable on the spark endpoint, so derive them.
     const high = closes.length ? Math.max(...closes, price) : price;
     const low = closes.length ? Math.min(...closes, price) : price;
 
@@ -122,7 +114,6 @@ const fetchFromYahoo = async (): Promise<Record<string, Quote>> => {
         ? parseFloat((((price - previousClose) / previousClose) * 100).toFixed(2))
         : 0;
 
-    // Downsample to at most 32 points — enough for a sparkline, cheap to ship.
     const step = Math.max(1, Math.ceil(closes.length / 32));
     const sparkline = closes.filter((_, i) => i % step === 0).slice(-32);
 
@@ -144,6 +135,12 @@ const fetchFromYahoo = async (): Promise<Record<string, Quote>> => {
     throw new Error('Yahoo returned no usable quotes');
   }
 
+  // ---> UPDATE TELEMETRY ON SUCCESS <---
+  feedTelemetry.isOnline = true;
+  feedTelemetry.latencyMs = Date.now() - startTime;
+  feedTelemetry.lastUpdated = Date.now();
+  feedTelemetry.totalTicksReceived += Object.keys(quotes).length;
+
   return quotes;
 };
 
@@ -153,12 +150,6 @@ export interface QuotesResult {
   stale: boolean;
 }
 
-/**
- * Returns cached quotes, refreshing from upstream when the cache expires.
- *
- * If upstream fails we keep serving the last good snapshot (flagged stale)
- * rather than blanking every price on the platform over one bad request.
- */
 export const getQuotes = async (): Promise<QuotesResult> => {
   const now = Date.now();
 
@@ -178,6 +169,9 @@ export const getQuotes = async (): Promise<QuotesResult> => {
     return { quotes, fetchedAt: cache.fetchedAt, stale: false };
   } catch (error) {
     console.error('Market data fetch failed:', (error as Error).message);
+    
+    // ---> UPDATE TELEMETRY ON FAILURE <---
+    feedTelemetry.isOnline = false;
 
     if (cache && now - cache.fetchedAt < STALE_GRACE_MS) {
       return { quotes: cache.quotes, fetchedAt: cache.fetchedAt, stale: true };
@@ -186,10 +180,6 @@ export const getQuotes = async (): Promise<QuotesResult> => {
   }
 };
 
-/**
- * Exposes a standardized interface for controllers and the futures engine 
- * to fetch live pricing without knowing the underlying Yahoo/Cache mechanics.
- */
 export const marketDataService = {
   fetchLivePrice: async (pair: string): Promise<Quote> => {
     const { quotes } = await getQuotes();
@@ -210,5 +200,8 @@ export const marketDataService = {
     }
     
     return pairs.map((p) => quotes[p]).filter(Boolean);
-  }
+  },
+
+  // ---> NEW: Export telemetry for the Admin Controller <---
+  getTelemetry: () => feedTelemetry
 };

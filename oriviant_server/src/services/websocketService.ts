@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
+import jwt from 'jsonwebtoken';
 
 let io: Server | null = null;
 
@@ -26,11 +27,25 @@ export const websocketService = {
         socket.leave(`market_${symbol}`);
       });
 
-      // 2. Private User Rooms: Clients authenticate to receive private balance/order updates
-      socket.on('authenticate', (userId: string) => {
-        // In a production environment, you would verify a JWT here before joining
-        socket.join(`user_${userId}`);
-        console.log(`Client ${socket.id} authenticated for private room user_${userId}`);
+      // 2. Private User Rooms: Securely authenticate clients using a JWT before granting access
+      socket.on('authenticate', (payload: { token: string }) => {
+        if (!payload || !payload.token) {
+          console.warn(`Client ${socket.id} attempted to authenticate without a token`);
+          socket.emit('auth_error', { message: 'Authentication token is required' });
+          return;
+        }
+
+        try {
+          // Verify the JWT mathematically instead of trusting client IDs
+          const decoded = jwt.verify(payload.token, process.env.JWT_SECRET || 'fallback_secret') as { id: string | number };
+          
+          socket.join(`user_${decoded.id}`);
+          console.log(`Client ${socket.id} authenticated securely for private room user_${decoded.id}`);
+          socket.emit('auth_success', { message: 'Successfully subscribed to private channel' });
+        } catch (err) {
+          console.warn(`Client ${socket.id} failed JWT authentication`);
+          socket.emit('auth_error', { message: 'Invalid or expired token' });
+        }
       });
 
       socket.on('disconnect', () => {
@@ -46,7 +61,7 @@ export const websocketService = {
     }
   },
 
-  // Pushes a private notification directly to a specific user
+  // Pushes a private notification directly to a specific securely authenticated user
   notifyUserBalance: (userId: number, payload: { asset: string; balance: number }) => {
     if (io) {
       io.to(`user_${userId.toString()}`).emit('balance_update', payload);
