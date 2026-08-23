@@ -89,12 +89,9 @@ app.use('/api/markets', marketRoutes);
 app.use('/api/wallets', walletRoutes);
 app.use('/api/trading', tradingRoutes);
 app.use('/api/copy', copyTradingRoutes);
-<<<<<<< HEAD
 app.use('/api/futures', futuresRoutes);
 app.use('/api/transfers', transferRoutes);
-=======
 app.use('/api/academy', academyRoutes);
->>>>>>> 96e8d059d1f94e6fa080419cd20cce8e46294503
 
 // Database connection check
 pool.query('SELECT NOW()', (err, res) => {
