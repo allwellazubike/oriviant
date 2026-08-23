@@ -1,99 +1,130 @@
-import React, { useState } from 'react';
-import { 
-  FileSpreadsheet, 
-  Download, 
-  FileText, 
-  Calendar, 
-  CheckCircle2, 
-  Clock, 
-  Layers, 
-  Zap, 
+import React, { useState, useEffect } from 'react';
+import {
+  FileSpreadsheet,
+  Download,
   Sparkles,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
+import { adminApi } from '../../../api/admin';
+import { API_BASE_URL } from '../../../api/client';
 
 export interface ReportCategory {
   id: string;
   name: string;
   description: string;
-  icon: string;
-  recordsCount: string;
 }
+
+const CATEGORIES: ReportCategory[] = [
+  { id: 'users', name: 'User Master Directory', description: 'Every registered account, role, and join date.' },
+  { id: 'deposits', name: 'Deposit Ledger', description: 'All crypto deposit requests, TX hashes, and status.' },
+  { id: 'withdrawals', name: 'Withdrawal Ledger', description: 'Outflow withdrawal requests and their on-chain TX hashes.' },
+  { id: 'trading', name: 'Trading History', description: 'Spot order executions, fill prices, and fees.' },
+  { id: 'revenue', name: 'Platform Revenue & Fees', description: 'Daily breakdown of spot, withdrawal, and copy-trading fee revenue.' },
+  { id: 'analytics', name: 'Login Activity', description: 'Daily active users and login success/failure counts.' },
+  { id: 'reviews', name: 'Platform Reviews & Moderation', description: 'No review system is wired up yet — exports empty.' },
+];
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const monthAgoIso = () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
 export const AdminReportsTab: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('users');
-  const [format, setFormat] = useState<'CSV' | 'Excel' | 'PDF'>('CSV');
-  const [startDate, setStartDate] = useState('2026-08-01');
-  const [endDate, setEndDate] = useState('2026-08-04');
+  const [startDate, setStartDate] = useState(monthAgoIso());
+  const [endDate, setEndDate] = useState(todayIso());
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
 
-  const categories = [
-    { id: 'users', name: 'User Master Directory', description: 'Complete user profiles, KYC status, balances, and security logs', recordsCount: '142,890 Users' },
-    { id: 'deposits', name: 'Deposit Ledger', description: 'All crypto & fiat deposit inflows, TX hashes, and proof status', recordsCount: '48,120 Records' },
-    { id: 'withdrawals', name: 'Withdrawal Ledger', description: 'Outflow withdrawal requests, on-chain TX hashes, and compliance notes', recordsCount: '29,410 Records' },
-    { id: 'trading', name: 'Trading History', description: 'Spot & Futures order executions, fill prices, fees, and leverage', recordsCount: '1,420,800 Orders' },
-    { id: 'revenue', name: 'Platform Revenue & Fees', description: 'Trading fee accruals, copy trading performance fees, and net yield', recordsCount: '$842,500 24h Yield' },
-    { id: 'analytics', name: 'Traffic & Device Analytics', description: 'DAU/MAU trends, country traffic distribution, and device client breakdown', recordsCount: '98,420 DAU' },
-    { id: 'reviews', name: 'Platform Reviews & Moderation', description: 'User reviews, ratings, verified volume tags, and moderation history', recordsCount: '1,240 Reviews' },
-  ];
+  useEffect(() => {
+    adminApi.getReportCounts()
+      .then((res) => { if (res.success) setCounts(res.data); })
+      .catch((err) => console.error('Failed to load report counts:', err))
+      .finally(() => setIsLoadingCounts(false));
+  }, []);
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
+  const formatCount = (id: string): string => {
+    if (isLoadingCounts) return '...';
+    const n = counts[id];
+    if (n === undefined) return '—';
+    if (id === 'revenue') return `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} Total Fees`;
+    return `${n.toLocaleString()} Records`;
   };
 
-  const handleGenerateReport = () => {
-    const cat = categories.find(c => c.id === selectedCategory);
+  const handleGenerateReport = async () => {
+    const cat = CATEGORIES.find(c => c.id === selectedCategory);
     if (!cat) return;
 
-    // Build dummy file content for browser download simulation
-    const content = `Oriviant Enterprise Administrative Report\nReport Type: ${cat.name}\nFormat: ${format}\nDate Range: ${startDate} to ${endDate}\nGenerated At: ${new Date().toISOString()}\n\nSample Data Row 1, 1001, Verified, Success\nSample Data Row 2, 1002, Verified, Success\n`;
-    
-    const mimeType = format === 'CSV' ? 'text/csv' : format === 'Excel' ? 'application/vnd.ms-excel' : 'application/pdf';
-    const ext = format === 'CSV' ? 'csv' : format === 'Excel' ? 'xls' : 'pdf';
+    setIsExporting(true);
+    try {
+      const token = localStorage.getItem('oriviant_token') || sessionStorage.getItem('oriviant_token');
+      const url = `${API_BASE_URL}/admin/reports/export?category=${selectedCategory}&startDate=${startDate}&endDate=${endDate}`;
 
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Oriviant_${cat.name.replace(/\s+/g, '_')}_${startDate}_${endDate}.${ext}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const response = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
 
-    showToast(`Generated and exported ${cat.name} as ${format} successfully!`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'Export failed.');
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `Oriviant_${cat.name.replace(/\s+/g, '_')}_${startDate}_${endDate}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+
+      setToastMsg(`Exported ${cat.name} (${startDate} to ${endDate}) successfully!`);
+      setTimeout(() => setToastMsg(null), 3500);
+    } catch (error: any) {
+      setErrMsg(error?.message || 'Failed to generate report.');
+      setTimeout(() => setErrMsg(null), 3500);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      
-      {/* Toast Notice */}
+
+      {/* Toast Notices */}
       {toastMsg && (
         <div className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-xs font-bold flex items-center justify-between shadow-md">
           <span>{toastMsg}</span>
           <button onClick={() => setToastMsg(null)}><X className="w-4 h-4" /></button>
         </div>
       )}
+      {errMsg && (
+        <div className="p-3.5 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-500 text-xs font-bold flex items-center justify-between shadow-md">
+          <span>{errMsg}</span>
+          <button onClick={() => setErrMsg(null)}><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* Header */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-app-card border border-app shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-extrabold text-app flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-amber-500" />
-            <span>Executive Enterprise Reporting & Data Export</span>
-          </h2>
-          <p className="text-xs text-app-sec">Generate compliance-grade exports in CSV, Excel, or PDF format with custom date filters.</p>
-        </div>
+      <div className="p-4 sm:p-5 rounded-3xl bg-app-card border border-app shadow-sm">
+        <h2 className="text-base font-extrabold text-app flex items-center gap-2">
+          <FileSpreadsheet className="w-5 h-5 text-amber-500" />
+          <span>Enterprise Reporting & Data Export</span>
+        </h2>
+        <p className="text-xs text-app-sec">Generate real CSV exports from the live database, filtered by date range.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
+
         {/* Category Selection List */}
         <div className="p-6 rounded-3xl bg-app-card border border-app shadow-sm space-y-4">
           <h3 className="text-xs font-black text-app-sec uppercase tracking-wider">Select Export Dataset</h3>
 
           <div className="space-y-2">
-            {categories.map((c) => {
+            {CATEGORIES.map((c) => {
               const isSelected = selectedCategory === c.id;
               return (
                 <button
@@ -107,7 +138,7 @@ export const AdminReportsTab: React.FC = () => {
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-extrabold text-xs">{c.name}</span>
-                    <span className="text-[10px] font-mono text-amber-500 font-bold">{c.recordsCount}</span>
+                    <span className="text-[10px] font-mono text-amber-500 font-bold">{formatCount(c.id)}</span>
                   </div>
                   <p className="text-[11px] text-app-sec leading-snug">{c.description}</p>
                 </button>
@@ -123,32 +154,10 @@ export const AdminReportsTab: React.FC = () => {
               <Sparkles className="w-4 h-4 text-amber-500" />
               <span>Configure Export Parameters</span>
             </h3>
-            <p className="text-xs text-app-sec">Target dataset: <strong className="text-app">{categories.find(c => c.id === selectedCategory)?.name}</strong></p>
+            <p className="text-xs text-app-sec">Target dataset: <strong className="text-app">{CATEGORIES.find(c => c.id === selectedCategory)?.name}</strong></p>
           </div>
 
           <div className="space-y-5 text-xs">
-            {/* Format Selection */}
-            <div>
-              <label className="block font-bold text-app-sec mb-2">Export File Format</label>
-              <div className="grid grid-cols-3 gap-3">
-                {(['CSV', 'Excel', 'PDF'] as const).map((fmt) => (
-                  <button
-                    key={fmt}
-                    type="button"
-                    onClick={() => setFormat(fmt)}
-                    className={`p-4 rounded-2xl border text-center font-extrabold text-xs transition-all ${
-                      format === fmt
-                        ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/20'
-                        : 'bg-app-sec/40 border-app text-app-sec hover:text-app'
-                    }`}
-                  >
-                    {fmt} Format
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Date Range Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block font-bold text-app-sec mb-1">Start Date</label>
@@ -171,22 +180,21 @@ export const AdminReportsTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Security Notice */}
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-1">
-              <span className="font-extrabold text-amber-500 block text-xs">Security & Compliance Note</span>
+              <span className="font-extrabold text-amber-500 block text-xs">Format</span>
               <p className="text-[11px] text-app-sec leading-relaxed">
-                All generated export files contain hashed audit signatures and are logged in the Executive Audit Stream for security verification.
+                Exports as CSV, which opens directly in Excel, Google Sheets, or Numbers. Each export is limited to 5,000 rows.
               </p>
             </div>
 
-            {/* Export Action Button */}
             <div className="pt-4 border-t border-app flex items-center justify-end">
               <button
                 onClick={handleGenerateReport}
-                className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                disabled={isExporting}
+                className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center gap-2 disabled:opacity-60"
               >
-                <Download className="w-4 h-4" />
-                <span>Generate & Download {format} Report</span>
+                {isExporting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                <span>{isExporting ? 'Generating...' : 'Generate & Download CSV Report'}</span>
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import pool from '../config/db.js';
+import { logAudit } from '../services/adminService.js';
 
 // Get a user's academy progress, or return defaults if they haven't started yet
 export const getAcademyProgress = async (req: Request, res: Response) => {
@@ -94,5 +95,65 @@ export const updateAcademyProgress = async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Error updating academy progress:', err);
     res.status(500).json({ success: false, message: 'Server error updating progress' });
+  }
+};
+
+/**
+ * Backs the admin Academy & Content tab: real per-lesson engagement numbers
+ * instead of hardcoded student counts. The lesson catalog itself (titles,
+ * categories) lives in the frontend's academyData.ts — this only returns
+ * what the backend actually has: how many distinct users have completed
+ * each lesson id, and its publish status.
+ */
+export const getAcademyOverview = async (_req: Request, res: Response) => {
+  try {
+    const completions = await pool.query(`
+      SELECT lesson_id, COUNT(DISTINCT user_id)::int AS completions
+      FROM academy_progress, jsonb_array_elements_text(completed_lesson_ids) AS lesson_id
+      GROUP BY lesson_id;
+    `);
+
+    const statuses = await pool.query(`SELECT lesson_id, status FROM academy_lesson_status;`);
+
+    const enrolled = await pool.query(`SELECT COUNT(*)::int AS total FROM academy_progress;`);
+
+    res.json({
+      success: true,
+      data: {
+        totalEnrolled: enrolled.rows[0]?.total ?? 0,
+        completions: completions.rows,
+        statuses: statuses.rows
+      }
+    });
+  } catch (err: any) {
+    console.error('Error fetching academy overview:', err);
+    res.status(500).json({ success: false, message: 'Server error fetching academy overview' });
+  }
+};
+
+export const setLessonStatus = async (req: Request, res: Response) => {
+  try {
+    const adminId = (req as any).user.id;
+    const { lessonId } = req.params;
+    const { status } = req.body ?? {};
+
+    if (!['Published', 'Draft'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Status must be Published or Draft.' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO academy_lesson_status (lesson_id, status, updated_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP)
+       ON CONFLICT (lesson_id) DO UPDATE SET status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP
+       RETURNING *;`,
+      [lessonId, status]
+    );
+
+    void logAudit(adminId, 'UPDATE_LESSON_STATUS', 'academy_lesson', lessonId, { status }, req.ip);
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err: any) {
+    console.error('Error updating lesson status:', err);
+    res.status(500).json({ success: false, message: 'Server error updating lesson status' });
   }
 };

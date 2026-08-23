@@ -28,6 +28,8 @@ import {
   quickUpdateMarketStatus
 } from '../controllers/marketController.js';
 import { getAdminTraders, patchTraderStatus } from '../controllers/copyTradingController.js';
+import { getAcademyOverview, setLessonStatus } from '../controllers/academyController.js';
+import { getReportCounts, exportReport } from '../controllers/reportsController.js';
 
 const router = Router();
 
@@ -56,6 +58,14 @@ router.delete('/markets/:id', deleteMarket);
 // "application" table exists yet).
 router.get('/copy-traders', getAdminTraders);
 router.patch('/copy-traders/:id/status', patchTraderStatus);
+
+// Academy & Content
+router.get('/academy/overview', getAcademyOverview);
+router.patch('/academy/lessons/:lessonId/status', setLessonStatus);
+
+// Reports & Export
+router.get('/reports/counts', getReportCounts);
+router.get('/reports/export', exportReport);
 
 // Audit & System Logs
 router.get('/audit-logs', getAuditLogs);

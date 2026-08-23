@@ -76,6 +76,21 @@ export const adminApi = {
     return apiClient<{ success: boolean; data: any }>('/admin/analytics', { method: 'GET' });
   },
 
+  // --- REPORTS & EXPORT ---
+  getReportCounts: async () => {
+    return apiClient<{ success: boolean; data: Record<string, number> }>('/admin/reports/counts', { method: 'GET' });
+  },
+
+  // --- ACADEMY & CONTENT ---
+  getAcademyOverview: async () => {
+    return apiClient<{ success: boolean; data: { totalEnrolled: number; completions: { lesson_id: string; completions: number }[]; statuses: { lesson_id: string; status: string }[] } }>('/admin/academy/overview', { method: 'GET' });
+  },
+  setLessonStatus: async (lessonId: string, status: 'Published' | 'Draft') => {
+    return apiClient<{ success: boolean; data: any }>(`/admin/academy/lessons/${lessonId}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    });
+  },
+
   // --- AUDIT & SYSTEM LOGS ---
   getAuditLogs: async () => {
     return apiClient<{ success: boolean; logs: any[] }>('/admin/audit-logs', { method: 'GET' });
