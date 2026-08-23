@@ -13,6 +13,7 @@
     "make-admin": "tsx src/scripts/makeAdmin.ts",
     "reconcile": "tsx src/scripts/reconcile.ts",
     "seed-admin": "tsx src/scripts/seedAdmin.ts",
+    "seed-markets": "tsx src/scripts/seedMarkets.ts",
     "demo-traders": "tsx src/scripts/demoTraders.ts"
   },
   "dependencies": {

@@ -425,6 +425,37 @@ const createTables = async () => {
 
     CREATE INDEX IF NOT EXISTS futures_positions_user_idx ON futures_positions (user_id, status);
 
+    /*
+     * Admin-managed trading directory — separate from mockData.ts's client-side
+     * price feed. This table is what the Market Controls admin tab lists,
+     * edits and toggles; it governs *availability* (spot/futures/copy/demo,
+     * status, order limits) per symbol rather than live pricing.
+     */
+    CREATE TABLE IF NOT EXISTS market_assets (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(120) NOT NULL,
+      symbol VARCHAR(20) NOT NULL UNIQUE,
+      category VARCHAR(20) DEFAULT 'Crypto',
+      description TEXT,
+      status VARCHAR(20) DEFAULT 'Active',
+      spot_available BOOLEAN DEFAULT true,
+      futures_available BOOLEAN DEFAULT true,
+      copy_trading_available BOOLEAN DEFAULT true,
+      demo_available BOOLEAN DEFAULT true,
+      min_order NUMERIC DEFAULT 10,
+      max_order NUMERIC DEFAULT 1000000,
+      trading_fee VARCHAR(20) DEFAULT '0.02%',
+      leverage_limits VARCHAR(20) DEFAULT '100x',
+      price_precision INTEGER DEFAULT 2,
+      qty_precision INTEGER DEFAULT 4,
+      is_featured BOOLEAN DEFAULT false,
+      is_trending BOOLEAN DEFAULT false,
+      is_new_listing BOOLEAN DEFAULT false,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS market_assets_category_idx ON market_assets (category, status);
+
   `;
 
   try {
