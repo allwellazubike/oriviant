@@ -69,5 +69,20 @@ export const adminApi = {
   // --- SYSTEM TELEMETRY ---
   getSystemTelemetry: async () => {
     return apiClient<{ success: boolean; telemetry: any }>('/admin/telemetry', { method: 'GET' });
+  },
+
+  // --- ANALYTICS & TRAFFIC ---
+  getAnalytics: async () => {
+    return apiClient<{ success: boolean; data: any }>('/admin/analytics', { method: 'GET' });
+  },
+
+  // --- LEADER TRADERS DESK ---
+  getCopyTraders: async () => {
+    return apiClient<{ success: boolean; data: any[] }>('/admin/copy-traders', { method: 'GET' });
+  },
+  updateCopyTraderStatus: async (id: string | number, status: string) => {
+    return apiClient<{ success: boolean; message: string; data: any }>(`/admin/copy-traders/${id}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    });
   }
 };

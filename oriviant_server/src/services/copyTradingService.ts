@@ -407,6 +407,80 @@ export const listTraders = async () => {
   return result.rows;
 };
 
+/**
+ * Same stats as listTraders, but for the admin Leader Traders Desk — every
+ * trader regardless of status, so pending applications and suspended traders
+ * stay visible for the admin to act on rather than silently disappearing.
+ */
+export const listTradersForAdmin = async () => {
+  const result = await pool.query(`
+    SELECT
+      t.id, t.handle, t.display_name, t.avatar_url, t.bio, t.strategy,
+      t.risk_score, t.verified, t.profit_share, t.max_followers, t.is_demo, t.status,
+      t.created_at,
+      COALESCE(s.total_trades, 0)      AS total_trades,
+      COALESCE(s.wins, 0)              AS profitable_trades,
+      COALESCE(s.win_rate, 0)          AS win_rate,
+      COALESCE(s.roi_7d, 0)            AS roi_7d,
+      COALESCE(s.roi_30d, 0)           AS roi_30d,
+      COALESCE(f.followers, 0)         AS followers,
+      COALESCE(f.aum, 0)               AS aum
+    FROM copy_traders t
+    LEFT JOIN (
+      SELECT trader_id,
+             COUNT(*) FILTER (WHERE status = 'CLOSED')                       AS total_trades,
+             COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl_pct > 0)       AS wins,
+             ROUND(
+               (COUNT(*) FILTER (WHERE status = 'CLOSED' AND pnl_pct > 0)::numeric
+                / NULLIF(COUNT(*) FILTER (WHERE status = 'CLOSED'), 0)) * 100, 1)
+                                                                             AS win_rate,
+             ROUND(COALESCE(SUM(pnl_pct * size_pct)
+               FILTER (WHERE status = 'CLOSED' AND closed_at > NOW() - INTERVAL '7 days'), 0), 2)
+                                                                             AS roi_7d,
+             ROUND(COALESCE(SUM(pnl_pct * size_pct)
+               FILTER (WHERE status = 'CLOSED' AND closed_at > NOW() - INTERVAL '30 days'), 0), 2)
+                                                                             AS roi_30d
+      FROM copy_trader_trades GROUP BY trader_id
+    ) s ON s.trader_id = t.id
+    LEFT JOIN (
+      SELECT trader_id, COUNT(*)::int AS followers, SUM(allocated) AS aum
+      FROM copy_subscriptions WHERE status = 'ACTIVE' GROUP BY trader_id
+    ) f ON f.trader_id = t.id
+    ORDER BY
+      CASE t.status WHEN 'pending' THEN 0 WHEN 'active' THEN 1 ELSE 2 END,
+      t.created_at DESC;
+  `);
+  return result.rows;
+};
+
+const ALLOWED_TRADER_STATUSES = ['active', 'pending', 'suspended', 'rejected'];
+
+export class AdminCopyTraderError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = 'AdminCopyTraderError';
+    this.status = status;
+  }
+}
+
+export const setTraderStatus = async (traderId: number, status: string) => {
+  if (!ALLOWED_TRADER_STATUSES.includes(status)) {
+    throw new AdminCopyTraderError(`Status must be one of: ${ALLOWED_TRADER_STATUSES.join(', ')}`);
+  }
+
+  const result = await pool.query(
+    `UPDATE copy_traders SET status = $1 WHERE id = $2 RETURNING *`,
+    [status, traderId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AdminCopyTraderError('Trader not found.', 404);
+  }
+
+  return result.rows[0];
+};
+
 export const traderPerformance = async (traderId: number, days = 30): Promise<number[]> => {
   const result = await pool.query(
     `SELECT DATE(closed_at) AS day, SUM(pnl_pct * size_pct) AS daily

@@ -360,6 +360,16 @@ export const updateSettings = async (req: Request, res: Response) => {
   }
 };
 
+export const getAnalyticsOverview = async (req: Request, res: Response) => {
+  try {
+    const analytics = await adminService.getAnalyticsOverview();
+    return res.status(200).json({ success: true, data: analytics });
+  } catch (err: any) {
+    console.error('Error fetching analytics overview:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 export const getSystemTelemetry = async (req: Request, res: Response) => {
   try {
     const telemetry = marketDataService.getTelemetry();

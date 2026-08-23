@@ -295,5 +295,132 @@ export const adminService = {
         vol: parseFloat(r.vol)
       }))
     };
+  },
+
+  /**
+   * Backs the Analytics & Traffic admin tab.
+   *
+   * Every number here comes from data the platform actually records — there
+   * is no page-view or device-tracking table, so this deliberately does not
+   * attempt device/geographic breakdowns; it only covers the four metrics
+   * that have a real source: active users, trading volume, fee revenue, and
+   * session length.
+   *
+   * "Session time" has no dedicated session table to read from, so it is
+   * approximated from real signals: for each successful login in the window,
+   * the gap between that login and the user's last authenticated request
+   * (last_active_at, touched by verifyToken), capped at 2 hours so a token
+   * that was never explicitly logged out doesn't blow the average up to days.
+   */
+  getAnalyticsOverview: async () => {
+    const safeQuery = async (queryText: string, defaultRows: any[]) => {
+      try {
+        const res = await pool.query(queryText);
+        return res.rows;
+      } catch (err: any) {
+        console.error(`[Admin Analytics SafeQuery] Skipped failing query: ${err.message}`);
+        return defaultRows;
+      }
+    };
+
+    const mauRows = await safeQuery(
+      `SELECT
+         COUNT(DISTINCT user_id) FILTER (WHERE created_at > NOW() - INTERVAL '30 days') AS current_mau,
+         COUNT(DISTINCT user_id) FILTER (
+           WHERE created_at <= NOW() - INTERVAL '30 days' AND created_at > NOW() - INTERVAL '60 days'
+         ) AS previous_mau
+       FROM login_history
+       WHERE status = 'Success'`,
+      [{ current_mau: 0, previous_mau: 0 }]
+    );
+
+    const volumeRows = await safeQuery(
+      `SELECT
+         COALESCE(SUM(amount * COALESCE(fill_price, limit_price, 0))
+           FILTER (WHERE status = 'FILLED' AND created_at > NOW() - INTERVAL '30 days'), 0) AS spot_current,
+         COALESCE(SUM(amount * COALESCE(fill_price, limit_price, 0))
+           FILTER (WHERE status = 'FILLED' AND created_at <= NOW() - INTERVAL '30 days'
+                     AND created_at > NOW() - INTERVAL '60 days'), 0) AS spot_previous,
+         COALESCE(SUM(fee) FILTER (WHERE status = 'FILLED' AND created_at > NOW() - INTERVAL '30 days'), 0) AS spot_fees
+       FROM orders`,
+      [{ spot_current: 0, spot_previous: 0, spot_fees: 0 }]
+    );
+
+    const futuresVolRows = await safeQuery(
+      `SELECT
+         COALESCE(SUM(margin * leverage) FILTER (WHERE created_at > NOW() - INTERVAL '30 days'), 0) AS futures_current,
+         COALESCE(SUM(margin * leverage) FILTER (
+           WHERE created_at <= NOW() - INTERVAL '30 days' AND created_at > NOW() - INTERVAL '60 days'
+         ), 0) AS futures_previous
+       FROM futures_positions`,
+      [{ futures_current: 0, futures_previous: 0 }]
+    );
+
+    const withdrawalFeeRows = await safeQuery(
+      `SELECT COALESCE(SUM(fee), 0) AS total
+       FROM withdrawals
+       WHERE status IN ('APPROVED', 'COMPLETED') AND created_at > NOW() - INTERVAL '30 days'`,
+      [{ total: 0 }]
+    );
+
+    const copyFeeRows = await safeQuery(
+      `SELECT COALESCE(SUM(profit_share_fee), 0) AS total
+       FROM copy_positions
+       WHERE closed_at > NOW() - INTERVAL '30 days'`,
+      [{ total: 0 }]
+    );
+
+    const sessionRows = await safeQuery(
+      `SELECT AVG(
+         LEAST(EXTRACT(EPOCH FROM (COALESCE(u.last_active_at, lh.created_at) - lh.created_at)), 7200)
+       ) AS avg_seconds
+       FROM login_history lh
+       JOIN users u ON u.id = lh.user_id
+       WHERE lh.status = 'Success' AND lh.created_at > NOW() - INTERVAL '30 days'`,
+      [{ avg_seconds: 0 }]
+    );
+
+    const pctChange = (current: number, previous: number): number | null => {
+      if (previous <= 0) return null;
+      return ((current - previous) / previous) * 100;
+    };
+
+    const currentMau = parseInt(mauRows[0]?.current_mau || '0', 10);
+    const previousMau = parseInt(mauRows[0]?.previous_mau || '0', 10);
+
+    const spotCurrent = parseFloat(volumeRows[0]?.spot_current || '0');
+    const spotPrevious = parseFloat(volumeRows[0]?.spot_previous || '0');
+    const futuresCurrent = parseFloat(futuresVolRows[0]?.futures_current || '0');
+    const futuresPrevious = parseFloat(futuresVolRows[0]?.futures_previous || '0');
+    const volumeCurrent = spotCurrent + futuresCurrent;
+    const volumePrevious = spotPrevious + futuresPrevious;
+
+    const spotFees = parseFloat(volumeRows[0]?.spot_fees || '0');
+    const withdrawalFees = parseFloat(withdrawalFeeRows[0]?.total || '0');
+    const copyFees = parseFloat(copyFeeRows[0]?.total || '0');
+    const revenue = spotFees + withdrawalFees + copyFees;
+
+    const avgSessionSeconds = Math.round(parseFloat(sessionRows[0]?.avg_seconds || '0'));
+
+    return {
+      mau: {
+        current: currentMau,
+        changePct: pctChange(currentMau, previousMau)
+      },
+      volume30d: {
+        total: volumeCurrent,
+        spot: spotCurrent,
+        futures: futuresCurrent,
+        changePct: pctChange(volumeCurrent, volumePrevious)
+      },
+      revenue30d: {
+        total: revenue,
+        spotFees,
+        withdrawalFees,
+        copyTradingFees: copyFees,
+        netFeeMarginPct: volumeCurrent > 0 ? (revenue / volumeCurrent) * 100 : 0
+      },
+      avgSessionSeconds
+    };
   }
 };

@@ -50,7 +50,7 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
     }
 
     const result = await pool.query(
-      'SELECT id, email, nickname, role, avatar_url FROM users WHERE id = $1',
+      'SELECT id, email, nickname, role, avatar_url, last_active_at FROM users WHERE id = $1',
       [payload.id]
     );
 
@@ -59,7 +59,19 @@ export const verifyToken = async (req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    req.user = result.rows[0] as AuthUser;
+    const row = result.rows[0];
+    req.user = row as AuthUser;
+
+    // Throttled so an active user doesn't write on every single request —
+    // this is the only signal admin analytics has for "session length", so
+    // it needs to be cheap enough to run on the hot path.
+    const lastActive = row.last_active_at ? new Date(row.last_active_at).getTime() : 0;
+    if (Date.now() - lastActive > 60_000) {
+      pool
+        .query('UPDATE users SET last_active_at = CURRENT_TIMESTAMP WHERE id = $1', [row.id])
+        .catch((err) => console.error('[auth] Failed to update last_active_at:', (err as Error).message));
+    }
+
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);

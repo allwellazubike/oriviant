@@ -15,6 +15,10 @@ const createTables = async () => {
     ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user';
     -- Profile picture, stored on Cloudinary; this column holds only the URL.
     ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+    -- Touched by verifyToken on each authenticated request (throttled). Lets
+    -- admin analytics approximate session length as time-since-login vs. this,
+    -- without a dedicated session table.
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;
 
     DO $$ BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_check') THEN
@@ -172,6 +176,9 @@ const createTables = async () => {
 
     CREATE INDEX IF NOT EXISTS login_history_user_idx
       ON login_history (user_id, created_at DESC);
+    -- Drives admin analytics (MAU, session time), which scan across all users.
+    CREATE INDEX IF NOT EXISTS login_history_created_idx
+      ON login_history (created_at DESC);
 
       /*
      * User progression tracking for the Oriviant Academy.

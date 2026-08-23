@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import {
   listTraders,
+  listTradersForAdmin,
+  setTraderStatus,
   traderPerformance,
   traderTrades,
   followTrader,
@@ -8,14 +10,40 @@ import {
   listSubscriptions,
   listPositions,
   CopyTradeError,
+  AdminCopyTraderError,
 } from '../services/copyTradingService.js';
 
 const handle = (error: unknown, res: Response, context: string) => {
-  if (error instanceof CopyTradeError) {
+  if (error instanceof CopyTradeError || error instanceof AdminCopyTraderError) {
     return res.status(error.status).json({ success: false, error: error.message });
   }
   console.error(`Error ${context}:`, error);
   res.status(500).json({ success: false, error: 'Internal server error' });
+};
+
+export const getAdminTraders = async (_req: Request, res: Response) => {
+  try {
+    const traders = await listTradersForAdmin();
+    res.status(200).json({ success: true, data: traders });
+  } catch (error) {
+    handle(error, res, 'listing traders for admin');
+  }
+};
+
+export const patchTraderStatus = async (req: Request, res: Response) => {
+  try {
+    const traderId = Number(req.params.id);
+    const { status } = req.body ?? {};
+
+    if (!traderId || typeof status !== 'string') {
+      return res.status(400).json({ success: false, error: 'A trader id and status are required.' });
+    }
+
+    const trader = await setTraderStatus(traderId, status);
+    res.status(200).json({ success: true, message: `Trader status set to ${status}.`, data: trader });
+  } catch (error) {
+    handle(error, res, 'updating trader status');
+  }
 };
 
 export const getTraders = async (_req: Request, res: Response) => {

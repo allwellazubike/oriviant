@@ -11,19 +11,21 @@ import {
   getLedgerLogs,
   getSettings,
   updateSettings,
-  getSystemTelemetry // <-- Add this!
+  getSystemTelemetry, // <-- Add this!
+  getAnalyticsOverview
 } from '../controllers/adminController.js';
 import { withdrawalController } from '../controllers/withdrawalController.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth.js';
 
 // ---> FIX: Import the new market controllers! <---
-import { 
-  getAdminMarkets, 
-  createMarket, 
-  updateMarket, 
-  deleteMarket, 
-  quickUpdateMarketStatus 
+import {
+  getAdminMarkets,
+  createMarket,
+  updateMarket,
+  deleteMarket,
+  quickUpdateMarketStatus
 } from '../controllers/marketController.js';
+import { getAdminTraders, patchTraderStatus } from '../controllers/copyTradingController.js';
 
 const router = Router();
 
@@ -47,6 +49,12 @@ router.put('/markets/:id', updateMarket);
 router.patch('/markets/:id/status', quickUpdateMarketStatus);
 router.delete('/markets/:id', deleteMarket);
 
+// Leader Traders Desk — every trader regardless of status, plus approve/
+// suspend/reject actions (repurposes copy_traders.status; no separate
+// "application" table exists yet).
+router.get('/copy-traders', getAdminTraders);
+router.patch('/copy-traders/:id/status', patchTraderStatus);
+
 // Audit & System Logs
 router.get('/audit-logs', getAuditLogs);
 router.get('/ledger-logs', getLedgerLogs);
@@ -55,5 +63,6 @@ router.get('/ledger-logs', getLedgerLogs);
 router.get('/settings', getSettings);
 router.post('/settings', updateSettings);
 router.get('/telemetry', getSystemTelemetry);
+router.get('/analytics', getAnalyticsOverview);
 
 export default router;

@@ -1,104 +1,156 @@
-import React from 'react';
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Users, 
-  Smartphone, 
-  Monitor, 
-  Globe, 
-  DollarSign, 
-  PieChart,
-  ArrowUpRight
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Smartphone,
+  Monitor,
+  Globe,
+  ArrowUpRight,
+  ArrowDownRight,
+  RefreshCw
 } from 'lucide-react';
+import { adminApi } from '../../../api/admin';
+
+interface AnalyticsData {
+  mau: { current: number; changePct: number | null };
+  volume30d: { total: number; spot: number; futures: number; changePct: number | null };
+  revenue30d: { total: number; spotFees: number; withdrawalFees: number; copyTradingFees: number; netFeeMarginPct: number };
+  avgSessionSeconds: number;
+}
+
+const formatUsd = (value: number): string => {
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)} Billion`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)} Million`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toFixed(2)}`;
+};
+
+const formatSession = (totalSeconds: number): string => {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.round(totalSeconds % 60);
+  return `${minutes}m ${seconds}s`;
+};
+
+const ChangeBadge: React.FC<{ pct: number | null; positiveIsGood?: boolean }> = ({ pct, positiveIsGood = true }) => {
+  if (pct === null) {
+    return <p className="text-[10px] text-app-sec font-medium">No prior-period data yet</p>;
+  }
+  const isPositive = pct >= 0;
+  const isGood = positiveIsGood ? isPositive : !isPositive;
+  const Icon = isPositive ? ArrowUpRight : ArrowDownRight;
+  return (
+    <p className={`text-[10px] font-bold flex items-center gap-1 ${isGood ? 'text-emerald-500' : 'text-red-500'}`}>
+      <Icon className="w-3.5 h-3.5" /> {isPositive ? '+' : ''}{pct.toFixed(1)}% vs prior 30 days
+    </p>
+  );
+};
 
 export const AdminAnalyticsTab: React.FC = () => {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchAnalytics = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await adminApi.getAnalytics();
+      if (res.success && res.data) {
+        setData(res.data);
+      }
+    } catch (error) {
+      console.error('Failed to load analytics:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
+
   return (
     <div className="space-y-6">
-      
+
       {/* Top Growth Cards */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-extrabold text-app">Platform Analytics (Live)</h3>
+        <button onClick={fetchAnalytics} className="p-2 rounded-xl bg-app-sec border border-app text-app-sec hover:text-app transition-colors" title="Refresh">
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
+
         <div className="p-5 rounded-2xl bg-app-card border border-app shadow-sm space-y-2">
           <span className="text-xs font-bold text-app-sec uppercase">Monthly Active Users (MAU)</span>
-          <div className="text-2xl sm:text-3xl font-black text-app">142,890</div>
-          <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" /> +18.4% this month
-          </p>
+          <div className="text-2xl sm:text-3xl font-black text-app">
+            {isLoading ? '—' : data?.mau.current.toLocaleString() ?? '0'}
+          </div>
+          {isLoading ? <p className="text-[10px] text-app-sec">Loading...</p> : <ChangeBadge pct={data?.mau.changePct ?? null} />}
         </div>
 
         <div className="p-5 rounded-2xl bg-app-card border border-app shadow-sm space-y-2">
           <span className="text-xs font-bold text-app-sec uppercase">30D Trading Volume</span>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-500">$138.4 Billion</div>
-          <p className="text-[10px] text-emerald-500 font-bold flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" /> +22.1% vs prev month
-          </p>
+          <div className="text-2xl sm:text-3xl font-black text-emerald-500">
+            {isLoading ? '—' : formatUsd(data?.volume30d.total ?? 0)}
+          </div>
+          {isLoading ? <p className="text-[10px] text-app-sec">Loading...</p> : <ChangeBadge pct={data?.volume30d.changePct ?? null} />}
         </div>
 
         <div className="p-5 rounded-2xl bg-app-card border border-app shadow-sm space-y-2">
           <span className="text-xs font-bold text-app-sec uppercase">30D Platform Revenue</span>
-          <div className="text-2xl sm:text-3xl font-black text-amber-500">$24,850,000</div>
+          <div className="text-2xl sm:text-3xl font-black text-amber-500">
+            {isLoading ? '—' : formatUsd(data?.revenue30d.total ?? 0)}
+          </div>
           <p className="text-[10px] text-amber-500 font-bold flex items-center gap-1">
-            <ArrowUpRight className="w-3.5 h-3.5" /> Net Fee Margin 0.02%
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            {isLoading ? 'Loading...' : `Net Fee Margin ${(data?.revenue30d.netFeeMarginPct ?? 0).toFixed(3)}%`}
           </p>
         </div>
 
         <div className="p-5 rounded-2xl bg-app-card border border-app shadow-sm space-y-2">
           <span className="text-xs font-bold text-app-sec uppercase">Average Session Time</span>
-          <div className="text-2xl sm:text-3xl font-black text-app">34m 12s</div>
+          <div className="text-2xl sm:text-3xl font-black text-app">
+            {isLoading ? '—' : formatSession(data?.avgSessionSeconds ?? 0)}
+          </div>
           <p className="text-[10px] text-app-sec font-medium">
-            High Trader Engagement
+            From login to last active request, last 30 days
           </p>
         </div>
 
       </div>
 
+      {/* Revenue Breakdown */}
+      <div className="p-6 rounded-3xl bg-app-card border border-app shadow-sm space-y-4">
+        <h3 className="text-sm font-extrabold text-app">30D Revenue Breakdown</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app">
+            <span className="text-app-sec font-bold block mb-1">Spot Trading Fees</span>
+            <span className="text-app font-extrabold">{isLoading ? '—' : formatUsd(data?.revenue30d.spotFees ?? 0)}</span>
+          </div>
+          <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app">
+            <span className="text-app-sec font-bold block mb-1">Withdrawal Fees</span>
+            <span className="text-app font-extrabold">{isLoading ? '—' : formatUsd(data?.revenue30d.withdrawalFees ?? 0)}</span>
+          </div>
+          <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app">
+            <span className="text-app-sec font-bold block mb-1">Copy Trading Profit Share</span>
+            <span className="text-app font-extrabold">{isLoading ? '—' : formatUsd(data?.revenue30d.copyTradingFees ?? 0)}</span>
+          </div>
+        </div>
+        <p className="text-[10px] text-app-sec">
+          Futures contracts don't currently record a fee on open/close, so futures revenue isn't included here yet.
+        </p>
+      </div>
+
       {/* Traffic & Device Statistics */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
+
         {/* Device Breakdown */}
         <div className="p-6 rounded-3xl bg-app-card border border-app shadow-sm space-y-4">
           <h3 className="text-sm font-extrabold text-app flex items-center gap-2">
             <Smartphone className="w-4 h-4 text-accent" />
             <span>Device & Access Point Distribution</span>
           </h3>
-
-          <div className="space-y-3 text-xs">
-            <div>
-              <div className="flex justify-between font-bold mb-1">
-                <span className="flex items-center gap-2 text-app">
-                  <Smartphone className="w-4 h-4 text-emerald-500" /> Mobile Web Client
-                </span>
-                <span className="text-emerald-500">54% (77,160 users)</span>
-              </div>
-              <div className="w-full h-2.5 bg-app-sec rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '54%' }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between font-bold mb-1">
-                <span className="flex items-center gap-2 text-app">
-                  <Monitor className="w-4 h-4 text-accent" /> Desktop Web Terminal
-                </span>
-                <span className="text-accent">38% (54,290 users)</span>
-              </div>
-              <div className="w-full h-2.5 bg-app-sec rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full" style={{ width: '38%' }} />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between font-bold mb-1">
-                <span className="flex items-center gap-2 text-app">
-                  <Globe className="w-4 h-4 text-amber-500" /> Mobile Web Browser
-                </span>
-                <span className="text-amber-500">8% (11,440 users)</span>
-              </div>
-              <div className="w-full h-2.5 bg-app-sec rounded-full overflow-hidden">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: '8%' }} />
-              </div>
-            </div>
-          </div>
+          <p className="text-[11px] text-app-sec">
+            Device and geographic breakdowns need page-view/session tracking that isn't wired up yet — not shown here rather than shown with fabricated numbers.
+          </p>
         </div>
 
         {/* Regional Traffic Distribution */}
@@ -107,23 +159,9 @@ export const AdminAnalyticsTab: React.FC = () => {
             <Globe className="w-4 h-4 text-blue-500" />
             <span>Top Geographic Regions</span>
           </h3>
-
-          <div className="space-y-3 text-xs">
-            {[
-              { region: 'Asia Pacific (Japan, S. Korea, SG)', share: '42.5%', volume: '$2.06B 24h' },
-              { region: 'Europe (Germany, UK, France)', share: '31.2%', volume: '$1.51B 24h' },
-              { region: 'Latin America & Middle East', share: '18.3%', volume: '$880M 24h' },
-              { region: 'Other Global Markets', share: '8.0%', volume: '$390M 24h' },
-            ].map((geo, idx) => (
-              <div key={idx} className="p-3 rounded-2xl bg-app-sec/40 border border-app flex items-center justify-between">
-                <span className="font-bold text-app">{geo.region}</span>
-                <div className="text-right font-mono">
-                  <span className="font-extrabold text-accent block">{geo.share}</span>
-                  <span className="text-[10px] text-app-sec">{geo.volume}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          <p className="text-[11px] text-app-sec">
+            Same limitation — this platform doesn't currently do IP geolocation on logins, so regional traffic has no real source yet.
+          </p>
         </div>
 
       </div>
