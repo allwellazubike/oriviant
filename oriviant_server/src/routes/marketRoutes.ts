@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { getMarketPrices } from '../controllers/marketController.js';
+import { getMarketPrices, getQuote } from '../controllers/marketController.js';
 
 const router = Router();
 
 router.get('/prices', getMarketPrices);
+router.get('/quote', getQuote);
 
 export default router;

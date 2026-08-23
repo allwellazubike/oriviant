@@ -185,3 +185,30 @@ export const getQuotes = async (): Promise<QuotesResult> => {
     throw error;
   }
 };
+
+/**
+ * Exposes a standardized interface for controllers and the futures engine 
+ * to fetch live pricing without knowing the underlying Yahoo/Cache mechanics.
+ */
+export const marketDataService = {
+  fetchLivePrice: async (pair: string): Promise<Quote> => {
+    const { quotes } = await getQuotes();
+    const quote = quotes[pair];
+    
+    if (!quote) {
+      throw new Error(`Live price not available for ${pair}`);
+    }
+    
+    return quote;
+  },
+
+  getAllPrices: async (pairs?: string[]): Promise<Quote[]> => {
+    const { quotes } = await getQuotes();
+    
+    if (!pairs || pairs.length === 0) {
+      return Object.values(quotes);
+    }
+    
+    return pairs.map((p) => quotes[p]).filter(Boolean);
+  }
+};

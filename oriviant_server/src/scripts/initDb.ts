@@ -87,6 +87,38 @@ const createTables = async () => {
     CREATE INDEX IF NOT EXISTS deposit_requests_status_idx
       ON deposit_requests (status, created_at DESC);
 
+    /* ================= WITHDRAWALS ================= */
+
+    CREATE TABLE IF NOT EXISTS withdrawals (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      asset VARCHAR(10) NOT NULL,
+      amount NUMERIC NOT NULL,
+      fee NUMERIC NOT NULL DEFAULT 0,
+      receive_amount NUMERIC NOT NULL,
+      network VARCHAR(20) NOT NULL,
+      recipient_address TEXT NOT NULL,
+      address_nickname VARCHAR(100),
+      status VARCHAR(20) DEFAULT 'PENDING',
+      tx_hash VARCHAR(120),
+      notes TEXT,
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS withdrawals_status_idx
+      ON withdrawals (status, created_at DESC);
+    
+    CREATE INDEX IF NOT EXISTS withdrawals_user_idx
+      ON withdrawals (user_id, created_at DESC);
+
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'withdrawals_amount_positive') THEN
+        ALTER TABLE withdrawals ADD CONSTRAINT withdrawals_amount_positive CHECK (amount > 0);
+      END IF;
+    END $$;
+
     /*
      * Password reset codes.
      *

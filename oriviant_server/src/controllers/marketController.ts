@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { getQuotes } from '../services/marketDataService.js';
+import { getQuotes, marketDataService } from '../services/marketDataService.js';
 
 /**
  * Public market data. No auth: these are the same prices shown on the marketing
@@ -36,5 +36,25 @@ export const getMarketPrices = async (req: Request, res: Response): Promise<void
       success: false,
       error: 'Market data temporarily unavailable',
     });
+  }
+};
+
+/**
+ * Fetch a live quote for a specific trading pair to be used by the trading engines.
+ */
+export const getQuote = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const pair = (req.query.pair as string) || 'BTC-USD';
+    const priceData = await marketDataService.fetchLivePrice(pair);
+    
+    res.status(200).json({
+      success: true,
+      pair: priceData.symbol,
+      price: priceData.price,
+      feeRate: 0.001 // Standard 0.1% taker fee
+    });
+  } catch (err: any) {
+    console.error('Market quote error:', err);
+    res.status(500).json({ success: false, error: 'Failed to generate quote' });
   }
 };
