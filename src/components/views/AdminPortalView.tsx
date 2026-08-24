@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useOverlayRegistration } from '../../utils/OverlayRegistry';
+import { useUser } from '../../contexts/UserContext';
 import { AdminLoginForm } from '../admin/AdminLoginForm';
 import { AdminSidebar, AdminTab } from '../admin/AdminSidebar';
 import { AdminHeader } from '../admin/AdminHeader';
@@ -29,6 +30,8 @@ interface AdminPortalViewProps {
 }
 
 export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatform }) => {
+  const { user, isLoggedIn } = useUser();
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('oriviant_admin_auth');
@@ -41,6 +44,24 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatfo
     }
     return false;
   });
+
+  // --- STRICT SECURITY GUARD ---
+  // This prevents anyone from bypassing the login by relying on stale local storage
+  useEffect(() => {
+    const token = localStorage.getItem('oriviant_token') || sessionStorage.getItem('oriviant_token');
+    
+    // 1. If they have no active backend token, force logout
+    if (!token) {
+      setIsAuthenticated(false);
+      localStorage.removeItem('oriviant_admin_auth');
+    }
+    
+    // 2. If the backend profile has loaded and explicitly confirms they are NOT an admin, force logout
+    if (isLoggedIn && user.id !== '' && user.isAdmin === false) {
+      setIsAuthenticated(false);
+      localStorage.removeItem('oriviant_admin_auth');
+    }
+  }, [isLoggedIn, user.id, user.isAdmin]);
 
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
