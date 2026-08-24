@@ -47,7 +47,7 @@ function AppContent() {
     }
   }, [activeSymbol, setActiveCoinSymbol]);
 
-  // Protected tabs list
+  // Protected tabs list (REMOVED 'admin' so AdminPortalView can handle its own strict auth)
   const protectedTabs: NavigationTab[] = [
     'home',
     'markets',
@@ -58,8 +58,7 @@ function AppContent() {
     'demo-workspace',
     'practice-mode',
     'profile',
-    'settings',
-    'admin'
+    'settings'
   ];
 
   // Enforce redirection to Welcome screen if not logged in
@@ -92,17 +91,17 @@ function AppContent() {
   useEffect(() => {
     const handleHashChange = () => {
       if (window.location.hash === '#admin' || window.location.pathname === '/admin') {
-        if (isLoggedIn) {
-          navigate('admin');
-        } else {
-          openAuthModal('login');
-          navigate('welcome');
-        }
+        // Bypass standard routing checks and send directly to the Admin Portal View
+        navigate('admin');
       }
     };
+
+    // Check once on mount to handle direct page loads to /admin
+    handleHashChange();
+
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [isLoggedIn, openAuthModal, navigate]);
+  }, [navigate]);
 
   const handleNavigate = (tab: NavigationTab, options?: { subTab?: string; symbol?: string }) => {
     if (!isLoggedIn && protectedTabs.includes(tab)) {
@@ -164,7 +163,7 @@ export default function App() {
     <ThemeProvider>
       <LocalizationProvider>
         <DemoModeProvider>
-          <UserProvider>              {/* <-- FIX: UserProvider is now wrapping TradingProvider */}
+          <UserProvider>
             <TradingProvider>
               <CopyTradingProvider>
                 <NotificationProvider>
