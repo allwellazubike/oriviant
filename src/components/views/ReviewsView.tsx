@@ -12,13 +12,11 @@ import {
   SlidersHorizontal,
   Zap,
   TrendingUp,
-  Clock,
-  Sparkles,
   Layers,
-  ArrowUpRight
+  Sparkles
 } from 'lucide-react';
 import { PLATFORM_REVIEW_STATS, MOCK_PLATFORM_REVIEWS } from '../../data/reviewsData';
-import { ReviewCategory, ReviewBadge, PlatformReview } from '../../types/reviews';
+import { ReviewCategory, ReviewBadge } from '../../types/reviews';
 
 export const ReviewsView: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
@@ -50,22 +48,43 @@ export const ReviewsView: React.FC = () => {
     'Copy Trading',
   ];
 
+  // UI STATE SYNCHRONIZATION
+  // This prevents the "impossible AND condition" (e.g. searching for a review that is BOTH Futures AND Copy Trading)
+  const handleCategoryClick = (cat: string) => {
+    setSelectedCategory(cat);
+    
+    // Auto-sync the filter chip to match the category tab
+    if (cat === 'Spot Trading') setSelectedFilter('Spot');
+    else if (cat === 'Futures') setSelectedFilter('Futures');
+    else if (cat === 'Copy Trading') setSelectedFilter('Copy Trading');
+    else if (['Spot', 'Futures', 'Copy Trading'].includes(selectedFilter)) {
+      // If we pick a category like 'Deposits', clear the conflicting filter chip
+      setSelectedFilter('All Reviews');
+    }
+  };
+
+  const handleFilterClick = (flt: string) => {
+    setSelectedFilter(flt);
+
+    // Auto-sync the category tab to match the filter chip
+    if (flt === 'Spot') setSelectedCategory('Spot Trading');
+    else if (flt === 'Futures') setSelectedCategory('Futures');
+    else if (flt === 'Copy Trading') setSelectedCategory('Copy Trading');
+  };
+
   // Filtering Logic
   const filteredReviews = useMemo(() => {
     return MOCK_PLATFORM_REVIEWS.filter((rev) => {
-      // Category Match
+      // 1. Category Match
       if (selectedCategory !== 'All' && rev.category !== selectedCategory) {
         return false;
       }
 
-      // Filter Match
+      // 2. Rating Filter Match
       if (selectedFilter === '5 Star' && rev.rating !== 5) return false;
       if (selectedFilter === '4 Star' && rev.rating !== 4) return false;
-      if (selectedFilter === 'Spot' && rev.category !== 'Spot Trading') return false;
-      if (selectedFilter === 'Futures' && rev.category !== 'Futures') return false;
-      if (selectedFilter === 'Copy Trading' && rev.category !== 'Copy Trading') return false;
 
-      // Search Query
+      // 3. Search Query Match
       if (searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase();
         const matchesName = rev.userName.toLowerCase().includes(query);
@@ -83,6 +102,9 @@ export const ReviewsView: React.FC = () => {
     }).sort((a, b) => {
       if (selectedFilter === 'Most Helpful') {
         return b.helpfulCount - a.helpfulCount;
+      }
+      if (selectedFilter === 'Most Recent') {
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
       }
       return 0;
     });
@@ -355,7 +377,7 @@ export const ReviewsView: React.FC = () => {
           {categories.map((cat) => (
             <button
               key={cat}
-              onClick={() => setSelectedCategory(cat)}
+              onClick={() => handleCategoryClick(cat)}
               className={`px-4 py-2 text-xs font-bold rounded-2xl whitespace-nowrap transition-all ${
                 selectedCategory === cat
                   ? 'bg-accent text-white shadow-md shadow-accent/20'
@@ -396,7 +418,7 @@ export const ReviewsView: React.FC = () => {
             {filters.map((flt) => (
               <button
                 key={flt}
-                onClick={() => setSelectedFilter(flt)}
+                onClick={() => handleFilterClick(flt)}
                 className={`px-3 py-1.5 text-[11px] font-semibold rounded-xl whitespace-nowrap transition-colors ${
                   selectedFilter === flt
                     ? 'bg-app-sec text-accent font-bold border border-accent/30'

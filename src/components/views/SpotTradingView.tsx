@@ -164,7 +164,7 @@ export const SpotTradingView: React.FC = () => {
                 const matchedCoin = coins.find((c) => c.symbol === newSymbol);
                 setLimitPrice(matchedCoin?.price.toString() || '100');
                 
-                // 🔥 CRITICAL FIX: Push the selection to the global router so it doesn't snap back!
+                // Push the selection to the global router
                 navigate('spot', { symbol: newSymbol });
               }}
               className="appearance-none bg-app-sec font-black text-xs sm:text-sm text-app pr-7 pl-3 py-2 rounded-xl border border-app focus:outline-none focus:border-accent cursor-pointer"
@@ -348,7 +348,7 @@ export const SpotTradingView: React.FC = () => {
             <div className="text-xs text-app-sec space-y-0.5">
               <div>Est. Order Value: <strong className="text-app font-mono">${totalValue.toFixed(2)} USDT</strong></div>
               <div className="text-[10px] opacity-80">
-                Fee: 0.05% • Available Demo Balance: ${(demoBalance / 1000).toFixed(1)}k USDT
+                Fee: 0.05%
               </div>
             </div>
 
