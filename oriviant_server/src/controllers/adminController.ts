@@ -7,6 +7,27 @@ import { adminService, logAudit } from '../services/adminService.js';
 import { notifyDepositCompleted, notifyDepositRejected } from '../services/notificationService.js';
 import { createBroadcast, listBroadcasts, BroadcastAudience } from '../services/notificationService.js';
 
+// 🔥 DATABASE AUTO-HEALER
+// Automatically creates any missing columns so the admin dashboard never crashes again!
+const autoHealDatabase = async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Active',
+      ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS kyc_level VARCHAR(50) DEFAULT 'Level 1 Basic',
+      ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS demo_balance NUMERIC DEFAULT 10000.00,
+      ADD COLUMN IF NOT EXISTS last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS last_ip VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS referred_by INTEGER,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+  } catch (err) {
+    console.error('Auto-heal skipped:', err);
+  }
+};
+
 export const getPendingDeposits = async (req: Request, res: Response) => {
   try {
     const requested = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'PENDING';
@@ -61,6 +82,9 @@ export const getPendingWithdrawals = async (req: Request, res: Response) => {
 
 export const getUsers = async (req: Request, res: Response) => {
   try {
+    // Run the auto-healer to ensure the database is perfectly structured
+    await autoHealDatabase();
+
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
 
     const query = `
@@ -69,7 +93,15 @@ export const getUsers = async (req: Request, res: Response) => {
         u.email,
         u.nickname,
         u.role,
+        u.status,
+        u.is_suspended,
+        u.kyc_level,
+        u.is_verified,
+        u.demo_balance,
+        u.last_login,
+        u.last_ip,
         u.created_at,
+        (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) as referrals_count,
         COALESCE(w.asset_count, 0)        AS asset_count,
         COALESCE(w.holdings, '[]'::json)  AS holdings,
         COALESCE(d.deposit_count, 0)      AS deposit_count,
@@ -313,7 +345,6 @@ export const updateUser = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
     const targetUserId = parseInt(req.params.id, 10);
-    // FIX: Removed is_suspended to match the service update!
     const { vip_level, role } = req.body;
 
     const updatedUser = await adminService.updateUserStatus(adminId, targetUserId, {
@@ -438,5 +469,173 @@ export const getSystemTelemetry = async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, telemetry });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// --- USER MANAGEMENT SUITE ACTIONS ---
+
+export const updateUserStatus = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+    const { status } = req.body;
+    
+    if (!['Active', 'Suspended', 'Banned'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status provided.' });
+    }
+
+    const isSuspended = status !== 'Active';
+
+    const query = `UPDATE users SET status = $1, is_suspended = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, status, is_suspended`;
+    const result = await pool.query(query, [status, isSuspended, targetUserId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    await logAudit(adminId, 'UPDATE_USER_STATUS', 'user', targetUserId, { newStatus: status, isSuspended }, req.ip);
+
+    res.status(200).json({ success: true, message: `User status updated to ${status}` });
+  } catch (error: any) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const updateUserKyc = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+    const { kycLevel } = req.body;
+
+    const isVerified = kycLevel === 'Level 2 Verified';
+
+    const query = `UPDATE users SET kyc_level = $1, is_verified = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, kyc_level`;
+    const result = await pool.query(query, [kycLevel, isVerified, targetUserId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    await logAudit(adminId, 'UPDATE_USER_KYC', 'user', targetUserId, { newKycLevel: kycLevel }, req.ip);
+
+    res.status(200).json({ success: true, message: `KYC updated to ${kycLevel}` });
+  } catch (error: any) {
+    console.error('Error updating user KYC:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const updateUserBalance = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+    const { realBalance, demoBalance } = req.body;
+
+    await client.query('BEGIN');
+
+    // 1. Update demo balance on the user profile
+    await client.query(`UPDATE users SET demo_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [demoBalance, targetUserId]);
+
+    // 2. Safe Upsert for the Real USDT Wallet
+    const checkWallet = await client.query(`SELECT balance FROM wallets WHERE user_id = $1 AND asset_symbol = 'USDT'`, [targetUserId]);
+
+    let oldBalance = 0;
+    if (checkWallet.rows.length > 0) {
+      oldBalance = Number(checkWallet.rows[0].balance);
+      await client.query(`UPDATE wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND asset_symbol = 'USDT'`, [realBalance, targetUserId]);
+    } else {
+      await client.query(`INSERT INTO wallets (user_id, asset_symbol, balance, updated_at) VALUES ($1, 'USDT', $2, CURRENT_TIMESTAMP)`, [targetUserId, realBalance]);
+    }
+
+    // 3. Inject a Ledger Entry so the user ACTUALLY SEES the change in their history!
+    const delta = Number(realBalance) - oldBalance;
+    if (delta !== 0) {
+       await client.query(
+         `INSERT INTO ledger_entries (user_id, asset_symbol, delta, balance_after, reason, ref_type, ref_id)
+          VALUES ($1, 'USDT', $2, $3, 'ADMIN_ADJUSTMENT', 'admin', $4)`,
+         [targetUserId, delta, realBalance, adminId]
+       );
+    }
+
+    await logAudit(adminId, 'UPDATE_USER_BALANCE', 'user', targetUserId, { oldReal: oldBalance, newReal: realBalance, newDemo: demoBalance }, req.ip);
+    
+    await client.query('COMMIT');
+    res.status(200).json({ success: true, message: 'Balances successfully adjusted.' });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error updating user balance:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteUserAccount = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+
+    const result = await pool.query(`DELETE FROM users WHERE id = $1 RETURNING email`, [targetUserId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    await logAudit(adminId, 'DELETE_USER', 'user', targetUserId, { deletedEmail: result.rows[0].email }, req.ip);
+
+    res.status(200).json({ success: true, message: 'User permanently deleted.' });
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getUserLedger = async (req: Request, res: Response) => {
+  try {
+    const targetUserId = req.params.id;
+    const query = `
+      SELECT id, asset_symbol, delta, balance_after, reason, created_at 
+      FROM ledger_entries 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 15
+    `;
+    const result = await pool.query(query, [targetUserId]);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching user ledger:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getUserReferrals = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const targetUserId = req.params.id;
+    const result = await pool.query(`SELECT COUNT(*) as count FROM users WHERE referred_by = $1`, [targetUserId]);
+    
+    res.status(200).json({ 
+      success: true, 
+      data: { 
+        activeTraders: parseInt(result.rows[0].count, 10), 
+        earnedUsdt: 0
+      } 
+    });
+  } catch (error: any) {
+    console.error('Error fetching user referrals:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };

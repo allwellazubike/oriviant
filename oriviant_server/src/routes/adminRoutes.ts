@@ -14,7 +14,14 @@ import {
   getSystemTelemetry, // <-- Add this!
   getAnalyticsOverview,
   sendBroadcast,
-  getBroadcasts
+  getBroadcasts,
+  // ---> NEW USER MANAGEMENT IMPORTS <---
+  updateUserStatus,
+  updateUserKyc,
+  updateUserBalance,
+  deleteUserAccount,
+  getUserLedger,
+  getUserReferrals
 } from '../controllers/adminController.js';
 import { withdrawalController } from '../controllers/withdrawalController.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth.js';
@@ -38,8 +45,19 @@ const router = Router();
 router.use(verifyToken, verifyAdmin);
 
 router.get('/stats', getAdminStats);
+
+// --- USER MANAGEMENT ROUTES ---
 router.get('/users', getUsers);
+router.patch('/users/:id/status', updateUserStatus);
+router.patch('/users/:id/kyc', updateUserKyc);
+router.patch('/users/:id/balance', updateUserBalance);
+router.delete('/users/:id', deleteUserAccount);
+router.get('/users/:id/ledger', getUserLedger);
+router.get('/users/:id/referrals', getUserReferrals);
+// We keep the generic update for roles/vip
 router.patch('/users/:id', updateUser);
+
+// --- FINANCIALS ---
 router.get('/deposits', getPendingDeposits);
 router.post('/deposits/:id/approve', approveDeposit);
 router.post('/deposits/:id/deny', denyDeposit);
