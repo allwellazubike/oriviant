@@ -3,10 +3,6 @@ import { useOverlayRegistration } from '../../utils/OverlayRegistry';
 import { 
   ChevronDown, 
   X,
-  Zap,
-  ShieldCheck,
-  BookOpen,
-  Info,
   RefreshCw
 } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
@@ -126,7 +122,7 @@ export const SpotTradingView: React.FC = () => {
 
       setNotificationMsg(res.message || 'Order placed successfully!');
       
-      // Refresh DB data and switch tabs to display it!
+      // Refresh DB data and switch tabs to display it
       await fetchLiveWallets();
       await refreshLiveOrders();
       setActiveBottomTab(orderType === 'market' ? 'history' : 'open');
@@ -202,8 +198,9 @@ export const SpotTradingView: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-8 bg-app-card border border-app rounded-2xl p-4 flex flex-col justify-between min-h-[420px] shadow-sm">
-          <TradingChart height={360} />
+        <div className="lg:col-span-8 bg-app-card border border-app rounded-2xl p-4 flex flex-col justify-between min-h-[500px] shadow-sm">
+          {/* Injecting the new Live TradingView widget with slightly more height */}
+          <TradingChart height={460} />
         </div>
 
         <div className="lg:col-span-4 bg-app-card border border-app rounded-2xl p-3 flex flex-col justify-between shadow-sm min-h-[360px]">
