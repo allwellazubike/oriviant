@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useDemoMode } from '../../../contexts/DemoModeContext';
 import { adminApi } from '../../../api/admin';
+import { apiClient } from '../../../api/client';
 
 export interface MockUser {
   id: string;
@@ -37,26 +38,28 @@ export const AdminUsersTab: React.FC = () => {
   const [adjustingBalanceUser, setAdjustingBalanceUser] = useState<MockUser | null>(null);
   const [newRealBalance, setNewRealBalance] = useState<number>(0);
   const [newDemoBalance, setNewDemoBalance] = useState<number>(10000);
+  
+  // FIX: Custom Delete Modal State
+  const [userToDelete, setUserToDelete] = useState<MockUser | null>(null);
+
+  const [ledgerLogs, setLedgerLogs] = useState<any[]>([]);
+  const [referralStats, setReferralStats] = useState({ activeTraders: 0, earnedUsdt: 0 });
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
   };
 
-  // Fetch Live Users via secure adminApi
   const fetchUsers = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await adminApi.getUsers();
-      
-      // FIX: Safely unpack the array, because the backend sends it inside `res.data`
+
       const rawList = Array.isArray(res) ? res : (res as any).data || (res as any).users || [];
 
       if (rawList && Array.isArray(rawList)) {
         const mappedUsers: MockUser[] = rawList.map((u: any) => {
-          
-          // FIX: The backend sends wallet balances grouped inside a `holdings` JSON array. 
-          // We will sum them up to get the user's true total balance.
+
           let totalRealBalance = 0;
           if (Array.isArray(u.holdings)) {
             totalRealBalance = u.holdings.reduce((sum: number, h: any) => sum + Number(h.balance || 0), 0);
@@ -69,7 +72,7 @@ export const AdminUsersTab: React.FC = () => {
             name: u.nickname || u.name || 'Trader',
             email: u.email || 'No Email',
             accountType: u.account_type || 'Live',
-            kycLevel: u.kyc_level || 'Level 1 Basic', // Default to Level 1
+            kycLevel: u.kyc_level || 'Level 1 Basic', 
             status: u.is_suspended ? 'Suspended' : (u.status || 'Active'),
             demoBalance: Number(u.demo_balance) || 10000,
             realBalance: totalRealBalance,
@@ -92,6 +95,26 @@ export const AdminUsersTab: React.FC = () => {
     fetchUsers();
   }, [fetchUsers]);
 
+  useEffect(() => {
+    if (!selectedUser) return;
+    
+    if (activeUserTab === 'history') {
+      apiClient<{success: boolean, data: any[]}>(`/admin/users/${selectedUser.id}/ledger`, { method: 'GET' })
+        .then(res => {
+          if (res.success) setLedgerLogs(res.data || []);
+        })
+        .catch(() => setLedgerLogs([]));
+    }
+    
+    if (activeUserTab === 'referrals') {
+      apiClient<{success: boolean, data: {activeTraders: number, earnedUsdt: number}}>(`/admin/users/${selectedUser.id}/referrals`, { method: 'GET' })
+        .then(res => {
+          if (res.success && res.data) setReferralStats(res.data);
+        })
+        .catch(err => console.error(err));
+    }
+  }, [selectedUser, activeUserTab]);
+
   const handleToggleStatus = async (id: string, newStatus: MockUser['status']) => {
     try {
       await adminApi.updateUserStatus(id, newStatus);
@@ -103,7 +126,7 @@ export const AdminUsersTab: React.FC = () => {
         }
         return u;
       }));
-      
+
       if (selectedUser?.id === id) {
         setSelectedUser(prev => prev ? { ...prev, status: newStatus } : null);
       }
@@ -119,7 +142,7 @@ export const AdminUsersTab: React.FC = () => {
 
       setUsersList(prev => prev.map(u => u.id === id ? { ...u, kycLevel: nextKyc } : u));
       showToast(`KYC for user #${id} set to ${nextKyc}.`);
-      
+
       if (selectedUser?.id === id) {
         setSelectedUser(prev => prev ? { ...prev, kycLevel: nextKyc } : null);
       }
@@ -135,7 +158,7 @@ export const AdminUsersTab: React.FC = () => {
       refillDemoFunds(10000);
       setUsersList(prev => prev.map(u => u.id === user.id ? { ...u, demoBalance: 10000 } : u));
       showToast(`Refilled demo balance for ${user.name} to $10,000 USDT.`);
-      
+
       if (selectedUser?.id === user.id) {
         setSelectedUser(prev => prev ? { ...prev, demoBalance: 10000 } : null);
       }
@@ -146,7 +169,7 @@ export const AdminUsersTab: React.FC = () => {
 
   const handleSaveBalanceAdjust = async () => {
     if (!adjustingBalanceUser) return;
-    
+
     try {
       await adminApi.updateUserBalance(adjustingBalanceUser.id, newRealBalance, newDemoBalance);
 
@@ -155,7 +178,7 @@ export const AdminUsersTab: React.FC = () => {
         realBalance: newRealBalance,
         demoBalance: newDemoBalance
       } : u));
-      
+
       showToast(`Balances updated for user #${adjustingBalanceUser.id}`);
       setAdjustingBalanceUser(null);
     } catch (err: any) {
@@ -172,17 +195,19 @@ export const AdminUsersTab: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = async (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to permanently delete user account ${name} (#${id})?`)) {
-      try {
-        await adminApi.deleteUser(id);
-        
-        setUsersList(prev => prev.filter(u => u.id !== id));
-        showToast(`User account #${id} (${name}) deleted successfully.`);
-        if (selectedUser?.id === id) setSelectedUser(null);
-      } catch (err: any) {
-        showToast(err.message || 'Failed to delete user.');
-      }
+  // FIX: New Custom Delete Confirmation Logic
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    try {
+      await adminApi.deleteUser(userToDelete.id);
+
+      setUsersList(prev => prev.filter(u => u.id !== userToDelete.id));
+      showToast(`User account #${userToDelete.id} (${userToDelete.name}) deleted successfully.`);
+      if (selectedUser?.id === userToDelete.id) setSelectedUser(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete user.');
+    } finally {
+      setUserToDelete(null);
     }
   };
 
@@ -200,7 +225,7 @@ export const AdminUsersTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Toast Notification */}
       {toastMsg && (
         <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-500 text-xs font-bold flex items-center justify-between shadow-md">
@@ -211,7 +236,7 @@ export const AdminUsersTab: React.FC = () => {
 
       {/* Header Controls: Search & Filter */}
       <div className="p-4 sm:p-5 rounded-3xl bg-app-card border border-app shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        
+
         {/* Search */}
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-app-sec absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -381,7 +406,7 @@ export const AdminUsersTab: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={() => handleDeleteUser(u.id, u.name)}
+                          onClick={() => setUserToDelete(u)}
                           className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
                           title="Delete User"
                         >
@@ -399,8 +424,8 @@ export const AdminUsersTab: React.FC = () => {
 
       {/* Balance Adjustment Modal */}
       {adjustingBalanceUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md bg-app-card border border-app rounded-3xl p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-app-card border border-app rounded-3xl p-6 shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-app">
               <h3 className="text-sm font-extrabold text-app">Adjust Balances – #{adjustingBalanceUser.id}</h3>
               <button onClick={() => setAdjustingBalanceUser(null)} className="p-1 text-app-sec hover:text-app">
@@ -431,11 +456,42 @@ export const AdminUsersTab: React.FC = () => {
             </div>
 
             <div className="pt-3 border-t border-app flex items-center justify-end gap-2">
-              <button onClick={() => setAdjustingBalanceUser(null)} className="px-4 py-2 rounded-xl bg-app-sec text-app-sec font-bold text-xs">
+              <button onClick={() => setAdjustingBalanceUser(null)} className="px-4 py-2 rounded-xl bg-app-sec text-app-sec font-bold text-xs hover:bg-app-sec/80">
                 Cancel
               </button>
-              <button onClick={handleSaveBalanceAdjust} className="px-4 py-2 rounded-xl bg-amber-500 text-white font-extrabold text-xs shadow-md">
+              <button onClick={handleSaveBalanceAdjust} className="px-4 py-2 rounded-xl bg-amber-500 text-white font-extrabold text-xs shadow-md hover:bg-amber-600">
                 Save Adjustments
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Delete Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-sm bg-app-card border border-app rounded-3xl p-6 shadow-2xl space-y-5 text-center animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center mx-auto">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-app">Delete Account?</h3>
+              <p className="text-xs text-app-sec mt-2 leading-relaxed">
+                Are you absolutely sure you want to permanently delete <strong className="text-app">{userToDelete.name}</strong> (UID #{userToDelete.id})? This action will destroy all their wallets, ledgers, and trade history. This cannot be undone.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => setUserToDelete(null)}
+                className="flex-1 py-3 rounded-xl bg-app-sec text-app font-bold text-xs hover:bg-app-sec/80 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteUser}
+                className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-xs hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+              >
+                Yes, Delete User
               </button>
             </div>
           </div>
@@ -444,9 +500,9 @@ export const AdminUsersTab: React.FC = () => {
 
       {/* User Full Profile Modal */}
       {selectedUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[50] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-2xl bg-app-card border border-app rounded-3xl p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            
+
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3 border-b border-app">
               <div className="flex items-center gap-3">
@@ -571,9 +627,27 @@ export const AdminUsersTab: React.FC = () => {
               <div className="space-y-3 text-xs">
                 <div className="p-3.5 rounded-2xl bg-app-sec/40 border border-app space-y-2">
                   <span className="font-bold text-app block">Recent Trading Activity</span>
-                  <div className="space-y-1 text-[11px] text-app-sec">
-                    <div className="py-4 text-center">Live trading ledger sync complete. Wait for user trades.</div>
-                  </div>
+                  
+                  {ledgerLogs.length === 0 ? (
+                    <div className="py-4 text-center text-app-sec">No recent trading activity found for this user.</div>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                      {ledgerLogs.map((log: any, i) => (
+                        <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-app-card border border-app/50">
+                           <div className="flex flex-col">
+                             <span className="font-bold text-app">{log.reason || 'TRADE_EXECUTED'}</span>
+                             <span className="text-[9px] text-app-sec">{new Date(log.created_at || Date.now()).toLocaleString()}</span>
+                           </div>
+                           <div className="text-right">
+                             <span className={`font-mono font-bold block ${Number(log.delta) > 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                               {Number(log.delta) > 0 ? '+' : ''}{Number(log.delta).toFixed(2)} {log.asset_symbol || 'USDT'}
+                             </span>
+                             <span className="text-[10px] text-app-sec font-mono">Bal: {Number(log.balance_after).toFixed(2)}</span>
+                           </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -581,7 +655,7 @@ export const AdminUsersTab: React.FC = () => {
             {activeUserTab === 'referrals' && (
               <div className="p-4 rounded-2xl bg-app-sec/40 border border-app text-xs space-y-2">
                 <span className="font-bold text-app block">Affiliate Referral Network</span>
-                <p className="text-app-sec">This user has referred <strong>{selectedUser.referralsCount} active traders</strong> and earned <strong>$0 USDT</strong> in fee shares.</p>
+                <p className="text-app-sec">This user has referred <strong className="text-app">{referralStats.activeTraders} active traders</strong> and earned <strong className="text-emerald-500">${referralStats.earnedUsdt} USDT</strong> in fee shares.</p>
               </div>
             )}
 
@@ -589,12 +663,12 @@ export const AdminUsersTab: React.FC = () => {
             <div className="pt-3 border-t border-app flex items-center justify-between">
               <button
                 onClick={() => handleResetDemoBalance(selectedUser)}
-                className="px-4 py-2 rounded-xl bg-emerald-500 text-white font-bold text-xs"
+                className="px-4 py-2 rounded-xl bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-600"
               >
                 Reset Demo Balance to $10k
               </button>
 
-              <button onClick={() => setSelectedUser(null)} className="px-4 py-2 rounded-xl bg-app-sec text-app font-bold text-xs">
+              <button onClick={() => setSelectedUser(null)} className="px-4 py-2 rounded-xl bg-app-sec text-app font-bold text-xs hover:bg-app-sec/80">
                 Close Profile
               </button>
             </div>
