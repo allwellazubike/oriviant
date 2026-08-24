@@ -121,7 +121,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({ onLoginSuccess, 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@oriviant.io"
+                placeholder="admin@oriviant.com"
                 required
                 className="w-full bg-app-sec border border-app rounded-xl px-4 py-3 text-xs font-bold text-app focus:outline-none focus:ring-2 focus:ring-amber-500/50 transition-all"
               />
