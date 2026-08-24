@@ -37,6 +37,7 @@ interface UserProfile {
   vipLevel: number;
   totalReferrals: number;
   referralEarningsUsdt: number;
+  isAdmin: boolean;
 }
 
 interface UserContextType {
@@ -121,7 +122,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     referralCode: '',
     vipLevel: 0,
     totalReferrals: 0,
-    referralEarningsUsdt: 0
+    referralEarningsUsdt: 0,
+    isAdmin: false
   });
 
   const [walletAssets, setWalletAssets] = useState<WalletAsset[]>(INITIAL_WALLET_ASSETS);
@@ -290,7 +292,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               id: userData.id?.toString() || prev.id,
               email: userData.email || prev.email,
               nickname: userData.nickname || userData.name || prev.nickname,
-              avatar: userData.avatar_url || prev.avatar
+              avatar: userData.avatar_url || prev.avatar,
+              isAdmin: userData.is_admin === true || userData.role === 'admin' || prev.isAdmin
             }));
             setIsLoggedIn(true);
             await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
@@ -396,7 +399,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userData.id?.toString() || '',
           email: userData.email || email,
           nickname: userData.nickname || userData.name || 'Trader',
-          avatar: userData.avatar_url || user.avatar
+          avatar: userData.avatar_url || user.avatar,
+          isAdmin: userData.is_admin === true || userData.role === 'admin' || false
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
@@ -441,7 +445,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: userObj.id?.toString() || '',
           email: userObj.email || userData.email,
           nickname: userObj.nickname || userObj.name || 'Trader',
-          avatar: userObj.avatar_url || user.avatar
+          avatar: userObj.avatar_url || user.avatar,
+          isAdmin: userObj.is_admin === true || userObj.role === 'admin' || false
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
@@ -557,7 +562,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, record: newWth };
   };
 
-  // FIX: Perfectly synchronous boolean return that dispatches the API POST request
   const executeInternalTransfer = (assetSymbol: string, amount: number, from: WalletSubAccount, to: WalletSubAccount): boolean => {
     if (from === to) return false;
     
@@ -584,7 +588,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Internal transfer network failed:", err);
       });
 
-    // Optimistic UI update for instant feedback
     setWalletDetails((prev: WalletAssetDetail[]) => prev.map((a: WalletAssetDetail) => {
       if (a.symbol !== cleanAsset) return a;
       let spot = a.spotBalance;
