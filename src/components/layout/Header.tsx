@@ -134,9 +134,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
           </div>
         ) : (
           <>
-            {/* ========================================== */}
-            {/* DESKTOP HEADER (MD & UP)                   */}
-            {/* ========================================== */}
+            {/* =============== DESKTOP HEADER (MD & UP)=========================== */}
             <div className="hidden md:flex max-w-7xl mx-auto px-6 lg:px-8 h-16 items-center justify-between gap-4">
               
               {/* Desktop Left: Logo & Nav */}
@@ -665,27 +663,29 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
             {/* Drawer Footer with Logout and Admin Portal (Positioned immediately ABOVE Sign Out) */}
             <div className="p-4 border-t border-app bg-app-card shrink-0 space-y-2.5">
               
-              {/* Admin Portal Option - Positioned IMMEDIATELY ABOVE Sign Out */}
-              <button
-                onClick={() => {
-                  setIsAccountDrawerOpen(false);
-                  onNavigate('admin');
-                }}
-                className="w-full flex items-center justify-between p-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-500 font-extrabold text-xs transition-all shadow-sm group cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-500 group-hover:scale-105 transition-transform">
-                    <Shield className="w-4 h-4" />
+              {/* Admin Portal Option - RESTRICTED TO ADMINS ONLY */}
+              {user.isAdmin && (
+                <button
+                  onClick={() => {
+                    setIsAccountDrawerOpen(false);
+                    onNavigate('admin');
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/25 text-amber-500 font-extrabold text-xs transition-all shadow-sm group cursor-pointer"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-500 group-hover:scale-105 transition-transform">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-extrabold flex items-center gap-1.5">
+                        <span>🛡️ {t('drawer.adminPortal')}</span>
+                      </p>
+                      <p className="text-[10px] text-amber-500/80 font-medium">{t('drawer.adminDesc')}</p>
+                    </div>
                   </div>
-                  <div className="text-left">
-                    <p className="font-extrabold flex items-center gap-1.5">
-                      <span>🛡️ {t('drawer.adminPortal')}</span>
-                    </p>
-                    <p className="text-[10px] text-amber-500/80 font-medium">{t('drawer.adminDesc')}</p>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-amber-500/70 group-hover:translate-x-0.5 transition-transform" />
-              </button>
+                  <ChevronRight className="w-4 h-4 text-amber-500/70 group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              )}
 
               {/* Sign Out Option */}
               <button
@@ -996,18 +996,21 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
 
-                <button
-                  onClick={() => handleMobileNavigate('admin')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-colors min-h-[44px] ${
-                    activeTab === 'admin' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'text-amber-500 hover:bg-amber-500/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Lock className="w-4 h-4" />
-                    <span>{t('mobileDrawer.adminControlPortal')}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 opacity-60" />
-                </button>
+                {/* Mobile Admin Portal Option - RESTRICTED TO ADMINS ONLY */}
+                {user.isAdmin && (
+                  <button
+                    onClick={() => handleMobileNavigate('admin')}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition-colors min-h-[44px] ${
+                      activeTab === 'admin' ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'text-amber-500 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Lock className="w-4 h-4" />
+                      <span>{t('mobileDrawer.adminControlPortal')}</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 opacity-60" />
+                  </button>
+                )}
 
                 {isLoggedIn && (
                   <button
