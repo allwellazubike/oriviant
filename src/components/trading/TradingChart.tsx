@@ -6,6 +6,55 @@ interface TradingChartProps {
   height?: number;
 }
 
+// 🔥 Professional Symbol Resolver for Multi-Asset TradingView Support
+const resolveTVSymbol = (symbol: string) => {
+  // Forex Pairs
+  if (['EUR/USD', 'GBP/USD', 'USD/JPY', 'GBP/JPY', 'AUD/USD', 'USD/CAD', 'EUR/JPY', 'USD/CHF', 'EUR/GBP', 'NZD/USD', 'AUD/JPY'].includes(symbol)) {
+    return `FX:${symbol.replace('/', '')}`;
+  }
+  
+  // Indices, Commodities, ETFs, and Stocks
+  const customMap: Record<string, string> = {
+    'SPY': 'AMEX:SPY',
+    'QQQ': 'NASDAQ:QQQ',
+    'VOO': 'AMEX:VOO',
+    'IWM': 'AMEX:IWM',
+    'VTI': 'AMEX:VTI',
+    'DIA': 'AMEX:DIA',
+    'XLK': 'AMEX:XLK',
+    'XLF': 'AMEX:XLF',
+    'XLE': 'AMEX:XLE',
+    'ARKK': 'AMEX:ARKK',
+    'NAS100': 'CAPITALCOM:US100',
+    'US500': 'CAPITALCOM:US500',
+    'US30': 'CAPITALCOM:US30',
+    'UK100': 'CAPITALCOM:UK100',
+    'GER40': 'CAPITALCOM:DE40',
+    'JP225': 'CAPITALCOM:JP225',
+    'HK50': 'CAPITALCOM:HK50',
+    'XAU/USD': 'OANDA:XAUUSD',
+    'XAG/USD': 'OANDA:XAGUSD',
+    'USOIL': 'TVC:USOIL',
+    'UKOIL': 'TVC:UKOIL',
+    'NG': 'TVC:USOIL',
+    'US10Y': 'TVC:US10Y',
+    'US30Y': 'TVC:US30Y',
+    'BUND': 'EUREX:RX1!'
+  };
+
+  if (customMap[symbol]) {
+    return customMap[symbol];
+  }
+
+  // Default Crypto Assuming Binance Formatting
+  if (symbol.includes('/')) {
+    return `BINANCE:${symbol.replace('/', '')}`;
+  }
+  
+  // Ultimate fallback
+  return symbol;
+};
+
 export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 }) => {
   const { activeCoin } = useTrading();
   const { mode } = useTheme();
@@ -17,12 +66,7 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
     // Clean up previous widget injection to prevent duplicates
     containerRef.current.innerHTML = '';
     
-    // Format symbol for TradingView's API
-    // e.g., "BTC/USDT" -> "BINANCE:BTCUSDT" for crypto feeds
-    // e.g., "SPY" -> "SPY" for standard stock tickers
-    const formattedSymbol = activeCoin.symbol.includes('/') 
-        ? `BINANCE:${activeCoin.symbol.replace('/', '')}`
-        : activeCoin.symbol;
+    const formattedSymbol = resolveTVSymbol(activeCoin.symbol);
 
     const script = document.createElement("script");
     script.src = "https://s3.tradingview.com/tv.js";

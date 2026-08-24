@@ -6,6 +6,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { useDemoMode } from '../../contexts/DemoModeContext';
 import { useUser } from '../../contexts/UserContext';
 import { OrderSide, OrderType } from '../../types';
@@ -29,6 +30,7 @@ export const SpotTradingView: React.FC = () => {
 
   const { isDemoMode, demoBalance } = useDemoMode();
   const { fetchLiveWallets } = useUser();
+  const { navigate } = useNavigation();
 
   const [orderSide, setOrderSide] = useState<OrderSide>('buy');
   const [orderType, setOrderType] = useState<OrderType>('limit');
@@ -157,8 +159,13 @@ export const SpotTradingView: React.FC = () => {
             <select
               value={activeCoin.symbol}
               onChange={(e) => {
-                setActiveCoinSymbol(e.target.value);
-                setLimitPrice(coins.find((c) => c.symbol === e.target.value)?.price.toString() || '100');
+                const newSymbol = e.target.value;
+                setActiveCoinSymbol(newSymbol);
+                const matchedCoin = coins.find((c) => c.symbol === newSymbol);
+                setLimitPrice(matchedCoin?.price.toString() || '100');
+                
+                // 🔥 CRITICAL FIX: Push the selection to the global router so it doesn't snap back!
+                navigate('spot', { symbol: newSymbol });
               }}
               className="appearance-none bg-app-sec font-black text-xs sm:text-sm text-app pr-7 pl-3 py-2 rounded-xl border border-app focus:outline-none focus:border-accent cursor-pointer"
             >
@@ -199,7 +206,6 @@ export const SpotTradingView: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-8 bg-app-card border border-app rounded-2xl p-4 flex flex-col justify-between min-h-[500px] shadow-sm">
-          {/* Injecting the new Live TradingView widget with slightly more height */}
           <TradingChart height={460} />
         </div>
 
