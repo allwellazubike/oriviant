@@ -411,7 +411,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={() => markTouched('email')}
-              placeholder="name@domain.com"
+              placeholder="Enter your email"
               className={`w-full bg-app-sec border ${
                 emailError ? 'border-red-500' : 'border-app'
               } rounded-xl pl-10 pr-4 py-2.5 text-xs text-app focus:outline-none focus:border-accent transition-colors`}
@@ -456,7 +456,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin, onSucce
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 onBlur={() => markTouched('phone')}
-                placeholder="555-0199"
+                placeholder="Enter your phone number"
                 className={`w-full bg-app-sec border ${
                   phoneError ? 'border-red-500' : 'border-app'
                 } rounded-xl pl-10 pr-4 py-2.5 text-xs text-app focus:outline-none focus:border-accent transition-colors`}
