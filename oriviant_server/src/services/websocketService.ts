@@ -6,12 +6,21 @@ let io: Server | null = null;
 
 export const websocketService = {
   init: (server: HttpServer) => {
-    // Initialize Socket.io with permissive CORS (we will lock this down in Phase 14)
+    // 🔥 FIX: Production-ready Socket configuration with Keep-Alives
     io = new Server(server, {
       cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
-      }
+        origin: [
+          'http://localhost:5173',
+          'http://localhost:3000',
+          process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app'
+        ],
+        methods: ['GET', 'POST'],
+        credentials: true
+      },
+      // Keep-alive settings to prevent Render/Heroku load balancers from dropping idle connections
+      pingTimeout: 60000,
+      pingInterval: 25000,
+      transports: ['polling', 'websocket']
     });
 
     io.on('connection', (socket: Socket) => {
@@ -37,7 +46,7 @@ export const websocketService = {
 
         try {
           // Verify the JWT mathematically instead of trusting client IDs
-          const decoded = jwt.verify(payload.token, process.env.JWT_SECRET || 'fallback_secret') as { id: string | number };
+          const decoded = jwt.verify(payload.token, process.env.JWT_SECRET || 'fallback-secret-for-development') as { id: string | number };
           
           socket.join(`user_${decoded.id}`);
           console.log(`Client ${socket.id} authenticated securely for private room user_${decoded.id}`);

@@ -9,15 +9,25 @@ class SocketService {
   connect() {
     if (!this.socket) {
       this.socket = io(SOCKET_URL, {
-        transports: ['websocket'], // Force WebSockets instead of HTTP long-polling
+        // 🔥 FIX: Allow HTTP polling first to bypass strict production load balancers, then upgrade to WS
+        transports: ['polling', 'websocket'],
+        // 🔥 FIX: Aggressive reconnection settings for serverless/cloud environments
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
       });
 
       this.socket.on('connect', () => {
         console.log('🟢 Connected to live market data:', this.socket?.id);
       });
 
-      this.socket.on('disconnect', () => {
-        console.log('🔴 Disconnected from market data');
+      this.socket.on('disconnect', (reason) => {
+        console.log('🔴 Disconnected from market data:', reason);
+        // If the load balancer forcibly dropped the connection, reconnect immediately
+        if (reason === 'io server disconnect' || reason === 'transport close') {
+          this.socket?.connect();
+        }
       });
     }
   }
