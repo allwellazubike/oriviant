@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 
 interface TradingChartProps {
   height?: number;
+  symbol?: string; // 🔥 Added optional symbol override for the demo workspace switcher
 }
 
 // 🔥 Professional Symbol Resolver for Multi-Asset TradingView Support
@@ -55,18 +56,21 @@ const resolveTVSymbol = (symbol: string) => {
   return symbol;
 };
 
-export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 }) => {
+export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460, symbol }) => {
   const { activeCoin } = useTrading();
   const { mode } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // 🔥 Determine the target symbol: use prop symbol if provided, otherwise fallback to activeCoin.symbol
+  const currentSymbol = symbol || activeCoin?.symbol || 'GER40';
+
   useEffect(() => {
-    if (!containerRef.current || !activeCoin) return;
+    if (!containerRef.current || !currentSymbol) return;
     
     // Clean up previous widget injection to prevent duplicates
     containerRef.current.innerHTML = '';
     
-    const formattedSymbol = resolveTVSymbol(activeCoin.symbol);
+    const formattedSymbol = resolveTVSymbol(currentSymbol);
     
     // Generate a unique ID for the container mount
     const widgetId = `tv_chart_${Math.random().toString(36).substring(7)}`;
@@ -77,7 +81,6 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
     innerDiv.className = "w-full h-full";
     containerRef.current.appendChild(innerDiv);
 
-    // 🔥 FIX: Extracted the initialization logic so it can run immediately if TV is already cached!
     const initWidget = () => {
       if (window.TradingView) {
         new window.TradingView.widget({
@@ -89,7 +92,7 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
           style: "1", // Candlestick
           locale: "en",
           enable_publishing: false,
-          backgroundColor: mode === 'dark' ? "#131b26" : "#ffffff", // Perfectly matches Oriviant backgrounds
+          backgroundColor: mode === 'dark' ? "#131b26" : "#ffffff",
           gridColor: mode === 'dark' ? "#1e293b" : "#f1f5f9",
           hide_top_toolbar: false,
           hide_legend: false,
@@ -97,14 +100,13 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
           container_id: widgetId,
           toolbar_bg: mode === 'dark' ? "#131b26" : "#ffffff",
           studies: [
-            "Volume@tv-basicstudies", // Add standard volume indicators automatically
+            "Volume@tv-basicstudies",
             "MASimple@tv-basicstudies"
           ],
         });
       }
     };
 
-    // If the script is already in the browser, instantly render. Otherwise, load it!
     if (!window.TradingView) {
       const script = document.createElement("script");
       script.src = "https://s3.tradingview.com/tv.js";
@@ -121,7 +123,7 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
         containerRef.current.innerHTML = '';
       }
     };
-  }, [activeCoin?.symbol, mode]);
+  }, [currentSymbol, mode]);
 
   return (
     <div 

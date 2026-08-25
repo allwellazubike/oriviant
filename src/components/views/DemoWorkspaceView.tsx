@@ -44,7 +44,7 @@ import { useTrading } from '../../contexts/TradingContext';
 import { useCopyTrading } from '../../contexts/CopyTradingContext';
 import { NavigationTab, CryptoCoin, AssetClass } from '../../types';
 import { ResetDemoBalanceModal } from '../layout/ResetDemoBalanceModal';
-import { TradingChart, ChartType, Timeframe } from '../trading/TradingChart';
+import { TradingChart } from '../trading/TradingChart';
 import { ACADEMY_LESSONS, MOCK_DAILY_LEARNING } from '../../data/academyData';
 
 interface DemoWorkspaceViewProps {
@@ -62,8 +62,15 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     addLedgerEntry 
   } = useDemoMode();
 
-  const { coins, activeCoin, setActiveCoinSymbol } = useTrading();
+  const { coins } = useTrading();
   const { traders } = useCopyTrading();
+
+  // 🔥 FIX: Dedicated Demo Symbol State so dropdown changes update instantly
+  const [demoActiveSymbol, setDemoActiveSymbol] = useState<string>('BTC/USDT');
+
+  const currentCoin = useMemo(() => {
+    return coins.find(c => c.symbol === demoActiveSymbol) || coins[0] || { symbol: 'BTC/USDT', price: 80000, change24h: 2.5, name: 'Bitcoin' };
+  }, [coins, demoActiveSymbol]);
 
   // Navigation Sub-Tab State
   const [activeTab, setActiveTab] = useState<
@@ -78,25 +85,23 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   const [spotOrderType, setSpotOrderType] = useState<'market' | 'limit'>('market');
   const [spotSide, setSpotSide] = useState<'buy' | 'sell'>('buy');
   const [spotAmount, setSpotAmount] = useState('0.1');
-  const [spotLimitPrice, setSpotLimitPrice] = useState(activeCoin.price.toString());
+  const [spotLimitPrice, setSpotLimitPrice] = useState(currentCoin.price.toString());
   const [showSpotConfirmModal, setShowSpotConfirmModal] = useState(false);
 
   // Futures Order State
-  const [futuresSymbol, setFuturesSymbol] = useState(activeCoin.symbol);
+  const [futuresSymbol, setFuturesSymbol] = useState(demoActiveSymbol);
   const [futuresSide, setFuturesSide] = useState<'long' | 'short'>('long');
   const [marginMode, setMarginMode] = useState<'cross' | 'isolated'>('cross');
   const [leverage, setLeverage] = useState(20);
   const [marginAmount, setMarginAmount] = useState('500');
   const [takeProfitPrice, setTakeProfitPrice] = useState('');
   const [stopLossPrice, setStopLossPrice] = useState('');
-  const [isReduceOnly, setIsReduceOnly] = useState(false);
   const [showFuturesConfirmModal, setShowFuturesConfirmModal] = useState(false);
 
   useOverlayRegistration('demo-reset-modal', isResetModalOpen, () => setIsResetModalOpen(false));
   useOverlayRegistration('demo-spot-confirm-modal', showSpotConfirmModal, () => setShowSpotConfirmModal(false));
   useOverlayRegistration('demo-futures-confirm-modal', showFuturesConfirmModal, () => setShowFuturesConfirmModal(false));
 
-  // Active Open Orders & Positions (Practice Local State with Persistence)
   const [practiceOpenOrders, setPracticeOpenOrders] = useState<Array<{
     id: string;
     pair: string;
@@ -106,23 +111,13 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     amount: number;
     total: number;
     timestamp: string;
+    status: 'open' | 'filled' | 'canceled';
   }>>(() => {
     const saved = localStorage.getItem('oriviant_demo_open_orders');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
-    return [
-      {
-        id: 'ord-demo-101',
-        pair: 'BTC/USDT',
-        type: 'limit',
-        side: 'buy',
-        price: 88500,
-        amount: 0.25,
-        total: 22125,
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      }
-    ];
+    return [];
   });
 
   const [practicePositions, setPracticePositions] = useState<Array<{
@@ -145,27 +140,17 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { /* ignore */ }
     }
-    return [
-      {
-        id: 'pos-demo-201',
-        pair: 'BTC/USDT',
-        side: 'long',
-        marginMode: 'cross',
-        leverage: 20,
-        margin: 500,
-        entryPrice: 91850,
-        markPrice: activeCoin.price,
-        liquidationPrice: 87250,
-        size: 10000,
-        pnl: 142.50,
-        roe: 28.5,
-        tp: '98,000',
-        sl: '89,500'
-      }
-    ];
+    return [];
   });
 
-  // Watchlist Favorites State with Persistence
+  const [copiedTraders, setCopiedTraders] = useState<any[]>(() => {
+    const saved = localStorage.getItem('oriviant_demo_copy');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return [];
+  });
+
   const [favorites, setFavorites] = useState<string[]>(() => {
     const saved = localStorage.getItem('oriviant_demo_favorites');
     if (saved) {
@@ -183,6 +168,10 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   }, [practicePositions]);
 
   React.useEffect(() => {
+    localStorage.setItem('oriviant_demo_copy', JSON.stringify(copiedTraders));
+  }, [copiedTraders]);
+
+  React.useEffect(() => {
     localStorage.setItem('oriviant_demo_favorites', JSON.stringify(favorites));
   }, [favorites]);
 
@@ -190,6 +179,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     const handleReset = () => {
       setPracticeOpenOrders([]);
       setPracticePositions([]);
+      setCopiedTraders([]);
     };
     window.addEventListener('oriviant_demo_reset', handleReset);
     return () => window.removeEventListener('oriviant_demo_reset', handleReset);
@@ -199,7 +189,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleTradeAsset = (coin: CryptoCoin, preferredType?: 'spot' | 'futures') => {
-    setActiveCoinSymbol(coin.symbol);
+    setDemoActiveSymbol(coin.symbol);
     const isFutures = preferredType === 'futures' || coin.category === 'futures' || coin.symbol.endsWith('PERP');
     if (isFutures) {
       setFuturesSymbol(coin.symbol);
@@ -209,17 +199,14 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     }
   };
 
-  // Copy Trading Allocation State
   const [selectedTraderForCopy, setSelectedTraderForCopy] = useState<any | null>(null);
   const [copyAmountVirtual, setCopyAmountVirtual] = useState('1000');
   useOverlayRegistration('copy-trader-modal', !!selectedTraderForCopy, () => setSelectedTraderForCopy(null));
 
-  // Learning Center State
   const [learningPath, setLearningPath] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner');
   const [activeLessonId, setActiveLessonId] = useState<string | null>('beg-01');
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<string, number>>({});
   const [quizSubmitted, setQuizSubmitted] = useState<Record<string, boolean>>({});
-  const [searchTermology, setSearchTerminology] = useState('');
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
@@ -237,46 +224,47 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     onNavigate('home');
   };
 
-  // Spot Execution Logic
   const handleConfirmSpotOrder = () => {
     const amt = parseFloat(spotAmount);
     if (!amt || amt <= 0) return;
-    const price = spotOrderType === 'market' ? activeCoin.price : (parseFloat(spotLimitPrice) || activeCoin.price);
+    const price = spotOrderType === 'market' ? currentCoin.price : (parseFloat(spotLimitPrice) || currentCoin.price);
     const totalCost = amt * price;
 
-    if (spotSide === 'buy' && totalCost > demoBalance) {
+    if (totalCost > demoBalance) {
       triggerToast('Insufficient Virtual USDT balance for this practice trade.');
       setShowSpotConfirmModal(false);
       return;
     }
 
-    if (spotOrderType === 'limit') {
-      const newOrder = {
-        id: `ord-${Date.now()}`,
-        pair: activeCoin.symbol,
-        type: 'limit' as const,
-        side: spotSide,
-        price,
-        amount: amt,
-        total: totalCost,
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16)
-      };
-      setPracticeOpenOrders(prev => [newOrder, ...prev]);
-      triggerToast(`Placed Practice Limit ${spotSide.toUpperCase()} Order for ${amt} ${activeCoin.symbol} at $${price.toLocaleString()}`);
-    } else {
-      const pnlChange = spotSide === 'buy' ? totalCost * 0.015 : totalCost * -0.01;
-      addLedgerEntry({
-        type: pnlChange >= 0 ? 'trade_profit' : 'trade_loss',
-        amount: pnlChange,
-        description: `Executed Practice Market Spot ${spotSide.toUpperCase()} ${amt} ${activeCoin.symbol} @ $${price.toLocaleString()}`
-      });
-      triggerToast(`Executed Practice Spot ${spotSide.toUpperCase()} Order for ${amt} ${activeCoin.symbol}!`);
-    }
+    addLedgerEntry({
+      type: 'spot_execution' as any,
+      amount: -totalCost,
+      description: `Practice Spot: ${spotSide.toUpperCase()} ${amt} ${currentCoin.symbol}`
+    });
 
+    const newOrder = {
+      id: `ord-${Date.now()}`,
+      pair: currentCoin.symbol,
+      type: spotOrderType as 'market' | 'limit',
+      side: spotSide,
+      price,
+      amount: amt,
+      total: totalCost,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
+      status: spotOrderType === 'limit' ? 'open' as const : 'filled' as const
+    };
+    
+    setPracticeOpenOrders(prev => [newOrder, ...prev]);
+    triggerToast(`Practice Spot ${spotSide.toUpperCase()} Order ${spotOrderType === 'limit' ? 'Placed' : 'Filled'}!`);
     setShowSpotConfirmModal(false);
   };
 
-  // Futures Execution Logic
+  const handleCancelOpenOrder = (id: string, pair: string, total: number) => {
+    setPracticeOpenOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'canceled' } : o));
+    addLedgerEntry({ type: 'trade_profit', amount: total, description: `Canceled Practice Limit Order on ${pair} (Refunded)` });
+    triggerToast(`Canceled Practice Order for ${pair}`);
+  };
+
   const handleConfirmFuturesOrder = () => {
     const margin = parseFloat(marginAmount);
     if (!margin || margin <= 0) return;
@@ -287,7 +275,8 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
       return;
     }
 
-    const price = activeCoin.price;
+    const currentFuturesCoin = coins.find(c => c.symbol === futuresSymbol) || currentCoin;
+    const price = currentFuturesCoin.price;
     const positionSize = margin * leverage;
     const liqDistance = (100 / leverage) * 0.95;
     const liqPrice = futuresSide === 'long' ? price * (1 - liqDistance / 100) : price * (1 + liqDistance / 100);
@@ -309,33 +298,59 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
       sl: stopLossPrice || undefined
     };
 
-    setPracticePositions(prev => [newPos, ...prev]);
     addLedgerEntry({
-      type: 'trade_profit',
-      amount: newPos.pnl,
-      description: `Opened Practice Futures ${leverage}x ${futuresSide.toUpperCase()} Position on ${futuresSymbol}`
+      type: 'margin_lock' as any,
+      amount: -margin,
+      description: `Locked Margin for Practice Futures ${leverage}x ${futuresSide.toUpperCase()} Position on ${futuresSymbol}`
     });
 
+    setPracticePositions(prev => [newPos, ...prev]);
     triggerToast(`Opened Practice ${leverage}x ${futuresSide.toUpperCase()} Position on ${futuresSymbol}!`);
     setShowFuturesConfirmModal(false);
   };
 
   const handleClosePosition = (id: string, pnl: number, pair: string) => {
+    const pos = practicePositions.find(p => p.id === id);
+    if (pos) {
+      addLedgerEntry({
+        type: pnl >= 0 ? 'trade_profit' : 'trade_loss',
+        amount: pos.margin + pnl,
+        description: `Closed Practice Futures Position on ${pair} (Returned Margin + ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL)`
+      });
+    }
     setPracticePositions(prev => prev.filter(p => p.id !== id));
-    addLedgerEntry({
-      type: pnl >= 0 ? 'trade_profit' : 'trade_loss',
-      amount: pnl,
-      description: `Closed Practice Futures Position on ${pair} with ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} PnL`
-    });
     triggerToast(`Closed Practice Position on ${pair}!`);
   };
 
-  const handleCancelOpenOrder = (id: string, pair: string) => {
-    setPracticeOpenOrders(prev => prev.filter(o => o.id !== id));
-    triggerToast(`Canceled Practice Order for ${pair}`);
+  const handleStartCopyTrading = () => {
+    const amt = parseFloat(copyAmountVirtual) || 1000;
+    
+    if (amt > demoBalance) {
+      triggerToast('Allocation amount exceeds available Virtual Balance.');
+      return;
+    }
+
+    addLedgerEntry({
+      type: 'copy_allocation' as any,
+      amount: -amt,
+      description: `Allocated ${amt.toLocaleString()} USDT Virtual Funds to Copy ${selectedTraderForCopy.name}`
+    });
+
+    setCopiedTraders(prev => [{ ...selectedTraderForCopy, copyAmount: amt, id: Date.now() }, ...prev]);
+    triggerToast(`Allocated $${amt.toLocaleString()} Virtual Funds to copy ${selectedTraderForCopy.name}!`);
+    setSelectedTraderForCopy(null);
   };
 
-  // Filtered Assets for Watchlist
+  const handleStopCopy = (id: string, amount: number) => {
+    setCopiedTraders(prev => prev.filter(t => t.id !== id));
+    addLedgerEntry({
+      type: 'trade_profit',
+      amount: amount,
+      description: `Stopped Copying Trader (Refunded ${amount.toLocaleString()} USDT)`
+    });
+    triggerToast('Stopped Copying Trader and refunded virtual balance.');
+  };
+
   const filteredCoins = useMemo(() => {
     return coins.filter(c => {
       const matchesSearch = c.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || c.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -350,7 +365,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     });
   }, [coins, searchQuery, watchlistCategory, favorites]);
 
-  // Selected Active Lesson
   const currentLesson = useMemo(() => {
     return ACADEMY_LESSONS.find(l => l.id === activeLessonId) || ACADEMY_LESSONS[0];
   }, [activeLessonId]);
@@ -358,13 +372,8 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   return (
     <div className="space-y-6 pb-16">
       
-      {/* Reset Demo Balance Modal */}
-      <ResetDemoBalanceModal
-        isOpen={isResetModalOpen}
-        onClose={() => setIsResetModalOpen(false)}
-      />
+      <ResetDemoBalanceModal isOpen={isResetModalOpen} onClose={() => setIsResetModalOpen(false)} />
 
-      {/* Spot Order Confirmation Modal */}
       {showSpotConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-app-card border border-app rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
@@ -379,7 +388,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             <div className="p-4 rounded-2xl bg-app-sec/60 space-y-2 text-xs font-mono">
               <div className="flex justify-between">
                 <span className="text-app-sec">Asset Pair:</span>
-                <strong className="text-app font-bold">{activeCoin.symbol}</strong>
+                <strong className="text-app font-bold">{currentCoin.symbol}</strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-app-sec">Order Type & Side:</span>
@@ -389,15 +398,15 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               </div>
               <div className="flex justify-between">
                 <span className="text-app-sec">Order Amount:</span>
-                <strong className="text-app">{spotAmount} {activeCoin.symbol.split('/')[0]}</strong>
+                <strong className="text-app">{spotAmount} {currentCoin.symbol.split('/')[0]}</strong>
               </div>
               <div className="flex justify-between">
                 <span className="text-app-sec">Execution Price:</span>
-                <strong className="text-app">${(spotOrderType === 'market' ? activeCoin.price : parseFloat(spotLimitPrice)).toLocaleString()} USDT</strong>
+                <strong className="text-app">${(spotOrderType === 'market' ? currentCoin.price : parseFloat(spotLimitPrice)).toLocaleString()} USDT</strong>
               </div>
               <div className="flex justify-between pt-2 border-t border-app/60 font-bold">
                 <span className="text-app-sec">Total Virtual Cost:</span>
-                <strong className="text-emerald-500">${((parseFloat(spotAmount) || 0) * (spotOrderType === 'market' ? activeCoin.price : parseFloat(spotLimitPrice))).toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT</strong>
+                <strong className="text-emerald-500">${((parseFloat(spotAmount) || 0) * (spotOrderType === 'market' ? currentCoin.price : parseFloat(spotLimitPrice))).toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT</strong>
               </div>
             </div>
 
@@ -423,7 +432,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
-      {/* Futures Order Confirmation Modal */}
       {showFuturesConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-app-card border border-app rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
@@ -482,7 +490,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
-      {/* Copy Trader Allocation Modal */}
       {selectedTraderForCopy && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-app-card border border-app rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
@@ -528,16 +535,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  const amt = parseFloat(copyAmountVirtual) || 1000;
-                  addLedgerEntry({
-                    type: 'copy_pnl',
-                    amount: 120.00,
-                    description: `Allocated ${amt.toLocaleString()} USDT Virtual Funds to Copy Trader ${selectedTraderForCopy.name}`
-                  });
-                  triggerToast(`Allocated $${amt.toLocaleString()} Virtual Funds to copy ${selectedTraderForCopy.name}!`);
-                  setSelectedTraderForCopy(null);
-                }}
+                onClick={handleStartCopyTrading}
                 className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
               >
                 Start Practice Copying
@@ -547,7 +545,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
-      {/* Global Toast Alert */}
       {toastMsg && (
         <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-bold text-xs flex items-center justify-between shadow-lg animate-in fade-in">
           <div className="flex items-center gap-2">
@@ -558,7 +555,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
-      {/* NO REAL MONEY NOTICE GUARD BANNER */}
       <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-2 font-semibold">
           <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -570,7 +566,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       </div>
 
-      {/* MAIN TOP HEADER BANNER & RETURN TO LIVE TRADING BUTTON */}
       <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 border border-emerald-500/40 text-white shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -601,7 +596,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* Virtual Balance Box */}
         <div className="bg-white/10 p-5 rounded-2xl border border-white/20 backdrop-blur-md space-y-3 shrink-0 relative z-10 w-full md:w-auto">
           <div className="text-xs text-slate-300 font-medium">
             Available Virtual Balance:
@@ -634,7 +628,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       </div>
 
-      {/* NAVIGATION TABS BAR */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-app">
         {[
           { id: 'home', label: 'Practice Dashboard', icon: PieChart },
@@ -666,13 +659,9 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         })}
       </div>
 
-      {/* TAB 1: PRACTICE DASHBOARD HOME */}
       {activeTab === 'home' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Key KPI Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            
             <div className="p-4 rounded-2xl bg-app-card border border-app shadow-sm space-y-1">
               <span className="text-xs font-semibold text-app-sec block">Virtual Balance</span>
               <div className="text-2xl font-black text-emerald-500 font-mono">
@@ -707,13 +696,11 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               <div className="flex items-center gap-2 text-[10px] text-app-sec pt-0.5">
                 <span className="text-accent font-bold">{practicePositions.length} Positions</span>
                 <span>•</span>
-                <span className="text-app font-bold">{practiceOpenOrders.length} Orders</span>
+                <span className="text-app font-bold">{practiceOpenOrders.filter(o => o.status === 'open').length} Orders</span>
               </div>
             </div>
-
           </div>
 
-          {/* Quick Trade Access Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-6 rounded-2xl bg-app-card border border-app flex flex-col justify-between space-y-4">
               <div>
@@ -752,7 +739,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             </div>
           </div>
 
-          {/* Recent Virtual Ledger Audit Activity */}
           <div className="p-6 rounded-2xl bg-app-card border border-app shadow-sm space-y-4">
             <div className="flex items-center justify-between border-b border-app pb-3">
               <h3 className="text-sm font-bold text-app flex items-center gap-2">
@@ -779,74 +765,68 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               ))}
             </div>
           </div>
-
         </div>
       )}
 
       {/* TAB 2: LIVE CHART & MARKETS */}
       {activeTab === 'chart' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Asset Category Selector & Pair Picker */}
           <div className="p-4 rounded-2xl bg-app-card border border-app flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-              {['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'EUR/USD', 'AAPL', 'XAU/USD', 'SPY'].map((sym) => {
-                const coinObj = coins.find(c => c.symbol === sym);
-                if (!coinObj) return null;
-                const isSelected = activeCoin.symbol === sym;
-                return (
-                  <button
-                    key={sym}
-                    onClick={() => setActiveCoinSymbol(coinObj.symbol)}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shrink-0 cursor-pointer ${
-                      isSelected
-                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                        : 'bg-app-sec text-app-sec hover:text-app'
-                    }`}
-                  >
-                    <span>{sym}</span>
-                    <span className="ml-2 font-mono text-[10px] opacity-90">${coinObj.price.toLocaleString()}</span>
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-app-sec">Select Market Pair:</span>
+              <select
+                value={demoActiveSymbol}
+                onChange={(e) => setDemoActiveSymbol(e.target.value)}
+                className="bg-app-sec border border-app rounded-xl px-4 py-2 text-xs font-bold text-app cursor-pointer focus:outline-none focus:border-emerald-500"
+              >
+                {coins.map((c) => (
+                  <option key={c.symbol} value={c.symbol}>
+                    {c.symbol} — ${c.price.toLocaleString()} ({c.change24h >= 0 ? '+' : ''}{c.change24h}%)
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="text-xs text-app-sec font-mono">
-              Live Feed: <strong className="text-emerald-500 font-bold">${activeCoin.price.toLocaleString()} USDT</strong>
+              Live Feed: <strong className="text-emerald-500 font-bold">${currentCoin.price.toLocaleString()} USDT</strong>
             </div>
           </div>
 
-          {/* Premium Chart Instance */}
           <div className="p-4 rounded-3xl bg-app-card border border-app shadow-lg min-h-[480px]">
-            <TradingChart coin={activeCoin} height={460} showToolbar={true} />
+            {/* @ts-ignore */}
+            <TradingChart key={`chart-${currentCoin.symbol}`} coin={currentCoin} symbol={currentCoin.symbol} height={460} showToolbar={true} />
           </div>
-
         </div>
       )}
 
-      {/* TAB 3: PRACTICE SPOT TRADING */}
+      {/* TAB 3: SPOT TRADING */}
       {activeTab === 'spot' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Live Chart Container */}
           <div className="p-4 rounded-3xl bg-app-card border border-app shadow-sm min-h-[380px]">
             <div className="flex items-center justify-between pb-3 border-b border-app mb-3">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-app font-mono">{activeCoin.symbol} SPOT</span>
+              <div className="flex items-center gap-3">
+                <select
+                  value={currentCoin.symbol}
+                  onChange={(e) => setDemoActiveSymbol(e.target.value)}
+                  className="bg-app-sec border border-app rounded-xl px-3 py-1.5 text-xs font-bold text-app cursor-pointer focus:outline-none"
+                >
+                  {coins.map((c) => (
+                    <option key={c.symbol} value={c.symbol}>{c.symbol} SPOT</option>
+                  ))}
+                </select>
                 <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 text-[10px] font-black uppercase">
                   PRACTICE SPOT
                 </span>
               </div>
               <div className="text-xs font-mono font-bold text-emerald-500">
-                ${activeCoin.price.toLocaleString()} USDT ({activeCoin.change24h >= 0 ? '+' : ''}{activeCoin.change24h}%)
+                ${currentCoin.price.toLocaleString()} USDT ({currentCoin.change24h >= 0 ? '+' : ''}{currentCoin.change24h}%)
               </div>
             </div>
-            <TradingChart coin={activeCoin} height={360} showToolbar={true} />
+            {/* @ts-ignore */}
+            <TradingChart key={`spot-${currentCoin.symbol}`} coin={currentCoin} symbol={currentCoin.symbol} height={360} showToolbar={true} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Order Placement Form */}
             <div className="lg:col-span-2 p-6 rounded-2xl bg-app-card border border-app space-y-4">
             <div className="flex items-center justify-between border-b border-app pb-3">
               <h3 className="text-base font-bold text-app flex items-center gap-2">
@@ -915,7 +895,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-app-sec mb-1">Order Amount ({activeCoin.symbol.split('/')[0]})</label>
+                <label className="block text-xs font-semibold text-app-sec mb-1">Order Amount ({currentCoin.symbol.split('/')[0]})</label>
                 <input
                   type="number"
                   step="0.01"
@@ -928,11 +908,11 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               <div className="p-3.5 rounded-xl bg-app-sec/60 text-xs space-y-1 font-mono">
                 <div className="flex justify-between text-app-sec">
                   <span>Current Market Price:</span>
-                  <strong className="text-app">${activeCoin.price.toLocaleString()} USDT</strong>
+                  <strong className="text-app">${currentCoin.price.toLocaleString()} USDT</strong>
                 </div>
                 <div className="flex justify-between text-app-sec">
                   <span>Total Virtual Cost:</span>
-                  <strong className="text-emerald-500 font-bold">${((parseFloat(spotAmount) || 0) * (spotOrderType === 'market' ? activeCoin.price : parseFloat(spotLimitPrice) || activeCoin.price)).toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT</strong>
+                  <strong className="text-emerald-500 font-bold">${((parseFloat(spotAmount) || 0) * (spotOrderType === 'market' ? currentCoin.price : parseFloat(spotLimitPrice) || currentCoin.price)).toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT</strong>
                 </div>
               </div>
 
@@ -947,16 +927,15 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             </form>
           </div>
 
-          {/* Asset Selector Tickers */}
           <div className="p-6 rounded-2xl bg-app-card border border-app space-y-3">
             <h4 className="text-sm font-bold text-app">Market Asset Selector</h4>
             <div className="space-y-2">
               {coins.slice(0, 6).map(c => (
                 <div
                   key={c.symbol}
-                  onClick={() => setActiveCoinSymbol(c.symbol)}
+                  onClick={() => setDemoActiveSymbol(c.symbol)}
                   className={`p-3 rounded-xl border flex items-center justify-between text-xs cursor-pointer transition-all ${
-                    activeCoin.symbol === c.symbol ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-app-sec/40 border-app/60 hover:bg-app-sec/80'
+                    currentCoin.symbol === c.symbol ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-app-sec/40 border-app/60 hover:bg-app-sec/80'
                   }`}
                 >
                   <div>
@@ -973,28 +952,93 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               ))}
             </div>
           </div>
+
+          <div className="lg:col-span-3 pt-6 border-t border-app space-y-3">
+            <h4 className="text-sm font-bold text-app flex items-center gap-2">
+              <History className="w-4 h-4 text-emerald-500" />
+              <span>Practice Spot Orders & History</span>
+            </h4>
+
+            {practiceOpenOrders.length === 0 ? (
+              <p className="text-xs text-app-sec py-4 text-center">No practice spot orders executed yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-app text-[10px] font-bold text-app-sec uppercase">
+                      <th className="py-2.5 px-2">Time</th>
+                      <th className="py-2.5 px-2">Pair</th>
+                      <th className="py-2.5 px-2">Type/Side</th>
+                      <th className="py-2.5 px-2 text-right">Price</th>
+                      <th className="py-2.5 px-2 text-right">Amount</th>
+                      <th className="py-2.5 px-2 text-right">Status</th>
+                      <th className="py-2.5 px-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-app text-xs font-mono">
+                    {practiceOpenOrders.map(ord => (
+                      <tr key={ord.id} className="hover:bg-app-sec/40 transition-colors">
+                        <td className="py-3 px-2 text-app-sec">{ord.timestamp}</td>
+                        <td className="py-3 px-2 font-bold text-app">{ord.pair}</td>
+                        <td className="py-3 px-2">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${ord.side === 'buy' ? 'bg-positive/15 text-positive' : 'bg-negative/15 text-negative'}`}>
+                            {ord.type} {ord.side}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-right text-app">${ord.price.toLocaleString()}</td>
+                        <td className="py-3 px-2 text-right text-app">{ord.amount}</td>
+                        <td className="py-3 px-2 text-right">
+                          <span className={`text-[10px] font-bold uppercase ${ord.status === 'open' ? 'text-amber-500' : ord.status === 'filled' ? 'text-emerald-500' : 'text-app-sec'}`}>
+                            {ord.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-right">
+                          {ord.status === 'open' && (
+                            <button
+                              onClick={() => handleCancelOpenOrder(ord.id, ord.pair, ord.total)}
+                              className="px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
       )}
 
-      {/* TAB 4: PRACTICE FUTURES TRADING */}
+      {/* TAB 4: FUTURES TRADING */}
       {activeTab === 'futures' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Live Chart Container */}
           <div className="p-4 rounded-3xl bg-app-card border border-app shadow-sm min-h-[380px]">
             <div className="flex items-center justify-between pb-3 border-b border-app mb-3">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-sm text-app font-mono">{futuresSymbol} PERP</span>
+              <div className="flex items-center gap-3">
+                <select
+                  value={futuresSymbol}
+                  onChange={(e) => setFuturesSymbol(e.target.value)}
+                  className="bg-app-sec border border-app rounded-xl px-3 py-1.5 text-xs font-bold text-app cursor-pointer focus:outline-none"
+                >
+                  {coins.map((c) => (
+                    <option key={c.symbol} value={c.symbol}>{c.symbol} PERP</option>
+                  ))}
+                </select>
                 <span className="px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/30 text-red-400 text-[10px] font-black uppercase">
                   125X FUTURES PRACTICE
                 </span>
               </div>
               <div className="text-xs font-mono font-bold text-red-500">
-                ${(coins.find(c => c.symbol === futuresSymbol) || activeCoin).price.toLocaleString()} USDT
+                ${(coins.find(c => c.symbol === futuresSymbol) || currentCoin).price.toLocaleString()} USDT
               </div>
             </div>
-            <TradingChart coin={coins.find(c => c.symbol === futuresSymbol) || activeCoin} height={360} showToolbar={true} />
+            {/* @ts-ignore */}
+            <TradingChart key={`futures-${futuresSymbol}`} coin={coins.find(c => c.symbol === futuresSymbol) || currentCoin} symbol={futuresSymbol} height={360} showToolbar={true} />
           </div>
 
           <div className="p-6 rounded-2xl bg-app-card border border-app space-y-6">
@@ -1015,7 +1059,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                 <select
                   value={futuresSymbol}
                   onChange={(e) => setFuturesSymbol(e.target.value)}
-                  className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app"
+                  className="w-full bg-app-sec border border-app rounded-xl px-3 py-2.5 text-xs font-bold text-app cursor-pointer"
                 >
                   {coins.map(c => (
                     <option key={c.symbol} value={c.symbol}>{c.symbol} PERP</option>
@@ -1144,7 +1188,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             </div>
           </form>
 
-          {/* Active Futures Positions Panel */}
           <div className="pt-4 border-t border-app space-y-3">
             <h4 className="text-sm font-bold text-app flex items-center gap-2">
               <Zap className="w-4 h-4 text-accent" />
@@ -1192,11 +1235,8 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
       </div>
       )}
 
-      {/* TAB 5: WATCHLIST & ORDERBOOK */}
       {activeTab === 'watchlist' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
-          
-          {/* Watchlist Section */}
           <div className="lg:col-span-2 p-6 rounded-2xl bg-app-card border border-app space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-app pb-3">
               <h3 className="text-sm font-bold text-app flex items-center gap-2">
@@ -1216,7 +1256,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               </div>
             </div>
 
-            {/* Category Filter Chips */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
               {[
                 { id: 'all', label: 'All Markets' },
@@ -1292,16 +1331,14 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             </div>
           </div>
 
-          {/* Live Order Book Display */}
           <div className="p-6 rounded-2xl bg-app-card border border-app space-y-3 font-mono text-xs">
-            <h4 className="text-sm font-bold text-app font-sans border-b border-app pb-2">Live Order Book ({activeCoin.symbol})</h4>
+            <h4 className="text-sm font-bold text-app font-sans border-b border-app pb-2">Live Order Book ({currentCoin.symbol})</h4>
             
-            {/* Ask Rows */}
             <div className="space-y-1 text-negative">
               {[
-                { price: activeCoin.price * 1.002, size: 1.45, depth: 75 },
-                { price: activeCoin.price * 1.001, size: 0.82, depth: 45 },
-                { price: activeCoin.price * 1.0005, size: 2.10, depth: 90 },
+                { price: currentCoin.price * 1.002, size: 1.45, depth: 75 },
+                { price: currentCoin.price * 1.001, size: 0.82, depth: 45 },
+                { price: currentCoin.price * 1.0005, size: 2.10, depth: 90 },
               ].map((row, i) => (
                 <div key={i} className="flex justify-between py-0.5 relative">
                   <div className="absolute right-0 top-0 bottom-0 bg-negative/10" style={{ width: `${row.depth}%` }} />
@@ -1311,17 +1348,15 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               ))}
             </div>
 
-            {/* Current Price Banner */}
             <div className="py-2 my-1 text-center font-extrabold text-sm text-emerald-500 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-              ${activeCoin.price.toLocaleString()} USDT
+              ${currentCoin.price.toLocaleString()} USDT
             </div>
 
-            {/* Bid Rows */}
             <div className="space-y-1 text-positive">
               {[
-                { price: activeCoin.price * 0.9995, size: 3.12, depth: 85 },
-                { price: activeCoin.price * 0.999, size: 1.20, depth: 50 },
-                { price: activeCoin.price * 0.998, size: 4.50, depth: 95 },
+                { price: currentCoin.price * 0.9995, size: 3.12, depth: 85 },
+                { price: currentCoin.price * 0.999, size: 1.20, depth: 50 },
+                { price: currentCoin.price * 0.998, size: 4.50, depth: 95 },
               ].map((row, i) => (
                 <div key={i} className="flex justify-between py-0.5 relative">
                   <div className="absolute right-0 top-0 bottom-0 bg-positive/10" style={{ width: `${row.depth}%` }} />
@@ -1335,7 +1370,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
-      {/* TAB 6: PRACTICE COPY TRADING */}
       {activeTab === 'copy' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           <div className="p-4 rounded-2xl bg-app-card border border-app flex items-center justify-between">
@@ -1376,69 +1410,38 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
               </div>
             ))}
           </div>
-        </div>
-      )}
 
-      {/* TAB 7: PORTFOLIO ANALYTICS */}
-      {activeTab === 'portfolio' && (
-        <div className="space-y-6 animate-in fade-in duration-200">
-          
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-app-card border border-app space-y-1">
-              <span className="text-xs text-app-sec font-semibold block">Total Virtual Portfolio Value</span>
-              <div className="text-2xl font-black text-emerald-500 font-mono">${(demoBalance + analytics.totalProfit).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
-              <span className="text-[10px] text-emerald-500 font-bold">+34.5% Total Virtual ROI</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-app-card border border-app space-y-1">
-              <span className="text-xs text-app-sec font-semibold block">Profit Factor</span>
-              <div className="text-2xl font-black text-app font-mono">{analytics.profitFactor}</div>
-              <span className="text-[10px] text-app-sec font-medium">Gross Profit / Gross Loss Ratio</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-app-card border border-app space-y-1">
-              <span className="text-xs text-app-sec font-semibold block">Risk / Reward Ratio</span>
-              <div className="text-2xl font-black text-amber-500 font-mono">1:{analytics.riskRewardRatio}</div>
-              <span className="text-[10px] text-app-sec font-medium">Average Win vs Average Loss</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-app-card border border-app space-y-1">
-              <span className="text-xs text-app-sec font-semibold block">Largest Win / Loss</span>
-              <div className="text-sm font-black text-emerald-500 font-mono">+${analytics.largestWin}</div>
-              <div className="text-xs font-black text-red-500 font-mono">-${Math.abs(analytics.largestLoss)}</div>
-            </div>
-          </div>
-
-          {/* Interactive Trading Calendar Grid */}
-          <div className="p-6 rounded-2xl bg-app-card border border-app space-y-4">
-            <h3 className="text-sm font-bold text-app flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-emerald-500" />
-              <span>Practice Trading Calendar (Daily PnL Map)</span>
-            </h3>
-
-            <div className="grid grid-cols-7 gap-2 text-center text-xs">
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                <div key={day} className="text-[10px] font-bold text-app-sec uppercase">{day}</div>
-              ))}
-              {Array.from({ length: 28 }).map((_, i) => {
-                const dayNum = i + 1;
-                const pnl = (i % 3 === 0 ? -120 : (i % 2 === 0 ? 340 : 180));
-                return (
-                  <div key={i} className={`p-2.5 rounded-xl border text-left space-y-1 ${pnl >= 0 ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
-                    <span className="text-[10px] font-bold text-app-sec block">{dayNum}</span>
-                    <span className={`text-[11px] font-black font-mono block ${pnl >= 0 ? 'text-positive' : 'text-negative'}`}>
-                      {pnl >= 0 ? '+' : ''}${pnl}
-                    </span>
+          {copiedTraders.length > 0 && (
+            <div className="pt-6 border-t border-app space-y-4">
+              <h4 className="text-sm font-bold text-app flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-500" />
+                <span>Active Practice Copy Traders</span>
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {copiedTraders.map(ct => (
+                  <div key={ct.id} className="p-4 rounded-2xl bg-app-sec/40 border border-app flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                        <img src={ct.avatar} className="w-8 h-8 rounded-full" />
+                        <div>
+                          <span className="text-sm font-bold text-app">{ct.name}</span>
+                          <span className="text-[10px] text-app-sec block font-mono">Allocated: ${ct.copyAmount.toLocaleString()} USDT</span>
+                        </div>
+                     </div>
+                     <button 
+                        onClick={() => handleStopCopy(ct.id, ct.copyAmount)} 
+                        className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold transition-all cursor-pointer"
+                     >
+                       Stop Copying
+                     </button>
                   </div>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
         </div>
       )}
 
-      {/* TAB 8: PRACTICE HISTORY */}
       {activeTab === 'history' && (
         <div className="p-6 rounded-2xl bg-app-card border border-app shadow-sm space-y-4 animate-in fade-in duration-200">
           <div className="flex items-center justify-between border-b border-app pb-3">
@@ -1467,13 +1470,15 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                     <td className="py-3 uppercase font-bold text-app">
                       <span className={`px-2 py-0.5 rounded text-[10px] ${
                         entry.type === 'refill' ? 'bg-blue-500/10 text-blue-500' :
-                        entry.type === 'trade_profit' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+                        entry.type === 'trade_profit' ? 'bg-emerald-500/10 text-emerald-500' : 
+                        ['spot_execution', 'margin_lock', 'copy_allocation'].includes(entry.type as string) ? 'bg-amber-500/10 text-amber-500' :
+                        'bg-red-500/10 text-red-500'
                       }`}>
-                        {entry.type}
+                        {(entry.type as string).replace('_', ' ')}
                       </span>
                     </td>
                     <td className="py-3 text-app">{entry.description}</td>
-                    <td className={`py-3 text-right font-extrabold ${entry.amount >= 0 ? 'text-positive' : 'text-negative'}`}>
+                    <td className={`py-3 text-right font-extrabold font-mono ${entry.amount >= 0 ? 'text-positive' : 'text-negative'}`}>
                       {entry.amount >= 0 ? '+' : ''}${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 text-right text-app font-bold font-mono">
@@ -1487,11 +1492,8 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
-      {/* TAB 9: LEARNING CENTER */}
       {activeTab === 'learning' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          
-          {/* Daily Tip Card */}
           <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/30 text-white space-y-2">
             <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase">
               <Sparkles className="w-4 h-4" />
@@ -1501,7 +1503,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             <p className="text-xs text-slate-300 leading-relaxed">{MOCK_DAILY_LEARNING.dailyTip.tip}</p>
           </div>
 
-          {/* Course Difficulty Selector */}
           <div className="flex items-center gap-2 border-b border-app pb-2">
             {(['Beginner', 'Intermediate', 'Advanced'] as const).map(path => (
               <button
@@ -1516,7 +1517,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             ))}
           </div>
 
-          {/* Lessons Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {ACADEMY_LESSONS.filter(l => l.path === learningPath).map(lesson => (
               <div
@@ -1536,7 +1536,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             ))}
           </div>
 
-          {/* Active Lesson Reader & Interactive Quiz */}
           {currentLesson && (
             <div className="p-6 rounded-3xl bg-app-card border border-app space-y-6">
               <div className="border-b border-app pb-4">
@@ -1545,7 +1544,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                 <p className="text-xs text-app-sec mt-1">{currentLesson.summary}</p>
               </div>
 
-              {/* Sections */}
               <div className="space-y-4">
                 {currentLesson.sections.map((sec, i) => (
                   <div key={i} className="p-4 rounded-2xl bg-app-sec/40 space-y-2">
@@ -1555,7 +1553,6 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                 ))}
               </div>
 
-              {/* Quiz */}
               {currentLesson.quiz && currentLesson.quiz.length > 0 && (
                 <div className="p-6 rounded-2xl bg-app-sec/60 border border-app/80 space-y-4">
                   <h4 className="font-extrabold text-sm text-app flex items-center gap-2">
@@ -1572,7 +1569,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                       <div key={q.id} className="space-y-3 pt-2">
                         <p className="text-xs font-bold text-app">{q.question}</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {q.options.map((opt, optIdx) => (
+                          {(q.options || []).map((opt, optIdx) => (
                             <button
                               key={optIdx}
                               onClick={() => {
