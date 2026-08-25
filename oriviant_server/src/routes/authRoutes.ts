@@ -11,6 +11,7 @@ import {
   forgotPassword,
   verifyResetCode,
   resetPassword,
+  getReferralStats,
 } from '../controllers/authController.js';
 import { verifyToken } from '../middleware/auth.js';
 
@@ -24,6 +25,8 @@ router.get('/me', verifyToken, me);
 router.patch('/profile', verifyToken, updateProfile);
 router.post('/avatar', verifyToken, updateAvatar);
 router.get('/login-history', verifyToken, getLoginHistory);
+
+router.get('/referrals', verifyToken, getReferralStats);
 
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-reset-code', verifyResetCode);

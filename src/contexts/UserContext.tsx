@@ -26,6 +26,15 @@ import {
   INITIAL_SECURITY_STATE
 } from '../data/walletData';
 
+// 🔥 INSTANT URL CAPTURE: Runs before React Router can strip the ?ref= parameter!
+if (typeof window !== 'undefined') {
+  const params = new URLSearchParams(window.location.search);
+  const refCode = params.get('ref');
+  if (refCode) {
+    localStorage.setItem('oriviant_pending_referral', refCode);
+  }
+}
+
 interface UserProfile {
   id: string;
   email: string;
@@ -59,7 +68,6 @@ interface UserContextType {
     assetSymbol: string, amount: number, network: string, recipientAddress: string, nickname?: string, verificationCode?: string
   ) => { success: boolean; record?: WithdrawalRecord; error?: string };
   
-  // Synchronous boolean return type to match TransferModalProps expectations
   executeInternalTransfer: (assetSymbol: string, amount: number, from: WalletSubAccount, to: WalletSubAccount) => boolean;
 
   addAddressBookItem: (asset: string, network: string, nickname: string, address: string, isWhitelisted?: boolean) => void;
@@ -135,6 +143,23 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [addressBook, setAddressBook] = useState<AddressBookItem[]>(INITIAL_ADDRESS_BOOK);
   const [securityState, setSecurityState] = useState<UserSecurityState>(INITIAL_SECURITY_STATE);
   const [auditLogs, setAuditLogs] = useState<AdminAuditRecord[]>([]);
+
+  // 🔥 NEW: Auto-open Signup Modal safely if a referral code exists in memory
+  useEffect(() => {
+    if (!isLoggedIn && typeof window !== 'undefined') {
+      const pendingRef = localStorage.getItem('oriviant_pending_referral');
+      const hasAutoOpened = sessionStorage.getItem('referral_modal_opened');
+      
+      if (pendingRef && !hasAutoOpened) {
+        sessionStorage.setItem('referral_modal_opened', 'true');
+        // Slight delay ensures the UI has painted before popping the modal
+        setTimeout(() => {
+          setAuthModalTab('signup');
+          setIsAuthModalOpen(true);
+        }, 300);
+      }
+    }
+  }, [isLoggedIn]);
 
   const fetchLiveWallets = useCallback(async () => {
     try {
@@ -293,7 +318,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: userData.email || prev.email,
               nickname: userData.nickname || userData.name || prev.nickname,
               avatar: userData.avatar_url || prev.avatar,
-              isAdmin: userData.is_admin === true || userData.role === 'admin' || prev.isAdmin
+              isAdmin: userData.is_admin === true || userData.role === 'admin' || prev.isAdmin,
+              referralCode: userData.referral_code || prev.referralCode,
+              totalReferrals: Number(userData.total_referrals) || prev.totalReferrals,
+              referralEarningsUsdt: Number(userData.referral_earnings_usdt) || prev.referralEarningsUsdt
             }));
             setIsLoggedIn(true);
             await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
@@ -400,7 +428,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: userData.email || email,
           nickname: userData.nickname || userData.name || 'Trader',
           avatar: userData.avatar_url || user.avatar,
-          isAdmin: userData.is_admin === true || userData.role === 'admin' || false
+          isAdmin: userData.is_admin === true || userData.role === 'admin' || false,
+          referralCode: userData.referral_code || user.referralCode,
+          totalReferrals: Number(userData.total_referrals) || user.totalReferrals,
+          referralEarningsUsdt: Number(userData.referral_earnings_usdt) || user.referralEarningsUsdt
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
@@ -440,13 +471,19 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userObj = res.user || res.data?.user || res.data;
       
       if (token && token !== 'undefined' && userObj) {
+        // Clear pending referral once they register successfully
+        localStorage.removeItem('oriviant_pending_referral');
+
         const updatedProfile = {
           ...user,
           id: userObj.id?.toString() || '',
           email: userObj.email || userData.email,
           nickname: userObj.nickname || userObj.name || 'Trader',
           avatar: userObj.avatar_url || user.avatar,
-          isAdmin: userObj.is_admin === true || userObj.role === 'admin' || false
+          isAdmin: userObj.is_admin === true || userObj.role === 'admin' || false,
+          referralCode: userObj.referral_code || user.referralCode,
+          totalReferrals: Number(userObj.total_referrals) || user.totalReferrals,
+          referralEarningsUsdt: Number(userObj.referral_earnings_usdt) || user.referralEarningsUsdt
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);

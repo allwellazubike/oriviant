@@ -1,18 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Gift, Copy, Check, Sparkles, Users, Award, ChevronRight } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
+import { apiClient } from '../../api/client';
 
 export const ReferralView: React.FC = () => {
   const { user } = useUser();
   const [copied, setCopied] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [referralUrl, setReferralUrl] = useState('');
 
-  const referralUrl = `https://oriviant.io/register?ref=${user.referralCode}`;
+  // Dynamically generate the link based on localhost or live domain
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const baseUrl = window.location.origin; // Gets http://localhost:3000 or your real domain
+      setReferralUrl(`${baseUrl}?ref=${user.referralCode || 'PENDING'}`);
+    }
+  }, [user.referralCode]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await apiClient<any>('/auth/referrals');
+        if (res.success && res.data?.leaderboard) {
+          setLeaderboard(res.data.leaderboard);
+        }
+      } catch(err) {}
+    };
+    fetchStats();
+  }, []);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
+
+  // Fallback leaderboard if there isn't enough database data yet
+  const displayLeaderboard = leaderboard.length > 0 ? leaderboard : [
+    { nickname: 'CryptoWhale_Official', total_referrals: 1420, referral_earnings_usdt: 48950.00 },
+    { nickname: 'AlphaTrader_Club', total_referrals: 980, referral_earnings_usdt: 32140.50 },
+    { nickname: `${user.nickname} (You)`, total_referrals: user.totalReferrals, referral_earnings_usdt: user.referralEarningsUsdt },
+  ];
 
   return (
     <div className="space-y-6 pb-12">
@@ -34,11 +62,12 @@ export const ReferralView: React.FC = () => {
         
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="w-full bg-app-sec border border-app rounded-xl px-4 py-3 text-xs font-mono text-app truncate">
-            {referralUrl}
+            {referralUrl || 'Loading link...'}
           </div>
           <button
             onClick={handleCopy}
-            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-md shadow-accent/20 transition-all flex items-center justify-center gap-2 shrink-0"
+            disabled={!referralUrl}
+            className="w-full sm:w-auto px-6 py-3 rounded-xl bg-accent hover:bg-accent/90 text-white font-bold text-xs shadow-md shadow-accent/20 transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-50"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             <span>{copied ? 'Copied Link!' : 'Copy Link'}</span>
@@ -86,17 +115,15 @@ export const ReferralView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-app text-xs font-medium">
-              {[
-                { rank: '🥇 #1', name: 'CryptoWhale_Official', friends: 1420, earnings: 48950.00 },
-                { rank: '🥈 #2', name: 'AlphaTrader_Club', friends: 980, earnings: 32140.50 },
-                { rank: '🥉 #3', name: 'Alex_Vance_Oriviant (You)', friends: 24, earnings: 1840.50 },
-              ].map((row, idx) => (
+              {displayLeaderboard.map((row, idx) => (
                 <tr key={idx} className="hover:bg-app-sec/40 transition-colors">
-                  <td className="py-3 font-bold text-app">{row.rank}</td>
-                  <td className="py-3 font-extrabold text-app">{row.name}</td>
-                  <td className="py-3 text-app-sec">{row.friends} Users</td>
+                  <td className="py-3 font-bold text-app">
+                    {idx === 0 ? '🥇 #1' : idx === 1 ? '🥈 #2' : idx === 2 ? '🥉 #3' : `#${idx + 1}`}
+                  </td>
+                  <td className="py-3 font-extrabold text-app">{row.nickname}</td>
+                  <td className="py-3 text-app-sec">{row.total_referrals} Users</td>
                   <td className="py-3 text-right font-black text-emerald-500">
-                    ${row.earnings.toLocaleString()} USDT
+                    ${Number(row.referral_earnings_usdt).toLocaleString()} USDT
                   </td>
                 </tr>
               ))}

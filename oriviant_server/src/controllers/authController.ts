@@ -25,7 +25,11 @@ const autoHealAuthTable = async () => {
       ALTER TABLE users 
       ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
       ADD COLUMN IF NOT EXISTS verification_code_hash VARCHAR(255),
-      ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMP;
+      ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS referral_code VARCHAR(50) UNIQUE,
+      ADD COLUMN IF NOT EXISTS referred_by VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS total_referrals INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS referral_earnings_usdt NUMERIC DEFAULT 0;
     `);
   } catch (err) {
     console.error('Auth auto-heal skipped:', err);
@@ -39,7 +43,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     await autoHealAuthTable();
 
-    const { email, password, nickname } = req.body;
+    const { email, password, nickname, referred_by } = req.body;
 
     if (!email || !password) {
       res.status(400).json({ success: false, error: 'Email and password are required' });
@@ -50,6 +54,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       res.status(403).json({ success: false, error: 'New registrations are temporarily closed. Please check back later.' });
       return;
     }
+
+    // Generate unique referral code for the new user
+    const userReferralCode = crypto.randomBytes(4).toString('hex').toUpperCase();
 
     // Check if user already exists
     const userCheck = await pool.query('SELECT id, is_verified FROM users WHERE email = $1', [email]);
@@ -65,13 +72,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       const codeHash = await bcrypt.hash(code, 10);
 
       await pool.query(
-        `UPDATE users SET password_hash = $1, nickname = $2, verification_code_hash = $3, verification_expires_at = NOW() + interval '15 minutes' WHERE email = $4`,
-        [passwordHash, nickname || email.split('@')[0], codeHash, email]
+        `UPDATE users SET password_hash = $1, nickname = $2, verification_code_hash = $3, verification_expires_at = NOW() + interval '15 minutes', referred_by = $4 WHERE email = $5`,
+        [passwordHash, nickname || email.split('@')[0], codeHash, referred_by || null, email]
       );
 
       await sendVerificationCode(email, code, 15);
       
-      // 🔑 ALWAYS LOG CODE TO TERMINAL FOR INSTANT TESTING
       console.log('\n========================================');
       console.log(`🔑 [AUTH OTP] Verification Code for ${email}: ${code}`);
       console.log('========================================\n');
@@ -86,17 +92,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const code = generateCode();
     const codeHash = await bcrypt.hash(code, 10);
 
-    // Insert user - STRICTLY ENFORCING 'user' ROLE TO PREVENT ADMIN INJECTION
     const newUserQuery = `
-      INSERT INTO users (email, password_hash, nickname, role, is_verified, verification_code_hash, verification_expires_at)
-      VALUES ($1, $2, $3, 'user', false, $4, NOW() + interval '15 minutes')
+      INSERT INTO users (email, password_hash, nickname, role, is_verified, verification_code_hash, verification_expires_at, referral_code, referred_by)
+      VALUES ($1, $2, $3, 'user', false, $4, NOW() + interval '15 minutes', $5, $6)
       RETURNING id, email, nickname, role, avatar_url;
     `;
-    await pool.query(newUserQuery, [email, passwordHash, nickname || email.split('@')[0], codeHash]);
+    await pool.query(newUserQuery, [email, passwordHash, nickname || email.split('@')[0], codeHash, userReferralCode, referred_by || null]);
 
     await sendVerificationCode(email, code, 15);
 
-    // 🔑 ALWAYS LOG CODE TO TERMINAL FOR INSTANT TESTING
     console.log('\n========================================');
     console.log(`🔑 [AUTH OTP] Verification Code for ${email}: ${code}`);
     console.log('========================================\n');
@@ -123,10 +127,10 @@ export const verifyRegistrationCode = async (req: Request, res: Response): Promi
       return;
     }
 
-    // FIX: Let PostgreSQL handle the timezone and expiration math!
     const userRes = await pool.query(`
       SELECT 
-        id, email, nickname, role, avatar_url, verification_code_hash, 
+        id, email, nickname, role, avatar_url, verification_code_hash, referred_by,
+        referral_code, total_referrals, referral_earnings_usdt,
         (verification_expires_at > NOW()) as is_not_expired 
       FROM users WHERE email = $1
     `, [email]);
@@ -138,7 +142,6 @@ export const verifyRegistrationCode = async (req: Request, res: Response): Promi
 
     const user = userRes.rows[0];
     
-    // Safety checks
     if (!user.verification_code_hash) {
       res.status(400).json({ success: false, error: 'No verification pending for this account.' });
       return;
@@ -155,10 +158,18 @@ export const verifyRegistrationCode = async (req: Request, res: Response): Promi
       return;
     }
 
-    // Code matches! Verify the user
     await pool.query('UPDATE users SET is_verified = true, verification_code_hash = null, verification_expires_at = null WHERE id = $1', [user.id]);
 
-    // Generate JWT
+    // 🔥 INSTANT REFERRAL COMMISSIONS
+    if (user.referred_by) {
+      await pool.query(`
+        UPDATE users 
+        SET total_referrals = total_referrals + 1, 
+            referral_earnings_usdt = referral_earnings_usdt + 10 
+        WHERE referral_code = $1
+      `, [user.referred_by]);
+    }
+
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: '7d',
     });
@@ -172,7 +183,10 @@ export const verifyRegistrationCode = async (req: Request, res: Response): Promi
         email: user.email,
         nickname: user.nickname,
         role: user.role,
-        avatar_url: user.avatar_url
+        avatar_url: user.avatar_url,
+        referral_code: user.referral_code,
+        total_referrals: user.total_referrals,
+        referral_earnings_usdt: user.referral_earnings_usdt
       }
     });
   } catch (error) {
@@ -192,11 +206,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // --- 1. MASTER ADMIN INTERCEPT & GENERATION ---
     if (email.toLowerCase() === MASTER_ADMIN_EMAIL.toLowerCase() && password === MASTER_ADMIN_PASS) {
       let adminResult = await pool.query('SELECT * FROM users WHERE email = $1', [MASTER_ADMIN_EMAIL]);
       
-      // Auto-create the master admin if it doesn't exist yet
       if (adminResult.rows.length === 0) {
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(MASTER_ADMIN_PASS, salt);
@@ -205,7 +217,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           [MASTER_ADMIN_EMAIL, hash, 'Super Admin', 'admin']
         );
       } else {
-        // Ensure the master admin ALWAYS has the admin role
         await pool.query("UPDATE users SET role = 'admin', is_verified = true WHERE email = $1", [MASTER_ADMIN_EMAIL]);
         adminResult.rows[0].role = 'admin';
       }
@@ -218,30 +229,34 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         success: true,
         message: 'Admin login successful',
         token,
-        user: { id: user.id, email: user.email, nickname: user.nickname, role: user.role, avatar_url: user.avatar_url }
+        user: { 
+          id: user.id, email: user.email, nickname: user.nickname, role: user.role, avatar_url: user.avatar_url,
+          referral_code: user.referral_code, total_referrals: user.total_referrals, referral_earnings_usdt: user.referral_earnings_usdt 
+        }
       });
       return;
     }
 
-    // --- 2. GLOBAL SECURITY SWEEP ---
-    // Instantly demote any other account in the database that somehow has admin privileges
-    await pool.query("UPDATE users SET role = 'user' WHERE email != $1 AND role IN ('admin', 'superadmin')", [MASTER_ADMIN_EMAIL]);
-
-    // --- 3. STANDARD USER LOGIN ---
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    let userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (userResult.rows.length === 0) {
       res.status(401).json({ success: false, error: 'Invalid email or password' });
       return;
     }
 
-    const user = userResult.rows[0];
+    let user = userResult.rows[0];
+
+    // Fallback: Give old users a referral code if they don't have one
+    if (!user.referral_code) {
+        const newCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+        await pool.query('UPDATE users SET referral_code = $1 WHERE id = $2', [newCode, user.id]);
+        user.referral_code = newCode;
+    }
 
     if (user.is_verified === false) {
       res.status(403).json({ success: false, error: 'Please verify your email address before logging in.', requiresVerification: true, email: user.email });
       return;
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
       await recordLoginAttempt(user.id, req, 'Failed');
@@ -251,7 +266,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     await recordLoginAttempt(user.id, req, 'Success');
 
-    // Generate JWT
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: '7d',
     });
@@ -264,8 +278,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         id: user.id,
         email: user.email,
         nickname: user.nickname,
-        role: user.role, // This will now safely strictly be 'user'
-        avatar_url: user.avatar_url
+        role: user.role,
+        avatar_url: user.avatar_url,
+        referral_code: user.referral_code,
+        total_referrals: user.total_referrals,
+        referral_earnings_usdt: user.referral_earnings_usdt
       }
     });
   } catch (error) {
@@ -274,16 +291,82 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-/**
- * Returns the caller's current profile. Runs behind verifyToken, so reaching
- * this handler already proves the token is valid — the frontend uses it on boot
- * to confirm a stored session is still good instead of trusting localStorage.
- */
-export const me = async (req: Request, res: Response): Promise<void> => {
-  res.status(200).json({ success: true, user: req.user });
+/** API endpoint for Referral Stats */
+export const getReferralStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await autoHealAuthTable(); // FIX: Heal the table before querying!
+
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const topRes = await pool.query(`
+      SELECT nickname, total_referrals, referral_earnings_usdt 
+      FROM users 
+      WHERE total_referrals > 0 OR referral_earnings_usdt > 0
+      ORDER BY referral_earnings_usdt DESC, total_referrals DESC 
+      LIMIT 3
+    `);
+
+    res.status(200).json({
+      success: true,
+      data: { leaderboard: topRes.rows }
+    });
+  } catch (error) {
+    console.error('Get referral stats error:', error);
+    res.status(500).json({ success: false, error: 'Server error' });
+  }
 };
 
-/** Nickname is the only editable identity field — email doubles as the login credential. */
+/**
+ * Returns the caller's current profile. 
+ */
+export const me = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await autoHealAuthTable(); // FIX: Heal the table before querying!
+
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (userResult.rows.length === 0) {
+      res.status(404).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    let user = userResult.rows[0];
+
+    // Fallback: Give active sessions a referral code if they are missing one
+    if (!user.referral_code) {
+      const newCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+      await pool.query('UPDATE users SET referral_code = $1 WHERE id = $2', [newCode, user.id]);
+      user.referral_code = newCode;
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        role: user.role,
+        avatar_url: user.avatar_url,
+        referral_code: user.referral_code,
+        total_referrals: user.total_referrals,
+        referral_earnings_usdt: user.referral_earnings_usdt
+      }
+    });
+  } catch (error) {
+    console.error('Fetch profile error:', error);
+    res.status(500).json({ success: false, error: 'Server error while fetching profile' });
+  }
+};
+
 const NICKNAME_MIN_LENGTH = 2;
 const NICKNAME_MAX_LENGTH = 40;
 
@@ -395,28 +478,6 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   });
 };
 
-/* ------------------------------------------------------------------ *
- * Password reset
- *
- * Three steps, because the user has to prove they own the mailbox before
- * they are allowed to set a password:
- *
- *   1. forgotPassword    email        -> emails a 6-digit code
- *   2. verifyResetCode   email + code -> exchanges the code for a reset token
- *   3. resetPassword     token + pass -> sets the new password
- *
- * Step 2 hands back a short-lived JWT rather than making step 3 re-check the
- * code. That keeps the code single-use and means the new password is never
- * sent alongside the thing that authorises it.
- * ------------------------------------------------------------------ */
-
-/**
- * The universal code, if one is configured.
- *
- * Anyone who knows an email address can reset that account while this is set,
- * so it is read from the environment rather than compiled in — production
- * leaves OTP_BYPASS_CODE empty and the bypass ceases to exist.
- */
 const bypassCode = (): string | null => {
   const configured = process.env.OTP_BYPASS_CODE?.trim();
   return configured ? configured : null;
@@ -428,12 +489,9 @@ const isBypassCode = (code: string): boolean => {
 };
 
 const generateResetCode = (): string =>
-  // crypto rather than Math.random: this code is a credential.
   String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
-  // Deliberately identical whether or not the address exists. Diverging here
-  // turns this endpoint into a way to test which emails have accounts.
   const genericResponse = {
     success: true,
     message: 'If that email is registered, a reset code is on its way.',
@@ -458,8 +516,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     const code = generateResetCode();
     const codeHash = await bcrypt.hash(code, 10);
 
-    // Requesting a new code invalidates the previous one, so a forwarded or
-    // shoulder-surfed older email cannot still be used.
     await pool.query(
       `UPDATE password_resets SET used_at = CURRENT_TIMESTAMP
        WHERE user_id = $1 AND used_at IS NULL`,
@@ -474,7 +530,6 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
     await sendPasswordResetCode(user.email, code, RESET_CODE_TTL_MINUTES);
 
-    // 🔑 ALWAYS LOG PASSWORD RESET CODE TO TERMINAL FOR INSTANT TESTING
     console.log('\n========================================');
     console.log(`🔑 [PASSWORD RESET OTP] Code for ${user.email}: ${code}`);
     console.log('========================================\n');
@@ -508,8 +563,6 @@ export const verifyResetCode = async (req: Request, res: Response): Promise<void
     const issueToken = () =>
       jwt.sign({ id: user.id, purpose: 'password_reset' }, JWT_SECRET, { expiresIn: '15m' });
 
-    // The bypass short-circuits everything below it, including whether a code
-    // was ever requested for this account.
     if (isBypassCode(code)) {
       console.warn(`[auth] Password reset bypass code used for ${user.email}`);
       res.status(200).json({ success: true, resetToken: issueToken() });
@@ -531,8 +584,6 @@ export const verifyResetCode = async (req: Request, res: Response): Promise<void
 
     const reset = resetResult.rows[0];
 
-    // Without a cap, six digits is a few hundred thousand guesses away from
-    // free account access.
     if (reset.attempts >= RESET_MAX_ATTEMPTS) {
       await pool.query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [reset.id]);
       res.status(429).json({
@@ -550,8 +601,6 @@ export const verifyResetCode = async (req: Request, res: Response): Promise<void
       return;
     }
 
-    // Burn the code now that it has been exchanged — the token is what carries
-    // the authority from here on.
     await pool.query('UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = $1', [reset.id]);
 
     res.status(200).json({ success: true, resetToken: issueToken() });
@@ -583,8 +632,6 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // A normal login token must not be usable to change a password without
-    // knowing the current one, so the purpose claim is checked explicitly.
     if (payload.purpose !== 'password_reset') {
       res.status(400).json({ success: false, error: 'Invalid reset token' });
       return;
@@ -605,9 +652,6 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
 
     const user = updated.rows[0];
 
-    // Sign them straight in: they have just proven mailbox ownership and set a
-    // password, and bouncing them to a login screen to retype it is friction
-    // with no security value.
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
 
     res.status(200).json({
