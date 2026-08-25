@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Star, ArrowUpDown, Zap, ArrowUpRight, ArrowDownRight, Layers } from 'lucide-react';
+import { Search, Star, ArrowUpDown, Zap, ArrowUpRight, ArrowDownRight, Layers, RefreshCw } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { useLocalization } from '../../contexts/LocalizationContext';
 import { NavigationTab } from '../../types';
@@ -18,6 +18,9 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
   const [sortField, setSortField] = useState<'name' | 'price' | 'change24h' | 'volume24h'>('volume24h');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [liveData, setLiveData] = useState<Record<string, any>>({});
+  
+  // 🔥 FIX: Added a loading state for the Sync Button
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Connect to WebSocket and listen for live market ticks
   useEffect(() => {
@@ -111,6 +114,16 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
     return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
   });
 
+  // 🔥 FIX: Animated handler for the Sync button
+  const handleSyncClick = async () => {
+    setIsSyncing(true);
+    await manualRefreshFeed();
+    // A slight delay guarantees the user sees the spin animation complete
+    setTimeout(() => {
+      setIsSyncing(false);
+    }, 600);
+  };
+
   return (
     <div className="space-y-6 pb-12">
       
@@ -153,10 +166,12 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
         </div>
 
         <button
-          onClick={manualRefreshFeed}
-          className="px-3 py-1.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app text-xs font-semibold border border-app transition-colors flex items-center gap-1.5 cursor-pointer ml-auto"
+          onClick={handleSyncClick}
+          disabled={isSyncing}
+          className="px-3 py-1.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app text-xs font-semibold border border-app transition-colors flex items-center gap-1.5 cursor-pointer ml-auto disabled:opacity-50"
         >
-          <span>{t('markets.syncFeedNow')}</span>
+          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-accent' : ''}`} />
+          <span>{isSyncing ? 'Syncing...' : t('markets.syncFeedNow')}</span>
         </button>
       </div>
 
