@@ -44,7 +44,7 @@ interface TradingContextType {
   feedStatus: MarketFeedStatus;
   categoryConfig: MarketCategoryConfig;
   toggleCategoryFeed: (category: keyof MarketCategoryConfig) => void;
-  manualRefreshFeed: () => void;
+  manualRefreshFeed: () => Promise<void>; // 🔥 FIX: Updated to Promise
   refreshLiveOrders: () => Promise<void>;
 }
 
@@ -145,7 +145,6 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { isDemoMode } = useDemoMode();
   const [coins, setCoins] = useState<CryptoCoin[]>([]);
   
-  // 🔥 FIX: Persist active coin selection safely through page reloads/remounts!
   const [activeSymbol, setActiveSymbol] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('oriviant_active_coin') || 'BTC/USDT';
@@ -153,7 +152,6 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return 'BTC/USDT';
   });
 
-  // Automatically update localStorage whenever we change coins
   const setActiveCoinSymbol = (symbol: string) => {
     setActiveSymbol(symbol);
     if (typeof window !== 'undefined') {
@@ -192,7 +190,6 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const dbRes = await apiClient<any>('/admin/markets').catch(() => ({ data: [] }));
       let liveAssets = Array.isArray(dbRes) ? dbRes : (dbRes.data || []);
       
-      // Merge our DEFAULT_MARKETS if they are missing from the backend database
       const existingSymbols = new Set(liveAssets.map((a: any) => a.symbol));
       const mergedAssets = [...liveAssets];
       
@@ -240,6 +237,15 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err) {
       console.error('Failed to load real market data:', err);
     }
+  };
+
+  // 🔥 FIX: Added async/await and clock updates to sync manual feed properly
+  const manualRefreshFeed = async () => {
+    await fetchMarketPrices();
+    setFeedStatus(prev => ({
+      ...prev,
+      lastUpdated: new Date().toLocaleTimeString()
+    }));
   };
 
   const fetchUserTradingData = async () => {
@@ -362,7 +368,6 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const toggleFavorite = (symbol: string) => setFavorites((prev) => prev.includes(symbol) ? prev.filter((s) => s !== symbol) : [...prev, symbol]);
   const toggleCategoryFeed = (cat: keyof MarketCategoryConfig) => setCategoryConfig((prev) => ({ ...prev, [cat]: !prev[cat] }));
-  const manualRefreshFeed = () => fetchMarketPrices();
 
   const placeOrder = async (order: any) => {
     if (isDemoMode) return { success: true, message: 'Demo Order Executed' };
