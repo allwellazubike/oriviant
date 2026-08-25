@@ -32,14 +32,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   });
 
   const [activeSubTab, setActiveSubTab] = useState<string | undefined>(undefined);
-  const [activeSymbol, setActiveSymbol] = useState<string | undefined>('BTC/USDT');
+  
+  // 🔥 FIX: Read initial symbol straight from memory so it aligns with TradingContext
+  const [activeSymbol, setActiveSymbol] = useState<string | undefined>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('oriviant_active_coin') || 'BTC/USDT';
+    }
+    return 'BTC/USDT';
+  });
 
   // Internal Navigation History Stack
   const historyStack = useRef<NavigationState[]>([
     {
       tab: activeTab,
       subTab: undefined,
-      symbol: 'BTC/USDT',
+      symbol: typeof window !== 'undefined' ? (localStorage.getItem('oriviant_active_coin') || 'BTC/USDT') : 'BTC/USDT',
       scrollY: 0
     }
   ]);
@@ -53,7 +60,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const initialState = {
       tab: activeTab,
       subTab: undefined,
-      symbol: 'BTC/USDT',
+      symbol: typeof window !== 'undefined' ? (localStorage.getItem('oriviant_active_coin') || 'BTC/USDT') : 'BTC/USDT',
       index: 0
     };
     try {
@@ -125,10 +132,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         top.scrollY = window.scrollY;
       }
 
+      // 🔥 FIX: Pull the active symbol from localStorage if options.symbol wasn't passed 
+      const currentMemorySymbol = typeof window !== 'undefined' ? localStorage.getItem('oriviant_active_coin') : null;
+
       const newState: NavigationState = {
         tab,
         subTab: options?.subTab,
-        symbol: options?.symbol || top?.symbol || 'BTC/USDT',
+        symbol: options?.symbol || currentMemorySymbol || top?.symbol || 'BTC/USDT',
         scrollY: 0
       };
 
@@ -146,8 +156,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       setActiveTab(tab);
       setActiveSubTab(options?.subTab);
+      
+      // Update state
       if (options?.symbol) {
         setActiveSymbol(options.symbol);
+      } else if (currentMemorySymbol) {
+        setActiveSymbol(currentMemorySymbol);
       }
 
       // Scroll to top for new view

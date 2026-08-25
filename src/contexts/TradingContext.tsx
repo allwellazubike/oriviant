@@ -144,7 +144,23 @@ const TradingContext = createContext<TradingContextType | undefined>(undefined);
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isDemoMode } = useDemoMode();
   const [coins, setCoins] = useState<CryptoCoin[]>([]);
-  const [activeSymbol, setActiveSymbol] = useState<string>('BTC/USDT');
+  
+  // 🔥 FIX: Persist active coin selection safely through page reloads/remounts!
+  const [activeSymbol, setActiveSymbol] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('oriviant_active_coin') || 'BTC/USDT';
+    }
+    return 'BTC/USDT';
+  });
+
+  // Automatically update localStorage whenever we change coins
+  const setActiveCoinSymbol = (symbol: string) => {
+    setActiveSymbol(symbol);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('oriviant_active_coin', symbol);
+    }
+  };
+
   const [favorites, setFavorites] = useState<string[]>(['BTC/USDT', 'ETH/USDT', 'SOL/USDT']);
   const [priceFlashes, setPriceFlashes] = useState<Record<string, 'up' | 'down' | null>>({});
 
@@ -217,7 +233,8 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         setCoins(dynamicCoins);
         if (!dynamicCoins.find(c => c.symbol === activeSymbol) && dynamicCoins.length > 0) {
-          setActiveSymbol(dynamicCoins[0].symbol);
+          const defaultCoin = dynamicCoins[0].symbol;
+          setActiveCoinSymbol(defaultCoin);
         }
       }
     } catch (err) {
@@ -343,7 +360,6 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => clearInterval(interval);
   }, [activeCoin?.price, activeCoin?.precision]);
 
-  const setActiveCoinSymbol = (symbol: string) => setActiveSymbol(symbol);
   const toggleFavorite = (symbol: string) => setFavorites((prev) => prev.includes(symbol) ? prev.filter((s) => s !== symbol) : [...prev, symbol]);
   const toggleCategoryFeed = (cat: keyof MarketCategoryConfig) => setCategoryConfig((prev) => ({ ...prev, [cat]: !prev[cat] }));
   const manualRefreshFeed = () => fetchMarketPrices();

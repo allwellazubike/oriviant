@@ -39,16 +39,22 @@ export const SpotTradingView: React.FC = () => {
   const [activeBottomTab, setActiveBottomTab] = useState<'open' | 'history'>('open');
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [prevSymbol, setPrevSymbol] = useState<string | null>(null);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   useOverlayRegistration('spot-confirm-modal', isConfirmModalOpen, () => setIsConfirmModalOpen(false));
 
-  // Auto-set the limit price slightly below/above market so it's never 0
+  // 🔥 FIX: Reset the Limit Price automatically if the active coin changes!
   useEffect(() => {
-    if (activeCoin && (!limitPrice || limitPrice === '0' || limitPrice === '')) {
+    if (!activeCoin) return;
+
+    if (activeCoin.symbol !== prevSymbol) {
+      setLimitPrice((activeCoin.price * 0.995).toFixed(activeCoin.precision));
+      setPrevSymbol(activeCoin.symbol);
+    } else if (!limitPrice || limitPrice === '0' || limitPrice === '') {
       setLimitPrice((activeCoin.price * 0.995).toFixed(activeCoin.precision));
     }
-  }, [activeCoin, limitPrice]);
+  }, [activeCoin, limitPrice, prevSymbol]);
 
   if (!activeCoin) {
     return (

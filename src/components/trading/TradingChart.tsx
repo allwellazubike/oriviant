@@ -67,11 +67,6 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
     containerRef.current.innerHTML = '';
     
     const formattedSymbol = resolveTVSymbol(activeCoin.symbol);
-
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/tv.js";
-    script.type = "text/javascript";
-    script.async = true;
     
     // Generate a unique ID for the container mount
     const widgetId = `tv_chart_${Math.random().toString(36).substring(7)}`;
@@ -82,7 +77,8 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
     innerDiv.className = "w-full h-full";
     containerRef.current.appendChild(innerDiv);
 
-    script.onload = () => {
+    // 🔥 FIX: Extracted the initialization logic so it can run immediately if TV is already cached!
+    const initWidget = () => {
       if (window.TradingView) {
         new window.TradingView.widget({
           autosize: true,
@@ -107,8 +103,18 @@ export const TradingChart: React.FC<TradingChartProps> = memo(({ height = 460 })
         });
       }
     };
-    
-    containerRef.current.appendChild(script);
+
+    // If the script is already in the browser, instantly render. Otherwise, load it!
+    if (!window.TradingView) {
+      const script = document.createElement("script");
+      script.src = "https://s3.tradingview.com/tv.js";
+      script.type = "text/javascript";
+      script.async = true;
+      script.onload = initWidget;
+      containerRef.current.appendChild(script);
+    } else {
+      initWidget();
+    }
 
     return () => {
       if (containerRef.current) {

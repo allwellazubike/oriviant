@@ -234,11 +234,18 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                   return (
                     <tr
                       key={coin.id}
-                      className={`hover:bg-app-sec/50 transition-colors ${flashClass}`}
+                      onClick={() => {
+                        setActiveCoinSymbol(coin.symbol);
+                        onNavigate('spot');
+                      }}
+                      className={`hover:bg-app-sec/50 transition-colors cursor-pointer ${flashClass}`}
                     >
                       <td className="py-3.5 px-4">
                         <button
-                          onClick={() => toggleFavorite(coin.symbol)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(coin.symbol);
+                          }}
                           className="p-1 text-app-sec hover:text-amber-400 transition-colors"
                         >
                           <Star className={`w-4 h-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
@@ -294,7 +301,8 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setActiveCoinSymbol(coin.symbol);
                               onNavigate('spot');
                             }}
@@ -303,7 +311,8 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                             {t('markets.spot')}
                           </button>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setActiveCoinSymbol(coin.symbol);
                               onNavigate('futures');
                             }}
