@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { withdrawalService } from '../services/withdrawalService.js';
 import { notifyWithdrawalPending, notifyWithdrawalCompleted, notifyWithdrawalRejected } from '../services/notificationService.js';
 import { logAudit } from '../services/adminService.js';
+import { sendWithdrawalPendingEmail, sendWithdrawalCompletedEmail, sendWithdrawalRejectedEmail } from '../services/emailService.js';
+import pool from '../config/db.js';
 
 export const withdrawalController = {
   requestWithdrawal: async (req: Request, res: Response) => {
@@ -26,6 +28,11 @@ export const withdrawalController = {
       );
 
       void notifyWithdrawalPending(userId, asset, Number(amount));
+
+      const userRes = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+      if (userRes.rows.length > 0 && userRes.rows[0].email) {
+        void sendWithdrawalPendingEmail(userRes.rows[0].email, amount, asset);
+      }
 
       return res.status(201).json({
         success: true,
@@ -63,16 +70,18 @@ export const withdrawalController = {
       const withdrawalId = Number(req.params.id);
       const { tx_hash } = req.body;
 
-      if (!withdrawalId) {
-        return res.status(400).json({ success: false, error: 'Invalid withdrawal ID' });
-      }
-
-      if (!tx_hash) {
-        return res.status(400).json({ success: false, error: 'Transaction hash is required for approval' });
+      if (!withdrawalId || !tx_hash) {
+        return res.status(400).json({ success: false, error: 'Invalid ID or missing transaction hash' });
       }
 
       const withdrawal = await withdrawalService.approveWithdrawal(withdrawalId, adminId, tx_hash);
       void notifyWithdrawalCompleted(withdrawal.user_id, withdrawal.asset, Number(withdrawal.amount));
+
+      const userRes = await pool.query('SELECT email FROM users WHERE id = $1', [withdrawal.user_id]);
+      if (userRes.rows.length > 0 && userRes.rows[0].email) {
+        void sendWithdrawalCompletedEmail(userRes.rows[0].email, withdrawal.amount, withdrawal.asset);
+      }
+
       void logAudit(adminId, 'APPROVE_WITHDRAWAL', 'withdrawal', withdrawalId.toString(), {
         asset: withdrawal.asset, amount: withdrawal.amount, txHash: tx_hash, userId: withdrawal.user_id
       }, req.ip);
@@ -104,6 +113,12 @@ export const withdrawalController = {
 
       const withdrawal = await withdrawalService.denyWithdrawal(withdrawalId, adminId, notes || 'Rejected by admin');
       void notifyWithdrawalRejected(withdrawal.user_id, withdrawal.asset, Number(withdrawal.amount));
+
+      const userRes = await pool.query('SELECT email FROM users WHERE id = $1', [withdrawal.user_id]);
+      if (userRes.rows.length > 0 && userRes.rows[0].email) {
+        void sendWithdrawalRejectedEmail(userRes.rows[0].email, withdrawal.amount, withdrawal.asset);
+      }
+
       void logAudit(adminId, 'DENY_WITHDRAWAL', 'withdrawal', withdrawalId.toString(), {
         asset: withdrawal.asset, amount: withdrawal.amount, notes, userId: withdrawal.user_id
       }, req.ip);

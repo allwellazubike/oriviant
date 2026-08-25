@@ -3,6 +3,7 @@ import pool from '../config/db.js';
 import { DEPOSIT_ASSETS, getDepositAsset, SUPPORTED_DEPOSIT_SYMBOLS } from '../config/depositAddresses.js';
 import { uploadDepositProof, UploadError } from '../services/uploadService.js';
 import { notifyDepositPending } from '../services/notificationService.js';
+import { sendDepositPendingEmail } from '../services/emailService.js';
 
 /**
  * The assets we accept and where to send them.
@@ -99,6 +100,12 @@ export const createDepositRequest = async (req: Request, res: Response) => {
     );
 
     void notifyDepositPending(userId, depositAsset.symbol, amount);
+
+    // Send email notification for pending deposit
+    const userRes = await pool.query('SELECT email FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length > 0 && userRes.rows[0].email) {
+      void sendDepositPendingEmail(userRes.rows[0].email, amount, depositAsset.symbol);
+    }
 
     res.status(201).json({
       success: true,

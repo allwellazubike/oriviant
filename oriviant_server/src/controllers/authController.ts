@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import pool from '../config/db.js';
 import { adminService } from '../services/adminService.js';
-import { sendPasswordResetCode } from '../services/emailService.js';
+import { sendPasswordResetCode, sendVerificationCode } from '../services/emailService.js';
 import { uploadAvatarImage, UploadError } from '../services/uploadService.js';
 import { recordLoginAttempt } from '../services/loginHistoryService.js';
 
@@ -18,8 +18,27 @@ const RESET_MAX_ATTEMPTS = 5;
 const MASTER_ADMIN_EMAIL = 'admin@oriviant.com';
 const MASTER_ADMIN_PASS = 'OriviantAdmin2026';
 
+// 🔥 DATABASE AUTO-HEALER FOR AUTH
+const autoHealAuthTable = async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS verification_code_hash VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMP;
+    `);
+  } catch (err) {
+    console.error('Auth auto-heal skipped:', err);
+  }
+};
+
+const generateCode = (): string =>
+  String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
+    await autoHealAuthTable();
+
     const { email, password, nickname } = req.body;
 
     if (!email || !password) {
@@ -33,34 +52,60 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
 
     // Check if user already exists
-    const userCheck = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const userCheck = await pool.query('SELECT id, is_verified FROM users WHERE email = $1', [email]);
     if (userCheck.rows.length > 0) {
-      res.status(400).json({ success: false, error: 'Email already in use' });
+      if (userCheck.rows[0].is_verified) {
+        res.status(400).json({ success: false, error: 'Email already in use' });
+        return;
+      }
+      // If unverified, allow updating credentials and resending code
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+      const code = generateCode();
+      const codeHash = await bcrypt.hash(code, 10);
+
+      await pool.query(
+        `UPDATE users SET password_hash = $1, nickname = $2, verification_code_hash = $3, verification_expires_at = NOW() + interval '15 minutes' WHERE email = $4`,
+        [passwordHash, nickname || email.split('@')[0], codeHash, email]
+      );
+
+      await sendVerificationCode(email, code, 15);
+      
+      // 🔑 ALWAYS LOG CODE TO TERMINAL FOR INSTANT TESTING
+      console.log('\n========================================');
+      console.log(`🔑 [AUTH OTP] Verification Code for ${email}: ${code}`);
+      console.log('========================================\n');
+
+      res.status(200).json({ success: true, message: 'Verification code sent to your email', requiresVerification: true, email });
       return;
     }
 
     // Hash password
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+    const code = generateCode();
+    const codeHash = await bcrypt.hash(code, 10);
 
     // Insert user - STRICTLY ENFORCING 'user' ROLE TO PREVENT ADMIN INJECTION
     const newUserQuery = `
-      INSERT INTO users (email, password_hash, nickname, role)
-      VALUES ($1, $2, $3, 'user')
+      INSERT INTO users (email, password_hash, nickname, role, is_verified, verification_code_hash, verification_expires_at)
+      VALUES ($1, $2, $3, 'user', false, $4, NOW() + interval '15 minutes')
       RETURNING id, email, nickname, role, avatar_url;
     `;
-    const newUser = await pool.query(newUserQuery, [email, passwordHash, nickname || email.split('@')[0]]);
+    await pool.query(newUserQuery, [email, passwordHash, nickname || email.split('@')[0], codeHash]);
 
-    // Generate JWT
-    const token = jwt.sign({ id: newUser.rows[0].id, email: newUser.rows[0].email }, JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    await sendVerificationCode(email, code, 15);
+
+    // 🔑 ALWAYS LOG CODE TO TERMINAL FOR INSTANT TESTING
+    console.log('\n========================================');
+    console.log(`🔑 [AUTH OTP] Verification Code for ${email}: ${code}`);
+    console.log('========================================\n');
 
     res.status(201).json({
       success: true,
-      message: 'Registration successful',
-      token,
-      user: newUser.rows[0]
+      message: 'Registration successful. Please enter the verification code sent to your email.',
+      requiresVerification: true,
+      email
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -68,8 +113,78 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+export const verifyRegistrationCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    await autoHealAuthTable();
+
+    const { email, code } = req.body;
+    if (!email || !code) {
+      res.status(400).json({ success: false, error: 'Email and code are required' });
+      return;
+    }
+
+    // FIX: Let PostgreSQL handle the timezone and expiration math!
+    const userRes = await pool.query(`
+      SELECT 
+        id, email, nickname, role, avatar_url, verification_code_hash, 
+        (verification_expires_at > NOW()) as is_not_expired 
+      FROM users WHERE email = $1
+    `, [email]);
+
+    if (userRes.rows.length === 0) {
+      res.status(400).json({ success: false, error: 'User not found' });
+      return;
+    }
+
+    const user = userRes.rows[0];
+    
+    // Safety checks
+    if (!user.verification_code_hash) {
+      res.status(400).json({ success: false, error: 'No verification pending for this account.' });
+      return;
+    }
+
+    if (!user.is_not_expired) {
+      res.status(400).json({ success: false, error: 'Verification code has expired. Please request a new one.' });
+      return;
+    }
+
+    const isMatch = await bcrypt.compare(code, user.verification_code_hash);
+    if (!isMatch) {
+      res.status(400).json({ success: false, error: 'Invalid verification code' });
+      return;
+    }
+
+    // Code matches! Verify the user
+    await pool.query('UPDATE users SET is_verified = true, verification_code_hash = null, verification_expires_at = null WHERE id = $1', [user.id]);
+
+    // Generate JWT
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Account verified successfully',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        role: user.role,
+        avatar_url: user.avatar_url
+      }
+    });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ success: false, error: 'Server error during verification' });
+  }
+};
+
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
+    await autoHealAuthTable();
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -86,12 +201,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(MASTER_ADMIN_PASS, salt);
         adminResult = await pool.query(
-          `INSERT INTO users (email, password_hash, nickname, role) VALUES ($1, $2, $3, $4) RETURNING *`,
+          `INSERT INTO users (email, password_hash, nickname, role, is_verified) VALUES ($1, $2, $3, $4, true) RETURNING *`,
           [MASTER_ADMIN_EMAIL, hash, 'Super Admin', 'admin']
         );
       } else {
         // Ensure the master admin ALWAYS has the admin role
-        await pool.query("UPDATE users SET role = 'admin' WHERE email = $1", [MASTER_ADMIN_EMAIL]);
+        await pool.query("UPDATE users SET role = 'admin', is_verified = true WHERE email = $1", [MASTER_ADMIN_EMAIL]);
         adminResult.rows[0].role = 'admin';
       }
 
@@ -120,6 +235,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const user = userResult.rows[0];
+
+    if (user.is_verified === false) {
+      res.status(403).json({ success: false, error: 'Please verify your email address before logging in.', requiresVerification: true, email: user.email });
+      return;
+    }
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password_hash);
@@ -352,13 +472,12 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       [user.id, codeHash, RESET_CODE_TTL_MINUTES]
     );
 
-    const sent = await sendPasswordResetCode(user.email, code, RESET_CODE_TTL_MINUTES);
+    await sendPasswordResetCode(user.email, code, RESET_CODE_TTL_MINUTES);
 
-    // A mail outage must not lock the team out during development, so the code
-    // goes to the server log too. Harmless there; never returned to the client.
-    if (!sent) {
-      console.warn(`[auth] Reset code for ${user.email}: ${code} (email delivery failed)`);
-    }
+    // 🔑 ALWAYS LOG PASSWORD RESET CODE TO TERMINAL FOR INSTANT TESTING
+    console.log('\n========================================');
+    console.log(`🔑 [PASSWORD RESET OTP] Code for ${user.email}: ${code}`);
+    console.log('========================================\n');
 
     res.status(200).json(genericResponse);
   } catch (error) {

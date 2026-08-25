@@ -1,22 +1,8 @@
 /**
  * Transactional email via Brevo's REST API.
- *
- * Uses fetch against the HTTP API rather than SMTP so there is no mail
- * dependency to install and no socket to keep alive — Node 18+ has fetch built
- * in and every send is a single request we can see the status of.
- *
- * Sending must never break the flow that triggered it: a password reset whose
- * email bounced is still a valid reset, and a deposit approval that could not
- * be announced is still an approved deposit. Every function here resolves to a
- * boolean and logs its own failure instead of throwing.
  */
 
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
-
-const FROM = {
-  email: process.env.MAIL_FROM_EMAIL || 'no-reply@oriviant.com',
-  name: process.env.MAIL_FROM_NAME || 'Oriviant Trades',
-};
 
 interface SendArgs {
   to: string;
@@ -32,6 +18,10 @@ export const sendEmail = async ({ to, subject, html }: SendArgs): Promise<boolea
     return false;
   }
 
+  // FIX: Read this dynamically inside the function so it catches .env changes!
+  const senderEmail = process.env.MAIL_FROM_EMAIL || 'no-reply@oriviant.com';
+  const senderName = process.env.MAIL_FROM_NAME || 'Oriviant Trades';
+
   try {
     const response = await fetch(BREVO_ENDPOINT, {
       method: 'POST',
@@ -41,7 +31,10 @@ export const sendEmail = async ({ to, subject, html }: SendArgs): Promise<boolea
         accept: 'application/json',
       },
       body: JSON.stringify({
-        sender: FROM,
+        sender: {
+          email: senderEmail,
+          name: senderName,
+        },
         to: [{ email: to }],
         subject,
         htmlContent: html,
@@ -50,13 +43,16 @@ export const sendEmail = async ({ to, subject, html }: SendArgs): Promise<boolea
 
     if (!response.ok) {
       const detail = await response.text();
-      console.error(`[email] Brevo rejected "${subject}" to ${to}: ${response.status} ${detail}`);
+      console.error(`[email] ❌ Brevo rejected "${subject}" to ${to}: ${response.status} ${detail}`);
       return false;
     }
 
+    // FIX: Log success so we know Brevo actually received it!
+    const data = await response.json();
+    console.log(`[email] ✅ Brevo accepted "${subject}" for ${to}. Message ID: ${data.messageId}`);
     return true;
   } catch (error) {
-    console.error(`[email] Could not send "${subject}" to ${to}:`, (error as Error).message);
+    console.error(`[email] ❌ Could not send "${subject}" to ${to}:`, (error as Error).message);
     return false;
   }
 };
@@ -77,6 +73,24 @@ const layout = (heading: string, body: string) => `
   </div>
 `;
 
+export const sendVerificationCode = (to: string, code: string, minutes: number) =>
+  sendEmail({
+    to,
+    subject: 'Verify your Oriviant account',
+    html: layout(
+      'Verify your email address',
+      `<p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0 0 20px;">
+         Enter the code below to complete your registration. It expires in ${minutes} minutes.
+       </p>
+       <div style="font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;
+                    background:#0d1117;border:1px solid #262d36;border-radius:12px;
+                    padding:20px;color:#3fb950;margin-bottom:20px;">${code}</div>
+       <p style="font-size:13px;line-height:1.7;color:#7d8590;margin:0;">
+         If you did not sign up for Oriviant, please ignore this email.
+       </p>`
+    ),
+  });
+
 export const sendPasswordResetCode = (to: string, code: string, minutes: number) =>
   sendEmail({
     to,
@@ -87,10 +101,25 @@ export const sendPasswordResetCode = (to: string, code: string, minutes: number)
          Use the code below to set a new password. It expires in ${minutes} minutes.
        </p>
        <div style="font-size:32px;font-weight:800;letter-spacing:10px;text-align:center;
-                   background:#0d1117;border:1px solid #262d36;border-radius:12px;
-                   padding:20px;color:#3fb950;margin-bottom:20px;">${code}</div>
+                    background:#0d1117;border:1px solid #262d36;border-radius:12px;
+                    padding:20px;color:#3fb950;margin-bottom:20px;">${code}</div>
        <p style="font-size:13px;line-height:1.7;color:#7d8590;margin:0;">
          If you did not request a password reset, ignore this email and your password stays as it is.
+       </p>`
+    ),
+  });
+
+export const sendDepositPendingEmail = (to: string, amount: number | string, asset: string) =>
+  sendEmail({
+    to,
+    subject: `Deposit submitted — ${amount} ${asset}`,
+    html: layout(
+      'Deposit request received',
+      `<p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0 0 12px;">
+         We have received your request to deposit <strong style="color:#3fb950;">${amount} ${asset}</strong>. 
+       </p>
+       <p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0;">
+         Our team is checking the blockchain network, and your balance will update shortly.
        </p>`
     ),
   });
@@ -124,6 +153,45 @@ export const sendDepositDenied = (to: string, asset: string) =>
        <p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0;">
          If you did send the funds, reply to this email with the transaction hash and we
          will take another look.
+       </p>`
+    ),
+  });
+
+export const sendWithdrawalPendingEmail = (to: string, amount: number | string, asset: string) =>
+  sendEmail({
+    to,
+    subject: `Withdrawal request — ${amount} ${asset}`,
+    html: layout(
+      'Withdrawal request submitted',
+      `<p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0 0 12px;">
+         We have received your withdrawal request for <strong style="color:#3fb950;">${amount} ${asset}</strong>.
+       </p>
+       <p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0;">
+         Security verification is in progress. Funds will be sent to your target address once processed.
+       </p>`
+    ),
+  });
+
+export const sendWithdrawalCompletedEmail = (to: string, amount: number | string, asset: string) =>
+  sendEmail({
+    to,
+    subject: `Withdrawal successful — ${amount} ${asset}`,
+    html: layout(
+      'Withdrawal processed',
+      `<p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0 0 12px;">
+         Your withdrawal of <strong style="color:#3fb950;">${amount} ${asset}</strong> has been successfully processed and sent on-chain.
+       </p>`
+    ),
+  });
+
+export const sendWithdrawalRejectedEmail = (to: string, amount: number | string, asset: string) =>
+  sendEmail({
+    to,
+    subject: `Withdrawal cancelled — ${amount} ${asset}`,
+    html: layout(
+      'Withdrawal request cancelled',
+      `<p style="font-size:14px;line-height:1.7;color:#c9d1d9;margin:0 0 12px;">
+         Your withdrawal request for ${amount} ${asset} was rejected or cancelled. Any deducted funds have been returned to your live wallet.
        </p>`
     ),
   });
