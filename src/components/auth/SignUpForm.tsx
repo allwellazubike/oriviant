@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   User, 
   Mail, 
@@ -78,6 +78,16 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin }) => {
   // Referral
   const [isReferralOpen, setIsReferralOpen] = useState(false);
   const [referralCode, setReferralCode] = useState('');
+
+  // Auto-detect referral code from URL or LocalStorage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref') || localStorage.getItem('oriviant_pending_referral');
+    if (ref) {
+      setReferralCode(ref.toUpperCase());
+      setIsReferralOpen(true);
+    }
+  }, []);
 
   // Terms & Updates Checkboxes
   const [agreedTerms, setAgreedTerms] = useState(false);
@@ -224,7 +234,7 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin }) => {
     try {
       await apiClient('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password, nickname: fullName })
+        body: JSON.stringify({ email, password, nickname: fullName, referred_by: referralCode })
       });
       setResendMessage(t('signup.resendDispatched') || 'New verification code sent!');
     } catch {
@@ -266,7 +276,8 @@ export const SignUpForm: React.FC<SignUpFormProps> = ({ onSwitchToLogin }) => {
         body: JSON.stringify({
           email: email.trim(),
           password,
-          nickname: fullName.trim()
+          nickname: fullName.trim(),
+          referred_by: referralCode // Send the referral code to the backend
         })
       });
 
