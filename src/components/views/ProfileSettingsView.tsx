@@ -12,9 +12,7 @@ import {
   Key,
   Zap,
   ChevronRight,
-  Smartphone,
   Mail,
-  KeyRound,
   ShieldAlert,
   Trash2,
   Clock,
@@ -156,7 +154,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
 
   return (
     <div className="space-y-6 pb-24">
-      
+
       {/* Profile Banner Card */}
       <div className="p-6 lg:p-8 rounded-3xl bg-app-card border border-app shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4 min-w-0">
@@ -299,7 +297,7 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
           <p className="text-xs text-app-sec">{t('profile.suiteDesc')}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           {/* Email Verification */}
           <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-2 flex flex-col justify-between">
@@ -316,40 +314,6 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
               <p className="text-[11px] text-app-sec font-mono truncate">{securityState.email}</p>
             </div>
             <div className="text-[10px] text-app-sec pt-2 border-t border-app">{t('profile.emailNote')}</div>
-          </div>
-
-          {/* Google 2FA Authenticator */}
-          <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-2 flex flex-col justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-app flex items-center gap-1.5">
-                  <Smartphone className="w-4 h-4 text-emerald-500" />
-                  <span>{t('profile.googleAuth')}</span>
-                </span>
-                <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-emerald-500/20 text-emerald-500">
-                  {t('profile.active')}
-                </span>
-              </div>
-              <p className="text-[11px] text-app-sec">{t('profile.totpNote')}</p>
-            </div>
-            <div className="text-[10px] text-app-sec pt-2 border-t border-app">{t('profile.protectsNote')}</div>
-          </div>
-
-          {/* Passkey / WebAuthn */}
-          <div className="p-4 rounded-2xl bg-app-sub/40 border border-app space-y-2 flex flex-col justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-app flex items-center gap-1.5">
-                  <KeyRound className="w-4 h-4 text-purple-400" />
-                  <span>{t('profile.passkey')}</span>
-                </span>
-                <span className="px-2 py-0.5 text-[9px] font-black rounded-full bg-purple-500/20 text-purple-400">
-                  {t('profile.hardwareReady')}
-                </span>
-              </div>
-              <p className="text-[11px] text-app-sec">{t('profile.passkeyNote')}</p>
-            </div>
-            <div className="text-[10px] text-app-sec pt-2 border-t border-app">{t('profile.nextGenNote')}</div>
           </div>
 
         </div>
