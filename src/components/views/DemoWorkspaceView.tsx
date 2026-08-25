@@ -65,30 +65,25 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
   const { coins } = useTrading();
   const { traders } = useCopyTrading();
 
-  // 🔥 FIX: Dedicated Demo Symbol State so dropdown changes update instantly
   const [demoActiveSymbol, setDemoActiveSymbol] = useState<string>('BTC/USDT');
 
   const currentCoin = useMemo(() => {
     return coins.find(c => c.symbol === demoActiveSymbol) || coins[0] || { symbol: 'BTC/USDT', price: 80000, change24h: 2.5, name: 'Bitcoin' };
   }, [coins, demoActiveSymbol]);
 
-  // Navigation Sub-Tab State
   const [activeTab, setActiveTab] = useState<
     'home' | 'chart' | 'spot' | 'futures' | 'watchlist' | 'copy' | 'portfolio' | 'history' | 'analytics' | 'learning'
   >('home');
 
-  // Modals & Toast State
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Spot Order State
   const [spotOrderType, setSpotOrderType] = useState<'market' | 'limit'>('market');
   const [spotSide, setSpotSide] = useState<'buy' | 'sell'>('buy');
   const [spotAmount, setSpotAmount] = useState('0.1');
   const [spotLimitPrice, setSpotLimitPrice] = useState(currentCoin.price.toString());
   const [showSpotConfirmModal, setShowSpotConfirmModal] = useState(false);
 
-  // Futures Order State
   const [futuresSymbol, setFuturesSymbol] = useState(demoActiveSymbol);
   const [futuresSide, setFuturesSide] = useState<'long' | 'short'>('long');
   const [marginMode, setMarginMode] = useState<'cross' | 'isolated'>('cross');
@@ -111,7 +106,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     amount: number;
     total: number;
     timestamp: string;
-    status: 'open' | 'filled' | 'canceled';
+    status: 'open' | 'filled' | 'canceled' | 'closed'; // 🔥 FIX: Added 'closed'
   }>>(() => {
     const saved = localStorage.getItem('oriviant_demo_open_orders');
     if (saved) {
@@ -257,6 +252,25 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
     setPracticeOpenOrders(prev => [newOrder, ...prev]);
     triggerToast(`Practice Spot ${spotSide.toUpperCase()} Order ${spotOrderType === 'limit' ? 'Placed' : 'Filled'}!`);
     setShowSpotConfirmModal(false);
+  };
+
+  // 🔥 FIX: Added logic to safely close an active Spot asset and realize the PnL
+  const handleCloseSpotTrade = (ord: any) => {
+    const currentMarketPrice = coins.find(c => c.symbol === ord.pair)?.price || ord.price;
+    const currentTotal = ord.amount * currentMarketPrice;
+    
+    // Calculate PnL
+    const pnl = ord.side === 'buy' ? currentTotal - ord.total : ord.total - currentTotal;
+    const refundAmount = ord.total + pnl;
+
+    addLedgerEntry({
+      type: pnl >= 0 ? 'trade_profit' : 'trade_loss',
+      amount: refundAmount,
+      description: `Closed Spot ${ord.side.toUpperCase()} ${ord.pair} (PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)})`
+    });
+
+    setPracticeOpenOrders(prev => prev.map(o => o.id === ord.id ? { ...o, status: 'closed' } : o));
+    triggerToast(`Closed Practice Spot Position on ${ord.pair}!`);
   };
 
   const handleCancelOpenOrder = (id: string, pair: string, total: number) => {
@@ -953,6 +967,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
             </div>
           </div>
 
+          {/* 🔥 FIX: Upgraded Spot Order History Table with powerful actions */}
           <div className="lg:col-span-3 pt-6 border-t border-app space-y-3">
             <h4 className="text-sm font-bold text-app flex items-center gap-2">
               <History className="w-4 h-4 text-emerald-500" />
@@ -988,19 +1003,37 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
                         <td className="py-3 px-2 text-right text-app">${ord.price.toLocaleString()}</td>
                         <td className="py-3 px-2 text-right text-app">{ord.amount}</td>
                         <td className="py-3 px-2 text-right">
-                          <span className={`text-[10px] font-bold uppercase ${ord.status === 'open' ? 'text-amber-500' : ord.status === 'filled' ? 'text-emerald-500' : 'text-app-sec'}`}>
-                            {ord.status}
+                          <span className={`text-[10px] font-bold uppercase ${(!ord.status && ord.type === 'limit') || ord.status === 'open' ? 'text-amber-500' : (!ord.status && ord.type === 'market') || ord.status === 'filled' ? 'text-emerald-500' : 'text-app-sec'}`}>
+                            {ord.status || (ord.type === 'limit' ? 'OPEN' : 'FILLED')}
                           </span>
                         </td>
                         <td className="py-3 px-2 text-right">
-                          {ord.status === 'open' && (
-                            <button
-                              onClick={() => handleCancelOpenOrder(ord.id, ord.pair, ord.total)}
-                              className="px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {((!ord.status && ord.type === 'limit') || ord.status === 'open') && (
+                              <button
+                                onClick={() => handleCancelOpenOrder(ord.id, ord.pair, ord.total)}
+                                className="px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-500 text-[10px] font-bold cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            {((!ord.status && ord.type === 'market') || ord.status === 'filled') && (
+                              <button
+                                onClick={() => handleCloseSpotTrade(ord)}
+                                className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-[10px] font-bold cursor-pointer"
+                              >
+                                Close
+                              </button>
+                            )}
+                            {(ord.status === 'canceled' || ord.status === 'closed') && (
+                              <button
+                                onClick={() => setPracticeOpenOrders(prev => prev.filter(o => o.id !== ord.id))}
+                                className="px-2 py-1 rounded bg-app-sec/40 hover:bg-app-sec/60 text-app-sec text-[10px] font-bold cursor-pointer"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1235,6 +1268,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
       </div>
       )}
 
+      {/* TAB 5: WATCHLIST */}
       {activeTab === 'watchlist' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-200">
           <div className="lg:col-span-2 p-6 rounded-2xl bg-app-card border border-app space-y-4">
@@ -1370,6 +1404,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
+      {/* TAB 6: COPY TRADING */}
       {activeTab === 'copy' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           <div className="p-4 rounded-2xl bg-app-card border border-app flex items-center justify-between">
@@ -1442,6 +1477,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
+      {/* TAB 8: PRACTICE HISTORY */}
       {activeTab === 'history' && (
         <div className="p-6 rounded-2xl bg-app-card border border-app shadow-sm space-y-4 animate-in fade-in duration-200">
           <div className="flex items-center justify-between border-b border-app pb-3">
@@ -1492,6 +1528,7 @@ export const DemoWorkspaceView: React.FC<DemoWorkspaceViewProps> = ({ onNavigate
         </div>
       )}
 
+      {/* TAB 9: LEARNING CENTER */}
       {activeTab === 'learning' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/60 to-slate-900 border border-emerald-500/30 text-white space-y-2">
