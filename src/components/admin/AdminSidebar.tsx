@@ -21,12 +21,14 @@ import {
   ArrowUpRight,
   Megaphone,
   Gift,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ClipboardCheck // Added Icon for KYC
 } from 'lucide-react';
 
 export type AdminTab = 
   | 'dashboard' 
   | 'users' 
+  | 'kyc' // Added KYC Tab Type
   | 'markets' 
   | 'market-feeds'
   | 'practice'
@@ -65,6 +67,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const menuItems = [
     { id: 'dashboard' as AdminTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users' as AdminTab, label: 'User Directory', icon: Users, badge: '142.8k' },
+    { id: 'kyc' as AdminTab, label: 'KYC Verification', icon: ClipboardCheck, badge: 'Review' }, // Added KYC Menu Item
     { id: 'markets' as AdminTab, label: 'Market Controls', icon: TrendingUp },
     { id: 'market-feeds' as AdminTab, label: 'Real-Time Market Feeds', icon: Radio, badge: 'Live' },
     { id: 'practice' as AdminTab, label: 'Practice Mode Desk', icon: Zap, badge: 'Simulator' },

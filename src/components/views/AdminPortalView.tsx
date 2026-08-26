@@ -24,6 +24,7 @@ import { AdminSettingsTab } from '../admin/tabs/AdminSettingsTab';
 import { AdminSecurityTab } from '../admin/tabs/AdminSecurityTab';
 import { AdminSystemLogsTab } from '../admin/tabs/AdminSystemLogsTab';
 import { AdminAuditLogTab } from '../admin/tabs/AdminAuditLogTab';
+import { AdminKycTab } from '../admin/tabs/AdminKycTab'; // Added KYC Tab Import
 
 interface AdminPortalViewProps {
   onExitToPlatform?: () => void;
@@ -118,6 +119,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatfo
         <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
           {activeTab === 'dashboard' && <AdminDashboardTab />}
           {activeTab === 'users' && <AdminUsersTab />}
+          {activeTab === 'kyc' && <AdminKycTab />} {/* Added KYC Tab Switch */}
           {activeTab === 'markets' && <AdminMarketsTab />}
           {activeTab === 'market-feeds' && <MarketFeedsManagementView />}
           {activeTab === 'practice' && <AdminPracticeTab />}

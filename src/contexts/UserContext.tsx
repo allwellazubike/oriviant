@@ -40,7 +40,7 @@ interface UserProfile {
   email: string;
   nickname: string;
   avatar: string;
-  kycLevel: 'Level 1 Basic' | 'Level 2 Verified' | 'VIP Enterprise';
+  kycLevel: string; // Updated to dynamic string to accept backend statuses
   is2FAEnabled: boolean;
   referralCode: string;
   vipLevel: number;
@@ -125,7 +125,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: '',
     nickname: '',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
-    kycLevel: 'Level 1 Basic',
+    kycLevel: 'Unverified', // Defaults to unverified globally
     is2FAEnabled: false,
     referralCode: '',
     vipLevel: 0,
@@ -333,7 +333,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               isAdmin: userData.is_admin === true || userData.role === 'admin' || prev.isAdmin,
               referralCode: userData.referral_code || prev.referralCode,
               totalReferrals: Number(userData.total_referrals) || prev.totalReferrals,
-              referralEarningsUsdt: Number(userData.referral_earnings_usdt) || prev.referralEarningsUsdt
+              referralEarningsUsdt: Number(userData.referral_earnings_usdt) || prev.referralEarningsUsdt,
+              kycLevel: userData.kyc_level || prev.kycLevel // Synced with backend dynamic response
             }));
             setIsLoggedIn(true);
             await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
@@ -419,6 +420,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setInternalTransfers([]);
     setAddressBook(INITIAL_ADDRESS_BOOK);
     
+    // 🔥 Plugs the security state leak so logs don't bleed over into the next session
+    setSecurityState(INITIAL_SECURITY_STATE); 
+    
     setIsSignOutModalOpen(false);
     window.dispatchEvent(new CustomEvent('oriviant_session_logout'));
   };
@@ -443,7 +447,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: userData.is_admin === true || userData.role === 'admin' || false,
           referralCode: userData.referral_code || user.referralCode,
           totalReferrals: Number(userData.total_referrals) || user.totalReferrals,
-          referralEarningsUsdt: Number(userData.referral_earnings_usdt) || user.referralEarningsUsdt
+          referralEarningsUsdt: Number(userData.referral_earnings_usdt) || user.referralEarningsUsdt,
+          kycLevel: userData.kyc_level || user.kycLevel // Synced with backend dynamic response
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
@@ -494,7 +499,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isAdmin: userObj.is_admin === true || userObj.role === 'admin' || false,
           referralCode: userObj.referral_code || user.referralCode,
           totalReferrals: Number(userObj.total_referrals) || user.totalReferrals,
-          referralEarningsUsdt: Number(userObj.referral_earnings_usdt) || user.referralEarningsUsdt
+          referralEarningsUsdt: Number(userObj.referral_earnings_usdt) || user.referralEarningsUsdt,
+          kycLevel: userObj.kyc_level || user.kycLevel // Synced with backend dynamic response
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);

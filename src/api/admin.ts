@@ -30,6 +30,20 @@ export const adminApi = {
     return apiClient<{ success: boolean; message: string }>(`/admin/users/${userId}`, { method: 'DELETE' });
   },
 
+  // --- KYC REVIEW ---
+  getKycApplications: async (status: string = 'PENDING') => {
+    return await apiClient<any>(`/admin/kyc?status=${status}`);
+  },
+  approveKyc: async (id: string) => {
+    return await apiClient<any>(`/admin/kyc/${id}/approve`, { method: 'POST' });
+  },
+  rejectKyc: async (id: string, reason: string) => {
+    return await apiClient<any>(`/admin/kyc/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+  },
+
   // --- DEPOSITS ---
   getDeposits: async (status: string = 'ALL') => {
     return apiClient<{ success: boolean; data: any[] }>(`/admin/deposits?status=${status}`, { method: 'GET' });

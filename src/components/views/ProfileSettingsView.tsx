@@ -29,6 +29,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useLocalization, LANGUAGE_OPTIONS, CURRENCY_OPTIONS, LanguageCode, CurrencyCode } from '../../contexts/LocalizationContext';
 import { NavigationTab } from '../../types';
 import { securityApi } from '../../api/security';
+import { KycLevel1Card } from '../kyc/KycLevel1Card';
 
 interface ProfileSettingsViewProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -218,9 +219,15 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
-                <span className="px-2.5 py-0.5 text-[10px] font-black rounded-lg bg-emerald-500/15 text-emerald-500 border border-emerald-500/20 inline-flex items-center gap-1 shrink-0">
+                <span className={`px-2.5 py-0.5 text-[10px] font-black rounded-lg border inline-flex items-center gap-1 shrink-0 ${
+                  user.kycLevel?.includes('Verified') 
+                    ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/20' 
+                    : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                    ? 'bg-amber-500/15 text-amber-500 border-amber-500/20'
+                    : 'bg-zinc-500/15 text-zinc-400 border-zinc-500/20'
+                }`}>
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>{t('profile.verified')}</span>
+                  <span>{user.kycLevel || 'Unverified'}</span>
                 </span>
               </div>
             )}
@@ -241,6 +248,9 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
           <span>{t('profile.signOut')}</span>
         </button>
       </div>
+
+      {/* KYC Level 1 Verification Section */}
+      <KycLevel1Card />
 
       {/* Security Health Score Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-purple-500/10 border border-emerald-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
