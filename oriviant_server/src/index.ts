@@ -41,6 +41,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://oriviant-mu.vercel.app', 
+  'https://oriviant-one.vercel.app',
   process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app'
 ];
 
