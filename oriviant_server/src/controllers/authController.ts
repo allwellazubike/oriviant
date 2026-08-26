@@ -186,7 +186,8 @@ export const verifyRegistrationCode = async (req: Request, res: Response): Promi
         avatar_url: user.avatar_url,
         referral_code: user.referral_code,
         total_referrals: user.total_referrals,
-        referral_earnings_usdt: user.referral_earnings_usdt
+        referral_earnings_usdt: user.referral_earnings_usdt,
+        kyc_level: 'Unverified'
       }
     });
   } catch (error) {
@@ -231,7 +232,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         token,
         user: { 
           id: user.id, email: user.email, nickname: user.nickname, role: user.role, avatar_url: user.avatar_url,
-          referral_code: user.referral_code, total_referrals: user.total_referrals, referral_earnings_usdt: user.referral_earnings_usdt 
+          referral_code: user.referral_code, total_referrals: user.total_referrals, referral_earnings_usdt: user.referral_earnings_usdt,
+          kyc_level: 'Level 2 Verified'
         }
       });
       return;
@@ -266,6 +268,22 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     await recordLoginAttempt(user.id, req, 'Success');
 
+    // Safe dynamic KYC lookup with fallback if kyc_applications table doesn't exist yet
+    let kycLevel = 'Unverified';
+    try {
+      const kycRes = await pool.query('SELECT current_level, status FROM kyc_applications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', [user.id]);
+      if (kycRes.rows.length > 0) {
+        const kyc = kycRes.rows[0];
+        if (kyc.status === 'APPROVED') {
+          kycLevel = kyc.current_level === 'LEVEL_2' ? 'Level 2 Verified' : 'Level 1 Verified';
+        } else if (kyc.status === 'PENDING') {
+          kycLevel = 'Pending Review';
+        }
+      }
+    } catch (err) {
+      // Table may not exist yet, default to Unverified
+    }
+
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, {
       expiresIn: '7d',
     });
@@ -282,7 +300,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         avatar_url: user.avatar_url,
         referral_code: user.referral_code,
         total_referrals: user.total_referrals,
-        referral_earnings_usdt: user.referral_earnings_usdt
+        referral_earnings_usdt: user.referral_earnings_usdt,
+        kyc_level: kycLevel
       }
     });
   } catch (error) {
@@ -348,6 +367,22 @@ export const me = async (req: Request, res: Response): Promise<void> => {
       user.referral_code = newCode;
     }
 
+    // Safe dynamic KYC lookup with fallback if kyc_applications table doesn't exist yet
+    let kycLevel = 'Unverified';
+    try {
+      const kycRes = await pool.query('SELECT current_level, status FROM kyc_applications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1', [user.id]);
+      if (kycRes.rows.length > 0) {
+        const kyc = kycRes.rows[0];
+        if (kyc.status === 'APPROVED') {
+          kycLevel = kyc.current_level === 'LEVEL_2' ? 'Level 2 Verified' : 'Level 1 Verified';
+        } else if (kyc.status === 'PENDING') {
+          kycLevel = 'Pending Review';
+        }
+      }
+    } catch (err) {
+      // Table may not exist yet, default to Unverified
+    }
+
     res.status(200).json({
       success: true,
       user: {
@@ -358,7 +393,8 @@ export const me = async (req: Request, res: Response): Promise<void> => {
         avatar_url: user.avatar_url,
         referral_code: user.referral_code,
         total_referrals: user.total_referrals,
-        referral_earnings_usdt: user.referral_earnings_usdt
+        referral_earnings_usdt: user.referral_earnings_usdt,
+        kyc_level: kycLevel
       }
     });
   } catch (error) {

@@ -122,7 +122,7 @@ export const getUsers = async (req: Request, res: Response) => {
       LEFT JOIN (
         SELECT
           user_id,
-          COUNT(*)                                                      AS deposit_count,
+          COUNT(*)                                                          AS deposit_count,
           COUNT(*) FILTER (WHERE status = 'PENDING')                      AS pending_count,
           MAX(created_at)                                                 AS last_deposit_at
         FROM deposit_requests
@@ -637,5 +637,116 @@ export const getUserReferrals = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error fetching user referrals:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// --- NEW KYC REVIEW ACTIONS ---
+
+export const getKycApplications = async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status as string || 'PENDING';
+    const query = `
+      SELECT k.*, u.email, u.nickname 
+      FROM kyc_applications k
+      JOIN users u ON k.user_id = u.id
+      ${status !== 'ALL' ? 'WHERE k.status = $1' : ''}
+      ORDER BY k.created_at DESC
+      LIMIT 200;
+    `;
+    const params = status !== 'ALL' ? [status.toUpperCase()] : [];
+    const result = await pool.query(query, params);
+    
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching KYC applications:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const approveKycApplication = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const kycId = req.params.id;
+    const adminId = req.user?.id;
+
+    // Lock the KYC application row
+    const kycResult = await client.query(`SELECT * FROM kyc_applications WHERE id = $1 FOR UPDATE`, [kycId]);
+    if (kycResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'KYC application not found.' });
+    }
+
+    const kyc = kycResult.rows[0];
+    const newLevel = kyc.current_level === 'LEVEL_2' ? 'Level 2 Verified' : 'Level 1 Verified';
+
+    // 1. Mark Application as Approved
+    await client.query(
+      `UPDATE kyc_applications SET status = 'APPROVED', reviewed_by = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [adminId, kycId]
+    );
+
+    // 2. Upgrade the User Profile
+    await client.query(
+      `UPDATE users SET kyc_level = $1, is_verified = true, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [newLevel, kyc.user_id]
+    );
+
+    // 3. Log the Admin Action
+    await logAudit(adminId!, 'APPROVE_KYC', 'user', kyc.user_id.toString(), { kycId, newLevel }, req.ip);
+
+    await client.query('COMMIT');
+    res.status(200).json({ success: true, message: `KYC approved. User is now ${newLevel}.` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error approving KYC:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+export const rejectKycApplication = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const kycId = req.params.id;
+    const adminId = req.user?.id;
+    const { reason } = req.body;
+
+    const kycResult = await client.query(`SELECT * FROM kyc_applications WHERE id = $1 FOR UPDATE`, [kycId]);
+    if (kycResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'KYC application not found.' });
+    }
+
+    const kyc = kycResult.rows[0];
+
+    // 1. Mark Application as Rejected
+    await client.query(
+      `UPDATE kyc_applications SET status = 'REJECTED', rejection_reason = $1, reviewed_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [reason || 'Administrative rejection', adminId, kycId]
+    );
+
+    // 2. Demote the User Profile (If they fail L2, they drop back to L1, otherwise Unverified)
+    const fallbackLevel = kyc.current_level === 'LEVEL_2' ? 'Level 1 Verified' : 'Unverified';
+    const isVerified = fallbackLevel !== 'Unverified';
+
+    await client.query(
+      `UPDATE users SET kyc_level = $1, is_verified = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [fallbackLevel, isVerified, kyc.user_id]
+    );
+
+    // 3. Log the Admin Action
+    await logAudit(adminId!, 'REJECT_KYC', 'user', kyc.user_id.toString(), { kycId, reason }, req.ip);
+
+    await client.query('COMMIT');
+    res.status(200).json({ success: true, message: `KYC application rejected.` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error rejecting KYC:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
   }
 };
