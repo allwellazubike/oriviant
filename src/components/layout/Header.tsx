@@ -441,9 +441,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
 
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
                     <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.verification')}</span>
-                    <span className="inline-flex items-center gap-1 font-bold text-emerald-500 text-xs">
+                    <span className={`inline-flex items-center gap-1 font-bold text-xs ${
+                      user.kycLevel?.includes('Verified') 
+                        ? 'text-emerald-500' 
+                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        ? 'text-amber-500'
+                        : 'text-zinc-500'
+                    }`}>
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      {t('drawer.kycLevel2')}
+                      {user.kycLevel?.includes('Verified') 
+                        ? 'KYC Level 1 Verified' 
+                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        ? 'Pending Review'
+                        : 'KYC Level 1 Unverified'}
                     </span>
                   </div>
 
@@ -457,10 +467,32 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </div>
 
                 {/* Status Banner & Theme Preference */}
-                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+                <div className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs ${
+                  user.kycLevel?.includes('Verified') 
+                    ? 'bg-emerald-500/10 border-emerald-500/20' 
+                    : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                    ? 'bg-amber-500/10 border-amber-500/20'
+                    : 'bg-zinc-500/10 border-zinc-500/20'
+                }`}>
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span className="font-bold text-emerald-500">{t('drawer.accountVerified')}</span>
+                    {user.kycLevel?.includes('Verified') ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Shield className={`w-4 h-4 shrink-0 ${user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review') ? 'text-amber-500' : 'text-zinc-500'}`} />
+                    )}
+                    <span className={`font-bold ${
+                      user.kycLevel?.includes('Verified') 
+                        ? 'text-emerald-500' 
+                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        ? 'text-amber-500'
+                        : 'text-zinc-500'
+                    }`}>
+                      {user.kycLevel?.includes('Verified') 
+                        ? t('drawer.accountVerified') 
+                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        ? 'Application Under Review'
+                        : 'Account Unverified'}
+                    </span>
                   </div>
                   <span className="text-[10px] text-app-sec font-medium">{t('drawer.dailyLimit')}</span>
                 </div>
@@ -756,8 +788,18 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     <div className="overflow-hidden min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-app truncate">{user.nickname}</span>
-                        <span className="px-1 py-0.2 text-[9px] bg-emerald-500/15 text-emerald-500 font-bold rounded shrink-0">
-                          KYC L2
+                        <span className={`px-1 py-0.2 text-[9px] font-bold rounded shrink-0 ${
+                          user.kycLevel?.includes('Verified') 
+                            ? 'bg-emerald-500/15 text-emerald-500' 
+                            : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                            ? 'bg-amber-500/15 text-amber-500'
+                            : 'bg-zinc-500/15 text-zinc-400'
+                        }`}>
+                          {user.kycLevel?.includes('Verified') 
+                            ? 'KYC L1 Verified' 
+                            : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                            ? 'Pending Review'
+                            : 'KYC L1 Unverified'}
                         </span>
                       </div>
                       <p className="text-[10px] text-app-sec truncate">{user.email}</p>
