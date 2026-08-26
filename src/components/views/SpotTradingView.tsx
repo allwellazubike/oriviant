@@ -36,15 +36,28 @@ export const SpotTradingView: React.FC = () => {
   const [orderType, setOrderType] = useState<OrderType>('limit');
   const [limitPrice, setLimitPrice] = useState<string>('');
   const [amount, setAmount] = useState<string>('0.01');
+  const [leverage, setLeverage] = useState<number>(1);
+  
   const [activeBottomTab, setActiveBottomTab] = useState<'open' | 'history'>('open');
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [prevSymbol, setPrevSymbol] = useState<string | null>(null);
+  
+  const [hiddenHistoryIds, setHiddenHistoryIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('oriviant_hidden_history');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { /* ignore */ }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('oriviant_hidden_history', JSON.stringify(hiddenHistoryIds));
+  }, [hiddenHistoryIds]);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   useOverlayRegistration('spot-confirm-modal', isConfirmModalOpen, () => setIsConfirmModalOpen(false));
 
-  // 🔥 FIX: Reset the Limit Price automatically if the active coin changes!
   useEffect(() => {
     if (!activeCoin) return;
 
@@ -68,17 +81,7 @@ export const SpotTradingView: React.FC = () => {
   const prec = activeCoin.precision;
   const currentPrice = activeCoin.price;
   const execPrice = orderType === 'market' ? currentPrice : parseFloat(limitPrice) || currentPrice;
-  const totalValue = execPrice * (parseFloat(amount) || 0);
-
-  const handlePercentageSelect = (percent: number) => {
-    if (orderSide === 'buy') {
-      const usdtAlloc = (demoBalance * percent) / 100;
-      const coinAmt = usdtAlloc / execPrice;
-      setAmount(coinAmt.toFixed(4));
-    } else {
-      setAmount((1.0 * (percent / 100)).toFixed(4));
-    }
-  };
+  const totalValue = execPrice * (parseFloat(amount) || 0) * leverage;
 
   const handleExecuteOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +103,7 @@ export const SpotTradingView: React.FC = () => {
   const executeOrderInternal = async () => {
     const numAmount = parseFloat(amount);
     const numPrice = orderType === 'market' ? currentPrice : parseFloat(limitPrice);
-    
+
     setIsSubmitting(true);
 
     if (isDemoMode) {
@@ -109,7 +112,7 @@ export const SpotTradingView: React.FC = () => {
         side: orderSide,
         type: orderType,
         price: numPrice,
-        amount: numAmount
+        amount: numAmount * leverage
       });
 
       setNotificationMsg(res.message);
@@ -124,13 +127,11 @@ export const SpotTradingView: React.FC = () => {
         market_symbol: activeCoin.symbol,
         type: orderType.toUpperCase() as 'MARKET' | 'LIMIT',
         side: orderSide.toUpperCase() as 'BUY' | 'SELL',
-        amount: numAmount,
+        amount: numAmount * leverage,
         price: orderType === 'market' ? undefined : numPrice
       });
 
       setNotificationMsg(res.message || 'Order placed successfully!');
-      
-      // Refresh DB data and switch tabs to display it
       await fetchLiveWallets();
       await refreshLiveOrders();
       setActiveBottomTab(orderType === 'market' ? 'history' : 'open');
@@ -144,6 +145,48 @@ export const SpotTradingView: React.FC = () => {
     }
   };
 
+  // 🔥 FIX: Adjusted Close Trade logic to perfectly account for the 0.1% entry fee
+  const handleCloseSpotTrade = async (ord: any) => {
+    setIsSubmitting(true);
+    try {
+      const isBuy = ord.side.toLowerCase() === 'buy';
+      const reverseSide = isBuy ? 'SELL' : 'BUY';
+      
+      // Calculate exact amount minus the 0.1% fee taken on buy orders
+      let closeAmount = parseFloat(ord.amount);
+      if (isBuy) {
+        closeAmount = closeAmount * 0.999; 
+      }
+      
+      // Truncate to 6 decimals to prevent microscopic floating-point dust errors in the DB
+      closeAmount = Math.floor(closeAmount * 1000000) / 1000000;
+
+      const res = await tradingApi.placeOrder({
+        market_symbol: ord.pair,
+        type: 'MARKET',
+        side: reverseSide,
+        amount: closeAmount
+      });
+
+      setNotificationMsg(res.message || `Successfully closed position for ${ord.pair}`);
+      await fetchLiveWallets();
+      await refreshLiveOrders();
+      
+      setHiddenHistoryIds(prev => [...prev, String(ord.id)]);
+    } catch (err: any) {
+      setNotificationMsg(err.message || 'Failed to close position.');
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => setNotificationMsg(null), 3500);
+    }
+  };
+
+  const handleClearHistory = (id: string | number) => {
+    setHiddenHistoryIds(prev => [...prev, String(id)]);
+  };
+
+  const visibleHistory = orderHistory.filter(ord => !hiddenHistoryIds.includes(String(ord.id)));
+
   return (
     <div className="space-y-4 sm:space-y-6 pb-12">
       <TradeConfirmationModal
@@ -154,7 +197,7 @@ export const SpotTradingView: React.FC = () => {
           pair: activeCoin.symbol,
           type: orderType,
           side: orderSide,
-          amount: `${amount} ${activeCoin.symbol.split('/')[0]}`,
+          amount: `${amount} ${activeCoin.symbol.split('/')[0]} (${leverage}x Lev)`,
           price: execPrice.toFixed(2)
         }}
       />
@@ -169,8 +212,6 @@ export const SpotTradingView: React.FC = () => {
                 setActiveCoinSymbol(newSymbol);
                 const matchedCoin = coins.find((c) => c.symbol === newSymbol);
                 setLimitPrice(matchedCoin?.price.toString() || '100');
-                
-                // Push the selection to the global router
                 navigate('spot', { symbol: newSymbol });
               }}
               className="appearance-none bg-app-sec font-black text-xs sm:text-sm text-app pr-7 pl-3 py-2 rounded-xl border border-app focus:outline-none focus:border-accent cursor-pointer"
@@ -334,19 +375,25 @@ export const SpotTradingView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-app-sec mb-1">Allocation %</label>
-            <div className="grid grid-cols-4 gap-1.5">
-              {[25, 50, 75, 100].map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handlePercentageSelect(pct)}
-                  className="py-2.5 text-[11px] font-bold rounded-xl bg-app-sec hover:bg-app-sec/80 text-app border border-app min-h-[44px] disabled:opacity-50"
-                >
-                  {pct}%
-                </button>
-              ))}
+            <div className="flex justify-between text-xs font-semibold text-app-sec mb-1">
+              <span>Leverage Multiplier:</span>
+              <strong className="text-amber-500 font-extrabold font-mono">{leverage}x</strong>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="125"
+              value={leverage}
+              onChange={(e) => setLeverage(parseInt(e.target.value))}
+              disabled={isSubmitting}
+              className="w-full accent-accent cursor-pointer mt-2"
+            />
+            <div className="flex justify-between text-[10px] text-app-sec font-mono mt-1">
+              <span>1x</span>
+              <span>25x</span>
+              <span>50x</span>
+              <span>75x</span>
+              <span>125x</span>
             </div>
           </div>
 
@@ -397,7 +444,7 @@ export const SpotTradingView: React.FC = () => {
               activeBottomTab === 'history' ? 'text-accent' : 'text-app-sec'
             }`}
           >
-            Order History ({orderHistory.length})
+            Order History ({visibleHistory.length})
             {activeBottomTab === 'history' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />}
           </button>
         </div>
@@ -487,68 +534,113 @@ export const SpotTradingView: React.FC = () => {
               </>
             )
           ) : (
-            <>
-              <div className="block md:hidden space-y-3">
-                {orderHistory.map((ord) => (
-                  <div key={ord.id} className="p-3.5 rounded-2xl bg-app-sec/20 border border-app space-y-2">
-                    <div className="flex items-center justify-between border-b border-app/60 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase ${
-                          ord.side === 'buy' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'
-                        }`}>
-                          {ord.side}
-                        </span>
-                        <span className="font-extrabold text-xs text-app">{ord.pair}</span>
-                        <span className="text-[10px] text-app-sec uppercase">{ord.type}</span>
+            visibleHistory.length === 0 ? (
+              <p className="text-center py-8 text-xs text-app-sec">No order history available.</p>
+            ) : (
+              <>
+                <div className="block md:hidden space-y-3">
+                  {visibleHistory.map((ord) => (
+                    <div key={ord.id} className="p-3.5 rounded-2xl bg-app-sec/20 border border-app space-y-2">
+                      <div className="flex items-center justify-between border-b border-app/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[10px] font-black rounded uppercase ${
+                            ord.side === 'buy' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-red-500/15 text-red-500'
+                          }`}>
+                            {ord.side}
+                          </span>
+                          <span className="font-extrabold text-xs text-app">{ord.pair}</span>
+                          <span className="text-[10px] text-app-sec uppercase">{ord.type}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-extrabold text-emerald-500 uppercase px-2 py-0.5 bg-emerald-500/10 rounded">
+                            {ord.status}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-[10px] font-extrabold text-emerald-500 uppercase px-2 py-0.5 bg-emerald-500/10 rounded">
-                        {ord.status}
-                      </span>
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-[10px] text-app-sec block">Execution Price</span>
-                        <span className="font-bold text-app font-mono">${ord.price.toFixed(2)}</span>
+                      <div className="grid grid-cols-2 gap-2 text-xs pb-2 border-b border-app/40">
+                        <div>
+                          <span className="text-[10px] text-app-sec block">Execution Price</span>
+                          <span className="font-bold text-app font-mono">${ord.price.toFixed(2)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] text-app-sec block">Filled Amount</span>
+                          <span className="font-bold text-app font-mono">{ord.amount}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-app-sec block">Filled Amount</span>
-                        <span className="font-bold text-app font-mono">{ord.amount}</span>
+                      
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        {ord.status?.toUpperCase() === 'FILLED' && (
+                          <button
+                            onClick={() => handleCloseSpotTrade(ord)}
+                            disabled={isSubmitting}
+                            className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-[10px] font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            Close Position
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleClearHistory(ord.id)}
+                          className="px-2 py-1 rounded bg-app-sec/40 hover:bg-app-sec/60 text-app-sec text-[10px] font-bold cursor-pointer disabled:opacity-50"
+                        >
+                          Clear
+                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-app text-[10px] font-bold text-app-sec uppercase">
-                      <th className="py-2">Pair</th>
-                      <th className="py-2">Type</th>
-                      <th className="py-2">Side</th>
-                      <th className="py-2">Price</th>
-                      <th className="py-2">Amount</th>
-                      <th className="py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-app text-xs font-medium">
-                    {orderHistory.map((ord) => (
-                      <tr key={ord.id}>
-                        <td className="py-2.5 font-bold text-app">{ord.pair}</td>
-                        <td className="py-2.5 text-app-sec uppercase">{ord.type}</td>
-                        <td className={`py-2.5 font-bold uppercase ${ord.side === 'buy' ? 'text-positive' : 'text-negative'}`}>
-                          {ord.side}
-                        </td>
-                        <td className="py-2.5 text-app font-mono">${ord.price.toFixed(2)}</td>
-                        <td className="py-2.5 text-app font-mono">{ord.amount}</td>
-                        <td className="py-2.5 font-bold text-emerald-500 uppercase">{ord.status}</td>
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-app text-[10px] font-bold text-app-sec uppercase">
+                        <th className="py-2">Pair</th>
+                        <th className="py-2">Type</th>
+                        <th className="py-2">Side</th>
+                        <th className="py-2">Price</th>
+                        <th className="py-2">Amount</th>
+                        <th className="py-2">Status</th>
+                        <th className="py-2 text-right">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                    </thead>
+                    <tbody className="divide-y divide-app text-xs font-medium">
+                      {visibleHistory.map((ord) => (
+                        <tr key={ord.id} className="hover:bg-app-sec/40 transition-colors">
+                          <td className="py-2.5 font-bold text-app">{ord.pair}</td>
+                          <td className="py-2.5 text-app-sec uppercase">{ord.type}</td>
+                          <td className={`py-2.5 font-bold uppercase ${ord.side === 'buy' ? 'text-positive' : 'text-negative'}`}>
+                            {ord.side}
+                          </td>
+                          <td className="py-2.5 text-app font-mono">${ord.price.toFixed(2)}</td>
+                          <td className="py-2.5 text-app font-mono">{ord.amount}</td>
+                          <td className="py-2.5 font-bold text-emerald-500 uppercase">{ord.status}</td>
+                          
+                          <td className="py-2.5 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {ord.status?.toUpperCase() === 'FILLED' && (
+                                <button
+                                  onClick={() => handleCloseSpotTrade(ord)}
+                                  disabled={isSubmitting}
+                                  className="px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 text-[10px] font-bold cursor-pointer disabled:opacity-50"
+                                >
+                                  Close
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleClearHistory(ord.id)}
+                                className="px-2 py-1 rounded bg-app-sec/40 hover:bg-app-sec/60 text-app-sec text-[10px] font-bold cursor-pointer disabled:opacity-50"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )
           )}
         </div>
       </div>
