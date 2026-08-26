@@ -115,10 +115,11 @@ export const transferFunds = async (req: Request, res: Response) => {
     }
 
     // 4. Log movement in ledger
+    // 🔥 FIX: Added metadata column to properly save the from_type and to_type routing path
     await client.query(
-      `INSERT INTO ledger_entries (user_id, asset_symbol, delta, balance_after, reason, ref_type)
-       VALUES ($1, $2, $3, $4, 'INTERNAL_TRANSFER', 'transfer')`,
-      [userId, cleanAsset, amount, newBalance]
+      `INSERT INTO ledger_entries (user_id, asset_symbol, delta, balance_after, reason, ref_type, metadata)
+       VALUES ($1, $2, $3, $4, 'INTERNAL_TRANSFER', 'transfer', $5)`,
+      [userId, cleanAsset, amount, newBalance, JSON.stringify({ from_type: fromTypeStr, to_type: toTypeStr })]
     );
 
     await client.query('COMMIT');
