@@ -10,7 +10,6 @@ import {
 } from './ledgerService.js';
 import { notifyOrderFilled } from './notificationService.js';
 
-/** Taker fee, charged on the asset the user receives. */
 export const FEE_RATE = 0.001; // 0.1%
 
 export class TradeError extends Error {
@@ -32,10 +31,27 @@ export interface PlaceOrderInput {
   limitPrice?: number;
 }
 
+// 🔥 FIX: Added Fiat to Crypto Aliasing
+// This ensures that when a user trades EUR/USD, the backend deducts from their USDT wallet.
+const resolveAssetAlias = (asset: string): string => {
+  const normalized = asset.toUpperCase();
+  if (['USD', 'EUR', 'GBP'].includes(normalized)) {
+    return 'USDT';
+  }
+  return normalized;
+};
+
 const splitPair = (pair: string): { base: string; quote: string } => {
-  const [base, quote] = pair.split('/');
-  if (!base || !quote) throw new TradeError(`Invalid trading pair "${pair}".`);
-  return { base: base.toUpperCase(), quote: quote.toUpperCase() };
+  const parts = pair.split('/');
+  
+  // Handle standard pairs (BTC/USDT)
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    return { base: parts[0].toUpperCase(), quote: parts[1].toUpperCase() };
+  }
+  
+  // Handle non-standard symbol names (AAPL, SPY, GER40)
+  // Base is the asset itself, Quote is the settlement currency (USDT)
+  return { base: pair.toUpperCase(), quote: 'USDT' };
 };
 
 const round = (value: number): string => value.toFixed(8);
@@ -62,6 +78,11 @@ export const placeOrder = async ({
   }
 
   const { base, quote } = splitPair(pair);
+  
+  // Resolve actual wallet ledger assets to target (e.g. USD -> USDT)
+  const ledgerBase = resolveAssetAlias(base);
+  const ledgerQuote = resolveAssetAlias(quote);
+
   const marketPrice = await getMarketPrice(pair);
 
   const client = await pool.connect();
@@ -73,8 +94,8 @@ export const placeOrder = async ({
         client,
         userId,
         pair,
-        base,
-        quote,
+        base: ledgerBase,
+        quote: ledgerQuote,
         side,
         type,
         amount,
@@ -93,8 +114,8 @@ export const placeOrder = async ({
         client,
         userId,
         pair,
-        base,
-        quote,
+        base: ledgerBase,
+        quote: ledgerQuote,
         side,
         type,
         amount,
@@ -104,10 +125,9 @@ export const placeOrder = async ({
       return result;
     }
 
-    const lockAsset = side === 'buy' ? quote : base;
+    const lockAsset = side === 'buy' ? ledgerQuote : ledgerBase;
     const lockAmount = side === 'buy' ? round(amount * price) : round(amount);
 
-    // FIX: Updated ON CONFLICT to match composite index (user_id, asset_symbol, wallet_type)
     await client.query(
       `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
        VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
@@ -163,6 +183,7 @@ const executeFill = async ({
 }: FillInput) => {
   const grossQuote = amount * fillPrice;
 
+  // Track the original symbol in the order history, regardless of aliasing
   const order = await client.query(
     `
     INSERT INTO orders
@@ -170,7 +191,7 @@ const executeFill = async ({
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'FILLED')
     RETURNING id;
     `,
-    [userId, pair, base, quote, side, type, round(amount), round(fillPrice)]
+    [userId, pair, pair.split('/')[0] || pair, pair.split('/')[1] || 'USDT', side, type, round(amount), round(fillPrice)]
   );
   const orderId = order.rows[0].id;
 
@@ -178,7 +199,6 @@ const executeFill = async ({
   let feeAsset: string;
 
   if (side === 'buy') {
-    // FIX: Updated ON CONFLICT to match composite index
     await client.query(
       `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
        VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
@@ -200,7 +220,6 @@ const executeFill = async ({
       metadata: { pair, fillPrice, grossAmount: round(amount), fee: round(fee) },
     });
   } else {
-    // FIX: Updated ON CONFLICT to match composite index
     await client.query(
       `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
        VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
@@ -249,7 +268,10 @@ export const cancelOrder = async (userId: number, orderId: number) => {
 
     const order = found.rows[0];
 
-    await unlockFunds(client, userId, order.locked_asset, order.locked_amount);
+    // Ensure we unlock the aliased asset
+    const lockedAsset = resolveAssetAlias(order.locked_asset);
+
+    await unlockFunds(client, userId, lockedAsset, order.locked_amount);
     await client.query(
       `UPDATE orders SET status = 'CANCELLED', locked_amount = 0, updated_at = CURRENT_TIMESTAMP
        WHERE id = $1;`,
@@ -285,29 +307,31 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
     const price = Number(order.limit_price);
     const grossQuote = amount * price;
 
+    const ledgerBase = resolveAssetAlias(order.base_asset);
+    const ledgerQuote = resolveAssetAlias(order.quote_asset);
+
     if (order.side === 'buy') {
       await spendLockedFunds(
         client,
         order.user_id,
-        order.quote_asset,
+        ledgerQuote,
         round(grossQuote),
         'TRADE_BUY',
         'order',
         orderId
       );
 
-      // FIX: Updated ON CONFLICT to match composite index
       await client.query(
         `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
          VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
-        [order.user_id, order.base_asset]
+        [order.user_id, ledgerBase]
       );
 
       const fee = amount * FEE_RATE;
       await applyMovement({
         client,
         userId: order.user_id,
-        asset: order.base_asset,
+        asset: ledgerBase,
         delta: round(amount - fee),
         reason: 'TRADE_BUY',
         refType: 'order',
@@ -325,25 +349,24 @@ const fillRestingOrder = async (orderId: number, marketPrice: number): Promise<b
       await spendLockedFunds(
         client,
         order.user_id,
-        order.base_asset,
+        ledgerBase,
         round(amount),
         'TRADE_SELL',
         'order',
         orderId
       );
 
-      // FIX: Updated ON CONFLICT to match composite index
       await client.query(
         `INSERT INTO wallets (user_id, asset_symbol, wallet_type, balance)
          VALUES ($1, $2, 'spot', 0) ON CONFLICT (user_id, asset_symbol, wallet_type) DO NOTHING;`,
-        [order.user_id, order.quote_asset]
+        [order.user_id, ledgerQuote]
       );
 
       const fee = grossQuote * FEE_RATE;
       await applyMovement({
         client,
         userId: order.user_id,
-        asset: order.quote_asset,
+        asset: ledgerQuote,
         delta: round(grossQuote - fee),
         reason: 'TRADE_SELL',
         refType: 'order',
