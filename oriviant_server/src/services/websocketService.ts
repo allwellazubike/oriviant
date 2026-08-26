@@ -12,7 +12,8 @@ export const websocketService = {
         origin: [
           'http://localhost:5173',
           'http://localhost:3000',
-          'https://oriviant-mu.vercel.app', 
+          'https://oriviant-mu.vercel.app',
+          'https://oriviant-one.vercel.app', // <--- Added your new live frontend URL here
           process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app'
         ],
         methods: ['GET', 'POST'],
