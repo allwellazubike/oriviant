@@ -21,7 +21,11 @@ import {
   updateUserBalance,
   deleteUserAccount,
   getUserLedger,
-  getUserReferrals
+  getUserReferrals,
+  // ---> NEW KYC REVIEW IMPORTS <---
+  getKycApplications,
+  approveKycApplication,
+  rejectKycApplication
 } from '../controllers/adminController.js';
 import { withdrawalController } from '../controllers/withdrawalController.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth.js';
@@ -56,6 +60,11 @@ router.get('/users/:id/ledger', getUserLedger);
 router.get('/users/:id/referrals', getUserReferrals);
 // We keep the generic update for roles/vip
 router.patch('/users/:id', updateUser);
+
+// --- KYC REVIEW ROUTES ---
+router.get('/kyc', getKycApplications);
+router.post('/kyc/:id/approve', approveKycApplication);
+router.post('/kyc/:id/reject', rejectKycApplication);
 
 // --- FINANCIALS ---
 router.get('/deposits', getPendingDeposits);
