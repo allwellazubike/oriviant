@@ -144,7 +144,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [securityState, setSecurityState] = useState<UserSecurityState>(INITIAL_SECURITY_STATE);
   const [auditLogs, setAuditLogs] = useState<AdminAuditRecord[]>([]);
 
-  // 🔥 NEW: Auto-open Signup Modal safely if a referral code exists in memory
   useEffect(() => {
     if (!isLoggedIn && typeof window !== 'undefined') {
       const pendingRef = localStorage.getItem('oriviant_pending_referral');
@@ -152,7 +151,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (pendingRef && !hasAutoOpened) {
         sessionStorage.setItem('referral_modal_opened', 'true');
-        // Slight delay ensures the UI has painted before popping the modal
         setTimeout(() => {
           setAuthModalTab('signup');
           setIsAuthModalOpen(true);
@@ -254,16 +252,30 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (Array.isArray(rawLedger)) {
           const mappedTransfers: InternalTransferRecord[] = rawLedger
             .filter((l: any) => l.reason === 'INTERNAL_TRANSFER' && Number(l.delta) > 0)
-            .map((t: any) => ({
-              id: `TRF-${t.id}`,
-              asset: t.asset_symbol,
-              amount: Number(t.delta),
-              usdValue: Number(t.delta), 
-              fromWallet: 'spot',
-              toWallet: 'futures',
-              status: 'Completed',
-              createdAt: t.created_at ? new Date(t.created_at).toISOString().replace('T', ' ').substring(0, 19) : ''
-            }));
+            .map((t: any) => {
+              
+              // 🔥 FIX: Dynamically parse the actual from/to wallets from backend metadata!
+              let meta: any = {};
+              try {
+                if (t.metadata) {
+                  meta = typeof t.metadata === 'string' ? JSON.parse(t.metadata) : t.metadata;
+                }
+              } catch (e) {
+                console.error("Failed to parse ledger metadata", e);
+              }
+
+              return {
+                id: `TRF-${t.id}`,
+                asset: t.asset_symbol,
+                amount: Number(t.delta),
+                usdValue: Number(t.delta), 
+                // Uses metadata if present, safely falling back to spot/futures if completely missing
+                fromWallet: meta.from_type || meta.fromWallet || meta.from || 'spot',
+                toWallet: meta.to_type || meta.toWallet || meta.to || 'futures',
+                status: 'Completed',
+                createdAt: t.created_at ? new Date(t.created_at).toISOString().replace('T', ' ').substring(0, 19) : ''
+              };
+            });
           setInternalTransfers(mappedTransfers);
         }
       }
@@ -471,7 +483,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userObj = res.user || res.data?.user || res.data;
       
       if (token && token !== 'undefined' && userObj) {
-        // Clear pending referral once they register successfully
         localStorage.removeItem('oriviant_pending_referral');
 
         const updatedProfile = {
@@ -641,6 +652,20 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { ...a, spotBalance: spot, futuresBalance: futures, fundingBalance: funding };
     }));
+
+    // 🔥 FIX: Instantly inject the correct transfer path into the UI while waiting for the backend to sync!
+    const instantTrf: InternalTransferRecord = {
+      id: `TRF-${Math.floor(10000 + Math.random() * 90000)}`,
+      asset: cleanAsset,
+      amount,
+      usdValue: amount,
+      fromWallet: from,
+      toWallet: to,
+      status: 'Completed',
+      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 19)
+    };
+    
+    setInternalTransfers((prev) => [instantTrf, ...prev]);
 
     return true;
   };

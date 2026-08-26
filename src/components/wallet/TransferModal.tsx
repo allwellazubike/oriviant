@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, ArrowRightLeft, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { WalletAssetDetail, WalletSubAccount } from '../../types/wallet';
-import { apiClient } from '../../api/client';
 import { useUser } from '../../contexts/UserContext';
 
 interface TransferModalProps {
@@ -17,7 +16,6 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   walletDetails,
   onExecuteTransfer
 }) => {
-  const { fetchLiveWallets } = useUser();
   const [selectedSymbol, setSelectedSymbol] = useState<string>('USDT');
   const [fromWallet, setFromWallet] = useState<WalletSubAccount>('spot');
   const [toWallet, setToWallet] = useState<WalletSubAccount>('futures');
@@ -47,6 +45,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     e.preventDefault();
     setMsg(null);
     const amt = parseFloat(amountInput);
+    
     if (!amt || amt <= 0) {
       setMsg({ type: 'error', text: 'Enter a valid transfer amount.' });
       return;
@@ -60,31 +59,22 @@ export const TransferModal: React.FC<TransferModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Execute the genuine backend transaction
-      const res = await apiClient<{ success: boolean; message: string }>('/transfers', {
-        method: 'POST',
-        body: JSON.stringify({
-          asset: selectedSymbol,
-          amount: amt,
-          from_wallet: fromWallet,
-          to_wallet: toWallet
-        })
-      });
-
-      if (res.success) {
-        setMsg({ type: 'success', text: `Transferred ${amt} ${selectedSymbol} from ${fromWallet.toUpperCase()} to ${toWallet.toUpperCase()} instantly with ZERO fees!` });
+      // 🔥 FIX: We MUST use the context function so the UI updates instantly with the correct dynamic path!
+      const success = onExecuteTransfer(selectedSymbol, amt, fromWallet, toWallet);
+      
+      if (success) {
+        setMsg({ type: 'success', text: `Transferred ${amt} ${selectedSymbol} from ${fromWallet.toUpperCase()} to ${toWallet.toUpperCase()} instantly!` });
         
-        // Sync the frontend balances immediately with the updated database state
-        await fetchLiveWallets();
-
         setTimeout(() => {
           setMsg(null);
           onClose();
-        }, 2000);
+        }, 1500);
+      } else {
+         setMsg({ type: 'error', text: 'Transfer failed. Check identical wallets.' });
       }
     } catch (err: any) {
-      console.error('Transfer API Error:', err);
-      setMsg({ type: 'error', text: err.message || 'Transfer failed on the server.' });
+      console.error('Transfer Error:', err);
+      setMsg({ type: 'error', text: err.message || 'Transfer failed.' });
     } finally {
       setIsSubmitting(false);
     }
