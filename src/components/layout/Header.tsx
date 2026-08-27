@@ -59,7 +59,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
   useOverlayRegistration('header-mobile-menu', isMobileMenuOpen, () => setIsMobileMenuOpen(false));
   useOverlayRegistration('header-account-drawer', isAccountDrawerOpen, () => setIsAccountDrawerOpen(false));
 
-  // Close drawers when activeTab changes or esc key pressed
   useEffect(() => {
     setIsMobileMenuOpen(false);
     setIsAccountDrawerOpen(false);
@@ -90,17 +89,16 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
     }
   };
 
+  const isAnyVerified = user.kycLevel === 'VERIFIED' || user.kycLevel2 === 'VERIFIED';
+  const isAnyPending = user.kycLevel === 'PENDING' || user.kycLevel2 === 'PENDING';
+
   return (
     <>
       <header className="sticky top-0 z-40 bg-app-card border-b border-app backdrop-blur-md transition-colors duration-200">
         
         {!isLoggedIn ? (
-          /* ========================================== */
-          /* GUEST MODE HEADER (DESKTOP & MOBILE)       */
-          /* ========================================== */
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
             
-            {/* Guest Logo */}
             <button 
               onClick={() => onNavigate('welcome')}
               className="flex items-center gap-2.5 group text-left focus:outline-none cursor-pointer"
@@ -118,9 +116,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               </div>
             </button>
 
-            {/* Guest Actions (Theme toggle on far right) */}
             <div className="flex items-center">
-              {/* Theme Toggle Button */}
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
@@ -134,10 +130,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
           </div>
         ) : (
           <>
-            {/* =============== DESKTOP HEADER (MD & UP)=========================== */}
             <div className="hidden md:flex max-w-7xl mx-auto px-6 lg:px-8 h-16 items-center justify-between gap-4">
               
-              {/* Desktop Left: Logo & Nav */}
               <div className="flex items-center gap-6">
                 <button 
                   onClick={() => onNavigate('home')}
@@ -156,7 +150,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   </div>
                 </button>
 
-                {/* Desktop Navigation Links */}
                 <nav className="flex items-center gap-1 ml-4">
                   <button
                     onClick={() => onNavigate('home')}
@@ -227,10 +220,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </nav>
               </div>
 
-              {/* Desktop Right: Search, Notifs, Theme, Profile */}
               <div className="flex items-center gap-3">
 
-                {/* Global Search Button */}
                 <button
                   onClick={openSearch}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app flex items-center gap-2 cursor-pointer"
@@ -240,7 +231,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   <span className="hidden xl:inline text-xs font-medium text-app-sec">{t('header.searchPlaceholder')}</span>
                 </button>
 
-                {/* Notifications Trigger */}
                 <button
                   onClick={openDrawer}
                   className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
@@ -254,7 +244,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   )}
                 </button>
 
-                {/* Theme Toggle Button */}
                 <button
                   onClick={toggleTheme}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app hover:bg-app-sec/80 transition-colors border border-app min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer"
@@ -263,7 +252,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
                 </button>
 
-                {/* Profile Avatar Button (Toggles Right-Side Account Drawer) */}
                 <button
                   onClick={() => setIsAccountDrawerOpen(!isAccountDrawerOpen)}
                   className="p-1 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app transition-all focus:outline-none min-h-[38px] min-w-[38px] flex items-center justify-center shrink-0 group cursor-pointer"
@@ -280,14 +268,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               </div>
             </div>
 
-            {/* ========================================== */}
-            {/* MOBILE TOP HEADER ROW (< MD)                */}
-            {/* LEFT: Logo ONLY                            */}
-            {/* RIGHT ORDER: Search | Notification | Theme | Profile | Hamburger */}
-            {/* ========================================== */}
             <div className="flex md:hidden h-14 px-3 items-center justify-between gap-1.5 border-b border-app/60">
               
-              {/* LEFT: Oriviant Logo ONLY */}
               <div className="flex items-center shrink-0">
                 <button 
                   onClick={() => onNavigate('home')}
@@ -302,10 +284,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </button>
               </div>
 
-              {/* RIGHT: Search -> Notification -> Theme Toggle -> Profile -> Hamburger */}
               <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                 
-                {/* 1. Search Icon */}
                 <button
                   onClick={openSearch}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
@@ -315,7 +295,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   <Search className="w-4 h-4" />
                 </button>
 
-                {/* 2. Notification Bell */}
                 <button
                   onClick={openDrawer}
                   className="relative p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
@@ -330,7 +309,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   )}
                 </button>
 
-                {/* 3. Theme Toggle */}
                 <button
                   onClick={toggleTheme}
                   className="p-2 rounded-xl bg-app-sec text-app-sec hover:text-app border border-app min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
@@ -340,7 +318,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   {mode === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-600" />}
                 </button>
 
-                {/* 4. Profile Avatar */}
                 <button
                   onClick={handleProfileClick}
                   className="p-0.5 rounded-xl bg-app-sec hover:bg-app-sec/80 border border-app shrink-0 min-w-[36px] min-h-[36px] flex items-center justify-center cursor-pointer"
@@ -354,7 +331,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   />
                 </button>
 
-                {/* 5. Hamburger Menu (Far Right Edge) */}
                 <button
                   onClick={() => setIsMobileMenuOpen(true)}
                   className="p-2 rounded-xl bg-app-sec text-app hover:text-accent border border-app transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none cursor-pointer"
@@ -371,24 +347,17 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
 
       </header>
 
-      {/* ========================================================= */}
-      {/* RIGHT-SIDE ACCOUNT DRAWER (DESKTOP & MOBILE)               */}
-      {/* Width: 440px on Desktop, Viewport Height, Slide from Right  */}
-      {/* ========================================================= */}
       {isAccountDrawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Dimmed Backdrop */}
           <div 
             className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
             onClick={() => setIsAccountDrawerOpen(false)}
           />
 
-          {/* Slide-in Right Panel */}
           <div 
             className="relative w-full sm:w-[440px] h-full bg-app-card border-l border-app shadow-2xl z-10 flex flex-col animate-in slide-in-from-right duration-250 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Drawer Header */}
             <div className="p-4 sm:p-5 border-b border-app flex items-center justify-between shrink-0 bg-app-card">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -403,10 +372,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               </button>
             </div>
 
-            {/* Scrollable Content Container */}
             <div className="flex-1 overflow-y-auto p-5 space-y-5 text-app">
               
-              {/* Profile Main Card */}
               <div className="p-5 rounded-2xl bg-gradient-to-b from-app-sec/50 to-app-sec/20 border border-app shadow-sm space-y-4">
                 <div className="flex items-center gap-4">
                   <img 
@@ -427,7 +394,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   </div>
                 </div>
 
-                {/* Badges and Meta Information Grid */}
                 <div className="grid grid-cols-2 gap-2 pt-2 border-t border-app/60 text-xs">
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
                     <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.accountUid')}</span>
@@ -440,56 +406,57 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.verification')}</span>
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">KYC Level 1</span>
                     <span className={`inline-flex items-center gap-1 font-bold text-xs ${
-                      user.kycLevel?.includes('Verified') 
+                      user.kycLevel === 'VERIFIED'
                         ? 'text-emerald-500' 
-                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        : user.kycLevel === 'PENDING'
                         ? 'text-amber-500'
                         : 'text-zinc-500'
                     }`}>
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      {user.kycLevel?.includes('Verified') 
-                        ? 'KYC Level 1 Verified' 
-                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
-                        ? 'Pending Review'
-                        : 'KYC Level 1 Unverified'}
+                      {user.kycLevel === 'VERIFIED' ? 'Verified' : user.kycLevel === 'PENDING' ? 'Pending' : 'Unverified'}
                     </span>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-app-card/60 border border-app/60 space-y-1">
-                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">{t('drawer.securityStatus')}</span>
-                    <span className="inline-flex items-center gap-1 font-bold text-indigo-400 text-xs">
+                    <span className="text-[10px] text-app-sec font-bold uppercase tracking-wider block">KYC Level 2</span>
+                    <span className={`inline-flex items-center gap-1 font-bold text-xs ${
+                      user.kycLevel2 === 'VERIFIED'
+                        ? 'text-emerald-500'
+                        : user.kycLevel2 === 'PENDING'
+                        ? 'text-amber-500'
+                        : 'text-zinc-500'
+                    }`}>
                       <Shield className="w-3.5 h-3.5" />
-                      {t('drawer.twoFaActive')}
+                      {user.kycLevel2 === 'VERIFIED' ? 'Verified' : user.kycLevel2 === 'PENDING' ? 'Pending' : 'Unverified'}
                     </span>
                   </div>
                 </div>
 
-                {/* Status Banner & Theme Preference */}
                 <div className={`flex items-center justify-between px-3 py-2 rounded-xl border text-xs ${
-                  user.kycLevel?.includes('Verified') 
+                  isAnyVerified
                     ? 'bg-emerald-500/10 border-emerald-500/20' 
-                    : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                    : isAnyPending
                     ? 'bg-amber-500/10 border-amber-500/20'
                     : 'bg-zinc-500/10 border-zinc-500/20'
                 }`}>
                   <div className="flex items-center gap-2">
-                    {user.kycLevel?.includes('Verified') ? (
+                    {isAnyVerified ? (
                       <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
                     ) : (
-                      <Shield className={`w-4 h-4 shrink-0 ${user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review') ? 'text-amber-500' : 'text-zinc-500'}`} />
+                      <Shield className={`w-4 h-4 shrink-0 ${isAnyPending ? 'text-amber-500' : 'text-zinc-500'}`} />
                     )}
                     <span className={`font-bold ${
-                      user.kycLevel?.includes('Verified') 
+                      isAnyVerified
                         ? 'text-emerald-500' 
-                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        : isAnyPending
                         ? 'text-amber-500'
                         : 'text-zinc-500'
                     }`}>
-                      {user.kycLevel?.includes('Verified') 
+                      {isAnyVerified
                         ? t('drawer.accountVerified') 
-                        : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
+                        : isAnyPending
                         ? 'Application Under Review'
                         : 'Account Unverified'}
                     </span>
@@ -512,7 +479,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </div>
               </div>
 
-              {/* Quick Actions / Navigation Shortcuts */}
               <div className="space-y-2">
                 <span className="text-[10px] font-bold text-app-sec uppercase tracking-wider px-1">
                   {t('drawer.quickActions')}
@@ -692,10 +658,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
 
             </div>
 
-            {/* Drawer Footer with Logout and Admin Portal (Positioned immediately ABOVE Sign Out) */}
             <div className="p-4 border-t border-app bg-app-card shrink-0 space-y-2.5">
               
-              {/* Admin Portal Option - RESTRICTED TO ADMINS ONLY */}
               {user.isAdmin && (
                 <button
                   onClick={() => {
@@ -719,7 +683,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </button>
               )}
 
-              {/* Sign Out Option */}
               <button
                 onClick={() => {
                   setIsAccountDrawerOpen(false);
@@ -736,26 +699,19 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* HAMBURGER SLIDE-OUT DRAWER FOR MOBILE (NAVIGATION DRAWER) */}
-      {/* SLIDES IN FROM RIGHT EDGE WITH ~90% (max 380px) WIDTH     */}
-      {/* ========================================================= */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex justify-end">
           
-          {/* Dimmed Backdrop */}
           <div 
             className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
             onClick={() => setIsMobileMenuOpen(false)}
           />
 
-          {/* Drawer Panel - ANCHORED TO RIGHT SIDE */}
           <div 
             className="relative w-[90vw] max-w-[380px] bg-app-card border-l border-app h-full shadow-2xl flex flex-col z-10 overflow-y-auto overscroll-contain animate-in slide-in-from-right duration-250"
             onClick={(e) => e.stopPropagation()}
           >
             
-            {/* Drawer Top Header / User Profile Section */}
             <div className="p-4 border-b border-app bg-app-sec/40 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -776,7 +732,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </button>
               </div>
 
-              {/* User Account Bar in Drawer Header */}
               {isLoggedIn ? (
                 <div className="p-3 rounded-2xl bg-app-card border border-app shadow-sm space-y-2">
                   <div className="flex items-center gap-2.5">
@@ -788,19 +743,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     <div className="overflow-hidden min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-bold text-app truncate">{user.nickname}</span>
-                        <span className={`px-1 py-0.2 text-[9px] font-bold rounded shrink-0 ${
-                          user.kycLevel?.includes('Verified') 
-                            ? 'bg-emerald-500/15 text-emerald-500' 
-                            : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
-                            ? 'bg-amber-500/15 text-amber-500'
-                            : 'bg-zinc-500/15 text-zinc-400'
-                        }`}>
-                          {user.kycLevel?.includes('Verified') 
-                            ? 'KYC L1 Verified' 
-                            : user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review')
-                            ? 'Pending Review'
-                            : 'KYC L1 Unverified'}
-                        </span>
                       </div>
                       <p className="text-[10px] text-app-sec truncate">{user.email}</p>
                     </div>
@@ -838,10 +780,8 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               )}
             </div>
 
-            {/* Drawer Categorized Navigation List */}
             <div className="flex-1 p-3 space-y-4 text-xs">
               
-              {/* CATEGORY 1: TRADING & MARKETS */}
               <div className="space-y-1">
                 <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
                   {t('mobileDrawer.tradingMarkets')}
@@ -945,7 +885,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </button>
               </div>
 
-              {/* CATEGORY 2: REWARDS & GROWTH */}
               <div className="space-y-1 pt-2 border-t border-app">
                 <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
                   {t('mobileDrawer.rewardsEducation')}
@@ -993,7 +932,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 </button>
               </div>
 
-              {/* CATEGORY 4: ACCOUNT & SUPPORT */}
               <div className="space-y-1 pt-2 border-t border-app">
                 <div className="px-3 py-1 text-[10px] font-bold text-app-sec uppercase tracking-wider">
                   {t('mobileDrawer.accountSupport')}
@@ -1038,7 +976,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
 
-                {/* Mobile Admin Portal Option - RESTRICTED TO ADMINS ONLY */}
                 {user.isAdmin && (
                   <button
                     onClick={() => handleMobileNavigate('admin')}
@@ -1070,7 +1007,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
 
             </div>
 
-            {/* Footer info in Drawer */}
             <div className="p-4 border-t border-app bg-app-sec/20 text-center text-[10px] text-app-sec">
               <p className="font-bold text-app">ORIVIANT CRYPTO EXCHANGE</p>
               <p>v2.4.0 • {t('mobileDrawer.builtForPerformance')}</p>

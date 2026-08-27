@@ -17,9 +17,9 @@ export const KycLevel1Card: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Derived state directly from user context - this ensures it ALWAYS matches the backend!
-  const isVerified = user.kycLevel?.includes('Verified');
-  const isPending = user.kycLevel?.includes('Pending') || user.kycLevel?.includes('Review');
+  // STRICT Level 1 Check: Case-insensitive and mapped strictly to user.kycLevel
+  const isVerified = user.kycLevel?.toUpperCase() === 'VERIFIED';
+  const isPending = user.kycLevel?.toUpperCase() === 'PENDING' || successMsg !== null;
   const kycStatus = isVerified ? 'VERIFIED' : isPending ? 'PENDING' : 'UNVERIFIED';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,6 +37,7 @@ export const KycLevel1Card: React.FC = () => {
       if (res.success) {
         setSuccessMsg('KYC Level 1 submitted successfully! Under review.');
         window.dispatchEvent(new CustomEvent('oriviant_refresh_wallets')); 
+        setTimeout(() => window.location.reload(), 1500); // Reload to immediately sync global state
       } else {
         setErrorMsg(res.error || 'Failed to submit KYC application.');
       }
@@ -62,11 +63,11 @@ export const KycLevel1Card: React.FC = () => {
         <span className={`px-3 py-1 text-xs font-black rounded-xl ${
           kycStatus === 'VERIFIED' 
             ? 'bg-emerald-500/15 text-emerald-500 border border-emerald-500/30' 
-            : kycStatus === 'PENDING' || successMsg
+            : kycStatus === 'PENDING'
             ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
             : 'bg-zinc-500/15 text-zinc-400 border border-zinc-500/30'
         }`}>
-          {kycStatus === 'VERIFIED' ? 'VERIFIED' : kycStatus === 'PENDING' || successMsg ? 'PENDING REVIEW' : 'UNVERIFIED'}
+          {kycStatus === 'VERIFIED' ? 'VERIFIED' : kycStatus === 'PENDING' ? 'PENDING REVIEW' : 'UNVERIFIED'}
         </span>
       </div>
 
@@ -84,7 +85,7 @@ export const KycLevel1Card: React.FC = () => {
         </div>
       )}
 
-      {kycStatus === 'PENDING' || successMsg ? (
+      {kycStatus === 'PENDING' ? (
         <div className="p-6 rounded-2xl bg-app-sub/40 border border-app text-center space-y-3">
           <Clock className="w-10 h-10 text-amber-500 mx-auto animate-pulse" />
           <h3 className="text-sm font-bold text-app">Level 1 Application Under Review</h3>

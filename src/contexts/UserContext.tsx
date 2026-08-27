@@ -7,6 +7,7 @@ import { authApi } from '../api/auth';
 import { walletApi } from '../api/wallet';
 import { depositApi } from '../api/deposits';
 import { withdrawalApi } from '../api/withdrawals';
+import { kycApi } from '../api/kyc';
 import {
   WalletAssetDetail,
   DepositRecord,
@@ -26,7 +27,6 @@ import {
   INITIAL_SECURITY_STATE
 } from '../data/walletData';
 
-// 🔥 INSTANT URL CAPTURE: Runs before React Router can strip the ?ref= parameter!
 if (typeof window !== 'undefined') {
   const params = new URLSearchParams(window.location.search);
   const refCode = params.get('ref');
@@ -40,7 +40,8 @@ interface UserProfile {
   email: string;
   nickname: string;
   avatar: string;
-  kycLevel: string; // Updated to dynamic string to accept backend statuses
+  kycLevel: string;  
+  kycLevel2: string; 
   is2FAEnabled: boolean;
   referralCode: string;
   vipLevel: number;
@@ -125,7 +126,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: '',
     nickname: '',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150',
-    kycLevel: 'Unverified', // Defaults to unverified globally
+    kycLevel: 'UNVERIFIED',
+    kycLevel2: 'UNVERIFIED',
     is2FAEnabled: false,
     referralCode: '',
     vipLevel: 0,
@@ -143,6 +145,22 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [addressBook, setAddressBook] = useState<AddressBookItem[]>(INITIAL_ADDRESS_BOOK);
   const [securityState, setSecurityState] = useState<UserSecurityState>(INITIAL_SECURITY_STATE);
   const [auditLogs, setAuditLogs] = useState<AdminAuditRecord[]>([]);
+
+  // 🔥 Strictly fetch ONLY from our dedicated KYC endpoint
+  const refreshKycStatuses = useCallback(async () => {
+    try {
+      const res = await kycApi.getStatus();
+      if (res.success) {
+        setUser((prev) => ({
+          ...prev,
+          kycLevel: res.level1 || 'UNVERIFIED',
+          kycLevel2: res.level2 || 'UNVERIFIED'
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch independent KYC statuses', err);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn && typeof window !== 'undefined') {
@@ -253,8 +271,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const mappedTransfers: InternalTransferRecord[] = rawLedger
             .filter((l: any) => l.reason === 'INTERNAL_TRANSFER' && Number(l.delta) > 0)
             .map((t: any) => {
-              
-              // 🔥 FIX: Dynamically parse the actual from/to wallets from backend metadata!
               let meta: any = {};
               try {
                 if (t.metadata) {
@@ -269,7 +285,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 asset: t.asset_symbol,
                 amount: Number(t.delta),
                 usdValue: Number(t.delta), 
-                // Uses metadata if present, safely falling back to spot/futures if completely missing
                 fromWallet: meta.from_type || meta.fromWallet || meta.from || 'spot',
                 toWallet: meta.to_type || meta.toWallet || meta.to || 'futures',
                 status: 'Completed',
@@ -310,10 +325,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleRefresh = () => {
       fetchLiveWallets();
       fetchLiveTransactions();
+      refreshKycStatuses();
     };
     window.addEventListener('oriviant_refresh_wallets', handleRefresh);
     return () => window.removeEventListener('oriviant_refresh_wallets', handleRefresh);
-  }, [fetchLiveWallets, fetchLiveTransactions]);
+  }, [fetchLiveWallets, fetchLiveTransactions, refreshKycStatuses]);
 
   useEffect(() => {
     const validateSession = async () => {
@@ -334,10 +350,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               referralCode: userData.referral_code || prev.referralCode,
               totalReferrals: Number(userData.total_referrals) || prev.totalReferrals,
               referralEarningsUsdt: Number(userData.referral_earnings_usdt) || prev.referralEarningsUsdt,
-              kycLevel: userData.kyc_level || prev.kycLevel // Synced with backend dynamic response
+              // Removed dynamic KYC base overwrite here!
             }));
             setIsLoggedIn(true);
-            await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
+            await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory(), refreshKycStatuses()]);
           } else {
             confirmLogout();
           }
@@ -350,16 +366,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
     validateSession();
-  }, [fetchLiveWallets, fetchLiveTransactions, fetchLoginHistory]);
+  }, [fetchLiveWallets, fetchLiveTransactions, fetchLoginHistory, refreshKycStatuses]);
 
   useEffect(() => {
     if (!isLoggedIn) return;
     const interval = setInterval(() => {
       fetchLiveWallets();
       fetchLiveTransactions();
+      refreshKycStatuses();
     }, 10000); 
     return () => clearInterval(interval);
-  }, [isLoggedIn, fetchLiveWallets, fetchLiveTransactions]);
+  }, [isLoggedIn, fetchLiveWallets, fetchLiveTransactions, refreshKycStatuses]);
 
   useEffect(() => {
     const fetchPricesForWallet = async () => {
@@ -419,8 +436,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setWithdrawals([]);
     setInternalTransfers([]);
     setAddressBook(INITIAL_ADDRESS_BOOK);
-    
-    // 🔥 Plugs the security state leak so logs don't bleed over into the next session
     setSecurityState(INITIAL_SECURITY_STATE); 
     
     setIsSignOutModalOpen(false);
@@ -448,12 +463,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           referralCode: userData.referral_code || user.referralCode,
           totalReferrals: Number(userData.total_referrals) || user.totalReferrals,
           referralEarningsUsdt: Number(userData.referral_earnings_usdt) || user.referralEarningsUsdt,
-          kycLevel: userData.kyc_level || user.kycLevel // Synced with backend dynamic response
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
 
-        await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
+        await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory(), refreshKycStatuses()]);
 
         localStorage.setItem('oriviant_authenticated', 'true');
         localStorage.setItem('oriviant_token', token);
@@ -500,12 +514,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           referralCode: userObj.referral_code || user.referralCode,
           totalReferrals: Number(userObj.total_referrals) || user.totalReferrals,
           referralEarningsUsdt: Number(userObj.referral_earnings_usdt) || user.referralEarningsUsdt,
-          kycLevel: userObj.kyc_level || user.kycLevel // Synced with backend dynamic response
         };
         setUser(updatedProfile);
         setIsLoggedIn(true);
 
-        await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory()]);
+        await Promise.all([fetchLiveWallets(), fetchLiveTransactions(), fetchLoginHistory(), refreshKycStatuses()]);
 
         localStorage.setItem('oriviant_authenticated', 'true');
         localStorage.setItem('oriviant_token', token);
@@ -659,7 +672,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { ...a, spotBalance: spot, futuresBalance: futures, fundingBalance: funding };
     }));
 
-    // 🔥 FIX: Instantly inject the correct transfer path into the UI while waiting for the backend to sync!
     const instantTrf: InternalTransferRecord = {
       id: `TRF-${Math.floor(10000 + Math.random() * 90000)}`,
       asset: cleanAsset,
