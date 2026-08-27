@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Search, Filter, Loader2, CheckCircle2, XCircle, Clock, Eye, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Search, Filter, Loader2, CheckCircle2, XCircle, Clock, Eye, AlertCircle, ExternalLink } from 'lucide-react';
 import { adminApi } from '../../../api/admin';
 
 export const AdminKycTab: React.FC = () => {
   const [applications, setApplications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Default changed to 'ALL' so applications remain on screen after status change
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   
@@ -38,7 +37,6 @@ export const AdminKycTab: React.FC = () => {
       const res = await adminApi.approveKyc(id);
       if (res.success) {
         setSelectedApp(null);
-        // Instant UI update: turns the row green and keeps it on screen
         setApplications((prev) => 
           prev.map((app) => app.id === id ? { ...app, status: 'APPROVED' } : app)
         );
@@ -61,7 +59,6 @@ export const AdminKycTab: React.FC = () => {
       if (res.success) {
         setSelectedApp(null);
         setRejectReason('');
-        // Instant UI update: turns the row red and keeps it on screen
         setApplications((prev) => 
           prev.map((app) => app.id === id ? { ...app, status: 'REJECTED' } : app)
         );
@@ -83,7 +80,7 @@ export const AdminKycTab: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-app">KYC Verification Center</h1>
-          <p className="text-sm text-app-sec">Review and manage user identity applications.</p>
+          <p className="text-sm text-app-sec">Review and manage user identity applications (Level 1 & Level 2).</p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -165,7 +162,7 @@ export const AdminKycTab: React.FC = () => {
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => setSelectedApp(app)}
-                        className="px-3 py-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent font-bold text-xs transition-colors flex items-center gap-1.5 ml-auto"
+                        className="px-3 py-1.5 rounded-lg bg-accent/10 hover:bg-accent/20 text-accent font-bold text-xs transition-colors flex items-center gap-1.5 ml-auto cursor-pointer"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>Review</span>
@@ -189,11 +186,13 @@ export const AdminKycTab: React.FC = () => {
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-app">Review KYC Application</h2>
+                  <h2 className="text-lg font-black text-app">
+                    Review {selectedApp.current_level === 'LEVEL_2' ? 'KYC Level 2' : 'KYC Level 1'} Application
+                  </h2>
                   <p className="text-xs text-app-sec">User ID: {selectedApp.user_id}</p>
                 </div>
               </div>
-              <button onClick={() => { setSelectedApp(null); setRejectReason(''); }} className="p-2 text-app-sec hover:text-app">
+              <button onClick={() => { setSelectedApp(null); setRejectReason(''); }} className="p-2 text-app-sec hover:text-app cursor-pointer">
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
@@ -206,7 +205,7 @@ export const AdminKycTab: React.FC = () => {
                 </div>
                 <div className="p-4 rounded-xl bg-app-sub/40 border border-app space-y-1">
                   <span className="text-[10px] uppercase font-bold text-app-sec">Date of Birth</span>
-                  <p className="font-bold text-app">{new Date(selectedApp.date_of_birth).toLocaleDateString()}</p>
+                  <p className="font-bold text-app">{selectedApp.date_of_birth ? new Date(selectedApp.date_of_birth).toLocaleDateString() : 'N/A'}</p>
                 </div>
                 <div className="p-4 rounded-xl bg-app-sub/40 border border-app space-y-1">
                   <span className="text-[10px] uppercase font-bold text-app-sec">Phone Number</span>
@@ -223,6 +222,45 @@ export const AdminKycTab: React.FC = () => {
                 <p className="font-bold text-app">{selectedApp.residential_address}</p>
               </div>
 
+              {/* Level 2 Specific Fields & Documents Inspection */}
+              {selectedApp.current_level === 'LEVEL_2' && (
+                <div className="space-y-4 pt-2 border-t border-app">
+                  <h3 className="text-xs font-black uppercase text-accent tracking-wider">Advanced Compliance & Documents</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="p-3 rounded-xl bg-app-sub/40 border border-app">
+                      <span className="text-[10px] uppercase font-bold text-app-sec">Occupation</span>
+                      <p className="text-xs font-bold text-app">{selectedApp.occupation || 'N/A'}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-app-sub/40 border border-app">
+                      <span className="text-[10px] uppercase font-bold text-app-sec">ID Type & Number</span>
+                      <p className="text-xs font-bold text-app">{selectedApp.id_document_type}: {selectedApp.id_document_number || 'N/A'}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-app-sub/40 border border-app">
+                      <span className="text-[10px] uppercase font-bold text-app-sec">Source of Funds</span>
+                      <p className="text-xs font-bold text-app">{selectedApp.source_of_funds || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    {selectedApp.id_document_front_url && (
+                      <a href={selectedApp.id_document_front_url} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl bg-accent/10 text-accent font-bold text-xs flex items-center gap-1.5 hover:bg-accent/20 transition-colors">
+                        View Front ID <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {selectedApp.id_document_back_url && (
+                      <a href={selectedApp.id_document_back_url} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl bg-accent/10 text-accent font-bold text-xs flex items-center gap-1.5 hover:bg-accent/20 transition-colors">
+                        View Back ID <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                    {selectedApp.selfie_url && (
+                      <a href={selectedApp.selfie_url} target="_blank" rel="noreferrer" className="px-3 py-2 rounded-xl bg-accent/10 text-accent font-bold text-xs flex items-center gap-1.5 hover:bg-accent/20 transition-colors">
+                        View Selfie <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {selectedApp.status === 'PENDING' && (
                 <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 space-y-2">
                   <label className="text-xs font-bold text-red-500 flex items-center gap-1.5">
@@ -232,7 +270,7 @@ export const AdminKycTab: React.FC = () => {
                     type="text"
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="e.g. Invalid address format, name mismatch..."
+                    placeholder="e.g. Invalid document scan, name mismatch..."
                     className="w-full px-3 py-2 rounded-lg bg-app-card border border-red-500/30 text-sm text-app focus:outline-none focus:border-red-500"
                   />
                 </div>
@@ -244,14 +282,14 @@ export const AdminKycTab: React.FC = () => {
                 <button
                   onClick={() => handleReject(selectedApp.id)}
                   disabled={isProcessing}
-                  className="px-6 py-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-bold text-sm transition-colors cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500/20 font-bold text-sm transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {isProcessing ? 'Processing...' : 'Reject Application'}
                 </button>
                 <button
                   onClick={() => handleApprove(selectedApp.id)}
                   disabled={isProcessing}
-                  className="px-6 py-2.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                  className="px-6 py-2.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 font-bold text-sm shadow-lg shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isProcessing ? 'Processing...' : 'Approve & Verify'}
                 </button>

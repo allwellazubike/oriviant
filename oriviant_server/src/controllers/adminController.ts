@@ -122,9 +122,9 @@ export const getUsers = async (req: Request, res: Response) => {
       LEFT JOIN (
         SELECT
           user_id,
-          COUNT(*)                                                          AS deposit_count,
-          COUNT(*) FILTER (WHERE status = 'PENDING')                      AS pending_count,
-          MAX(created_at)                                                 AS last_deposit_at
+          COUNT(*)                                                    AS deposit_count,
+          COUNT(*) FILTER (WHERE status = 'PENDING')                  AS pending_count,
+          MAX(created_at)                                         AS last_deposit_at
         FROM deposit_requests
         GROUP BY user_id
       ) d ON d.user_id = u.id
@@ -561,9 +561,9 @@ export const updateUserBalance = async (req: Request, res: Response) => {
     const delta = Number(realBalance) - oldBalance;
     if (delta !== 0) {
        await client.query(
-         `INSERT INTO ledger_entries (user_id, asset_symbol, delta, balance_after, reason, ref_type, ref_id)
-          VALUES ($1, 'USDT', $2, $3, 'ADMIN_ADJUSTMENT', 'admin', $4)`,
-         [targetUserId, delta, realBalance, adminId]
+          `INSERT INTO ledger_entries (user_id, asset_symbol, delta, balance_after, reason, ref_type, ref_id)
+           VALUES ($1, 'USDT', $2, $3, 'ADMIN_ADJUSTMENT', 'admin', $4)`,
+          [targetUserId, delta, realBalance, adminId]
        );
     }
 
@@ -678,7 +678,7 @@ export const approveKycApplication = async (req: Request, res: Response) => {
     }
 
     const kyc = kycResult.rows[0];
-    const newLevel = kyc.current_level === 'LEVEL_2' ? 'Level 2 Verified' : 'Level 1 Verified';
+    const newLevel = kyc.current_level === 'LEVEL_2' ? 'LEVEL_2_VERIFIED' : 'VERIFIED';
 
     // 1. Mark Application as Approved
     await client.query(
@@ -728,8 +728,8 @@ export const rejectKycApplication = async (req: Request, res: Response) => {
       [reason || 'Administrative rejection', adminId, kycId]
     );
 
-    // 2. Demote the User Profile (If they fail L2, they drop back to L1, otherwise Unverified)
-    const fallbackLevel = kyc.current_level === 'LEVEL_2' ? 'Level 1 Verified' : 'Unverified';
+    // 2. Demote the User Profile
+    const fallbackLevel = kyc.current_level === 'LEVEL_2' ? 'LEVEL_1' : 'Unverified';
     const isVerified = fallbackLevel !== 'Unverified';
 
     await client.query(

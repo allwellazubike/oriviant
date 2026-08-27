@@ -30,6 +30,7 @@ import { useLocalization, LANGUAGE_OPTIONS, CURRENCY_OPTIONS, LanguageCode, Curr
 import { NavigationTab } from '../../types';
 import { securityApi } from '../../api/security';
 import { KycLevel1Card } from '../kyc/KycLevel1Card';
+import { KycLevel2Card } from '../kyc/KycLevel2Card';
 
 interface ProfileSettingsViewProps {
   onNavigate: (tab: NavigationTab) => void;
@@ -251,6 +252,9 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
 
       {/* KYC Level 1 Verification Section */}
       <KycLevel1Card />
+
+      {/* KYC Level 2 Verification Section */}
+      <KycLevel2Card />
 
       {/* Security Health Score Banner */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-500/10 via-emerald-500/10 to-purple-500/10 border border-emerald-500/30 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
