@@ -15,4 +15,15 @@ export const kycApi = {
       body: JSON.stringify(data),
     });
   },
+
+  submitLevel2: async (formData: FormData) => {
+    return await apiClient<any>('/kyc/level2', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  getStatus: async () => {
+    return await apiClient<any>('/kyc/my-status');
+  },
 };

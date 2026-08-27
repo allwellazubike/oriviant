@@ -4,8 +4,15 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export const apiClient = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  // 1. Force the browser to pull a completely fresh token on every single click
-  const token = localStorage.getItem('oriviant_token') || sessionStorage.getItem('oriviant_token');
+  // 1. Force the browser to pull a completely fresh token on every single click (with robust fallback keys)
+  const token = 
+    localStorage.getItem('oriviant_token') || 
+    sessionStorage.getItem('oriviant_token') || 
+    localStorage.getItem('token') || 
+    sessionStorage.getItem('token') || 
+    localStorage.getItem('authToken') || 
+    localStorage.getItem('access_token') ||
+    localStorage.getItem('jwt');
   
   const headers = new Headers(options.headers);
   
