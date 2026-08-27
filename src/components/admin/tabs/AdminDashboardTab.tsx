@@ -5,10 +5,12 @@ import {
   Sparkles, PieChart, UserCheck, AlertCircle, BarChart2, Lock, Globe
 } from 'lucide-react';
 import { adminApi } from '../../../api/admin';
+import { useCopyTrading } from '../../../contexts/CopyTradingContext'; // 🔥 Added Context
 
 export const AdminDashboardTab: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { traders } = useCopyTrading(); // 🔥 Pull live traders array
 
   // Fetch live stats from the database on mount
   useEffect(() => {
@@ -42,7 +44,6 @@ export const AdminDashboardTab: React.FC = () => {
   const tradingFees = totalVolume * 0.001; // Estimate 0.1% platform fee
 
   const copyAum = stats?.copyTrading?.aum || 0;
-  const copyTraders = stats?.copyTrading?.traders || 0;
   const copyCopiers = stats?.copyTrading?.copiers || 0;
 
   // Format volume beautifully
@@ -167,7 +168,8 @@ export const AdminDashboardTab: React.FC = () => {
             </div>
             <div className="p-3 rounded-2xl bg-app-sec/40 border border-app flex justify-between items-center">
               <span className="text-app-sec">Active Lead Traders</span>
-              <span className="font-extrabold text-emerald-500">{copyTraders} Verified Traders</span>
+              {/* 🔥 FIXED: Now dynamically tracking traders length */}
+              <span className="font-extrabold text-emerald-500">{traders.length} Verified Traders</span>
             </div>
             <div className="p-3 rounded-2xl bg-app-sec/40 border border-app flex justify-between items-center">
               <span className="text-app-sec">Total Copiers Active</span>

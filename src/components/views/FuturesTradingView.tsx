@@ -20,17 +20,30 @@ import { socketService } from '../../services/socketService';
 export const FuturesTradingView: React.FC = () => {
   const { 
     coins, 
-    activeCoin, 
-    setActiveCoinSymbol, 
     positions, 
     openFuturesPosition, 
     closePosition, 
     reversePosition,
-    refreshLiveOrders // FIX: Imported the refresh function
-  } = useTrading();
+    refreshLiveOrders
+  } = useTrading(); // 🔥 Removed global activeCoin to stop Spot interference
 
   const { isDemoMode, demoBalance } = useDemoMode();
   const { fetchLiveWallets, walletDetails } = useUser();
+
+  // 🔥 FIX: Persist Futures pair selection in LocalStorage so it never resets when leaving the page
+  const [futuresSymbol, setFuturesSymbol] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('oriviant_futures_symbol') || 'BTC/USDT';
+    }
+    return 'BTC/USDT';
+  });
+
+  // Keep localStorage updated instantly when symbol changes
+  useEffect(() => {
+    localStorage.setItem('oriviant_futures_symbol', futuresSymbol);
+  }, [futuresSymbol]);
+
+  const activeFuturesCoin = coins.find(c => c.symbol === futuresSymbol) || coins[0];
 
   const liveFuturesUsdt = walletDetails.find(w => w.symbol === 'USDT')?.futuresBalance || 0;
   const activeAvailableBalance = isDemoMode ? demoBalance : liveFuturesUsdt;
@@ -42,6 +55,7 @@ export const FuturesTradingView: React.FC = () => {
   const [tpPrice, setTpPrice] = useState<string>('');
   const [slPrice, setSlPrice] = useState<string>('');
   const [isLeverageModalOpen, setIsLeverageModalOpen] = useState<boolean>(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [tempLeverage, setTempLeverage] = useState<number>(20);
   const [msg, setMsg] = useState<string | null>(null);
   const [rightTab, setRightTab] = useState<'chart' | 'positions'>('chart');
@@ -56,8 +70,8 @@ export const FuturesTradingView: React.FC = () => {
   useEffect(() => {
     socketService.connect();
 
-    if (activeCoin?.symbol) {
-      socketService.subscribeToMarket(activeCoin.symbol);
+    if (activeFuturesCoin?.symbol) {
+      socketService.subscribeToMarket(activeFuturesCoin.symbol);
     }
 
     const handleTick = (data: any) => {
@@ -76,14 +90,14 @@ export const FuturesTradingView: React.FC = () => {
     initSocket();
 
     return () => {
-      if (activeCoin?.symbol) {
-        socketService.unsubscribeFromMarket(activeCoin.symbol);
+      if (activeFuturesCoin?.symbol) {
+        socketService.unsubscribeFromMarket(activeFuturesCoin.symbol);
       }
       socketService.socket?.off('market_tick', handleTick);
     };
-  }, [activeCoin?.symbol]);
+  }, [activeFuturesCoin?.symbol]);
 
-  if (!activeCoin) {
+  if (!activeFuturesCoin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-app-sec space-y-4">
         <RefreshCcw className="w-8 h-8 animate-spin text-accent" />
@@ -92,11 +106,8 @@ export const FuturesTradingView: React.FC = () => {
     );
   }
 
-  const prec = activeCoin.precision || 2;
-  
-  // FIX: Ensure price is never 0 to prevent "Infinity" calculations
-  const currentPrice = (livePrice && livePrice > 0) ? livePrice : (activeCoin.price > 0 ? activeCoin.price : 92450.80);
-  
+  const prec = activeFuturesCoin.precision || 2;
+  const currentPrice = (livePrice && livePrice > 0) ? livePrice : (activeFuturesCoin.price > 0 ? activeFuturesCoin.price : 92450.80);
   const numMargin = parseFloat(marginAmount) || 0;
   const notionalValue = numMargin * leverage;
   const positionSize = notionalValue / currentPrice;
@@ -126,7 +137,7 @@ export const FuturesTradingView: React.FC = () => {
     
     if (isDemoMode) {
       const res = await openFuturesPosition({
-        pair: activeCoin.symbol,
+        pair: activeFuturesCoin.symbol,
         side: positionSide,
         leverage,
         marginMode,
@@ -144,7 +155,7 @@ export const FuturesTradingView: React.FC = () => {
 
     try {
       const res = await futuresApi.openPosition({
-        market_symbol: activeCoin.symbol,
+        market_symbol: activeFuturesCoin.symbol,
         side: positionSide.toUpperCase() as 'LONG' | 'SHORT',
         margin_mode: marginMode.toUpperCase() as 'ISOLATED' | 'CROSS',
         leverage,
@@ -153,7 +164,6 @@ export const FuturesTradingView: React.FC = () => {
 
       setMsg(res.message || 'Futures position opened successfully!');
       
-      // FIX: Force frontend to fetch the new position from the database
       await fetchLiveWallets();
       await refreshLiveOrders();
       setRightTab('positions'); 
@@ -177,7 +187,6 @@ export const FuturesTradingView: React.FC = () => {
       const res = await futuresApi.closePosition(positionId);
       setMsg(res.message || 'Position closed successfully.');
       
-      // FIX: Refresh the positions table to remove it immediately
       await fetchLiveWallets();
       await refreshLiveOrders();
     } catch (err: any) {
@@ -193,10 +202,8 @@ export const FuturesTradingView: React.FC = () => {
 
     if (!isDemoMode) {
       try {
-        const res = await futuresApi.updateLeverage(activeCoin.symbol, newLev);
+        const res = await futuresApi.updateLeverage(activeFuturesCoin.symbol, newLev);
         setMsg(res.message || `Leverage set to ${newLev}x`);
-        
-        // Refresh to get updated Liquidation Price from backend
         await refreshLiveOrders();
       } catch (err: any) {
         setMsg('Failed to update leverage on server.');
@@ -213,7 +220,7 @@ export const FuturesTradingView: React.FC = () => {
         onClose={() => setIsConfirmModalOpen(false)}
         onConfirm={executeFuturesPositionInternal}
         tradeDetails={{
-          pair: activeCoin.symbol,
+          pair: activeFuturesCoin.symbol,
           type: `${leverage}x Futures`,
           side: positionSide,
           amount: `${marginAmount} USDT Margin`,
@@ -223,27 +230,47 @@ export const FuturesTradingView: React.FC = () => {
 
       <div className="p-3.5 sm:p-4 rounded-2xl bg-app-card border border-app shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0">
         <div className="flex items-center justify-between sm:justify-start gap-3 min-w-0">
+          
           <div className="relative shrink-0">
-            <select
-              value={activeCoin.symbol}
-              onChange={(e) => setActiveCoinSymbol(e.target.value)}
-              className="appearance-none bg-app-sec font-black text-xs sm:text-sm text-app pr-7 pl-3 py-2 rounded-xl border border-app focus:outline-none focus:border-accent cursor-pointer"
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="bg-app-sec font-black text-xs sm:text-sm text-app pr-8 pl-4 py-2 rounded-xl border border-app hover:border-accent transition-colors flex items-center justify-between min-w-[150px]"
             >
-              {coins.map((coin) => (
-                <option key={coin.id} value={coin.symbol}>
-                  {coin.symbol} Perp
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-app-sec absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <span>{activeFuturesCoin.symbol} Perp</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-app-sec absolute right-3 top-1/2 -translate-y-1/2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                <div className="absolute top-full left-0 mt-2 w-full min-w-[180px] bg-app-card border border-app rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto py-2">
+                  {coins.map(coin => (
+                    <button
+                      key={coin.id}
+                      onClick={() => {
+                        setFuturesSymbol(coin.symbol); // 🔥 Update local state instead of global
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors ${
+                        activeFuturesCoin.symbol === coin.symbol 
+                          ? 'bg-accent/10 text-accent border-l-2 border-accent' 
+                          : 'text-app-sec hover:bg-app-sec hover:text-app border-l-2 border-transparent'
+                      }`}
+                    >
+                      {coin.symbol} Perp
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="text-right sm:text-left">
             <div className="text-base sm:text-lg font-black text-app font-mono">
               ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}
             </div>
-            <span className={`text-[11px] font-bold ${activeCoin.change24h >= 0 ? 'text-positive' : 'text-negative'}`}>
-              {activeCoin.change24h >= 0 ? '+' : ''}{activeCoin.change24h}%
+            <span className={`text-[11px] font-bold ${activeFuturesCoin.change24h >= 0 ? 'text-positive' : 'text-negative'}`}>
+              {activeFuturesCoin.change24h >= 0 ? '+' : ''}{activeFuturesCoin.change24h}%
             </span>
           </div>
         </div>
@@ -252,13 +279,13 @@ export const FuturesTradingView: React.FC = () => {
           <div className="p-2 rounded-xl bg-app-sec border border-app flex-1 sm:flex-initial">
             <span className="text-app-sec block text-[10px]">Funding / Countdown</span>
             <span className="font-bold text-emerald-500 text-[11px] sm:text-xs">
-              {((activeCoin.fundingRate || 0.01) * 100).toFixed(4)}% in {activeCoin.nextFundingIn || '03:45:12'}
+              {((activeFuturesCoin.fundingRate || 0.01) * 100).toFixed(4)}% in {activeFuturesCoin.nextFundingIn || '03:45:12'}
             </span>
           </div>
 
           <div className="hidden sm:block">
             <span className="text-app-sec block text-[10px]">Open Interest</span>
-            <span className="font-bold text-app">${((activeCoin.openInterest || 2800000000) / 1e9).toFixed(2)}B</span>
+            <span className="font-bold text-app">${((activeFuturesCoin.openInterest || 2800000000) / 1e9).toFixed(2)}B</span>
           </div>
         </div>
       </div>
@@ -382,7 +409,7 @@ export const FuturesTradingView: React.FC = () => {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-app-sec">Position Size:</span>
-                <span className="font-bold text-app font-mono">{positionSize.toFixed(4)} {activeCoin.symbol.split('/')[0]}</span>
+                <span className="font-bold text-app font-mono">{positionSize.toFixed(4)} {activeFuturesCoin.symbol.split('/')[0]}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-app-sec">Est. Liq. Price:</span>
@@ -434,11 +461,11 @@ export const FuturesTradingView: React.FC = () => {
                   <span>Open Positions ({positions.length})</span>
                 </button>
               </div>
-              <span className="text-[10px] sm:text-xs text-app-sec font-mono">{activeCoin.symbol} ${currentPrice.toLocaleString()}</span>
+              <span className="text-[10px] sm:text-xs text-app-sec font-mono">{activeFuturesCoin.symbol} ${currentPrice.toLocaleString()}</span>
             </div>
 
             {rightTab === 'chart' ? (
-              <TradingChart height={380} />
+              <TradingChart height={380} symbol={activeFuturesCoin.symbol} />
             ) : positions.length === 0 ? (
               <div className="text-center py-12 text-app-sec">
                 <ShieldAlert className="w-10 h-10 mx-auto mb-2 opacity-30" />

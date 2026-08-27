@@ -22,17 +22,19 @@ import {
   Megaphone,
   Gift,
   FileSpreadsheet,
-  ClipboardCheck // Added Icon for KYC
+  ClipboardCheck,
+  UserPlus
 } from 'lucide-react';
 
 export type AdminTab = 
   | 'dashboard' 
   | 'users' 
-  | 'kyc' // Added KYC Tab Type
+  | 'kyc' 
   | 'markets' 
   | 'market-feeds'
   | 'practice'
   | 'copy-trading' 
+  | 'lead-traders' // 🔥 Added Lead Traders Tab
   | 'deposits'
   | 'withdrawals'
   | 'reviews' 
@@ -67,11 +69,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   const menuItems = [
     { id: 'dashboard' as AdminTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'users' as AdminTab, label: 'User Directory', icon: Users, badge: '142.8k' },
-    { id: 'kyc' as AdminTab, label: 'KYC Verification', icon: ClipboardCheck, badge: 'Review' }, // Added KYC Menu Item
+    { id: 'kyc' as AdminTab, label: 'KYC Verification', icon: ClipboardCheck, badge: 'Review' },
     { id: 'markets' as AdminTab, label: 'Market Controls', icon: TrendingUp },
     { id: 'market-feeds' as AdminTab, label: 'Real-Time Market Feeds', icon: Radio, badge: 'Live' },
     { id: 'practice' as AdminTab, label: 'Practice Mode Desk', icon: Zap, badge: 'Simulator' },
-    { id: 'copy-trading' as AdminTab, label: 'Lead Traders Desk', icon: UserCheck, badge: '2 Pending' },
+    { id: 'copy-trading' as AdminTab, label: 'User Subscriptions', icon: UserCheck },
+    { id: 'lead-traders' as AdminTab, label: 'Manage Lead Traders', icon: UserPlus, badge: 'New' }, // 🔥 Added Menu Item
     { id: 'deposits' as AdminTab, label: 'Deposit Inflows', icon: ArrowDownLeft, badge: '3 Req' },
     { id: 'withdrawals' as AdminTab, label: 'Withdrawal Approvals', icon: ArrowUpRight, badge: '5 Pending' },
     { id: 'reviews' as AdminTab, label: 'Reviews Moderation', icon: Star },

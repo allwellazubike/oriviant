@@ -11,14 +11,12 @@ export interface CopyTradeSettings {
 
 export const copyTradingApi = {
   getLeaderboard: async () => {
-    // FIX: Updated to match the backend route /api/copy/traders
     return apiClient<{ success: boolean; data: any[] }>('/copy/traders', {
       method: 'GET',
     });
   },
 
   startCopying: async (settings: CopyTradeSettings) => {
-    // FIX: Updated to match backend route /api/copy/subscriptions
     return apiClient<{ success: boolean; message: string; subscription?: any }>('/copy/subscriptions', {
       method: 'POST',
       body: JSON.stringify(settings),
@@ -26,7 +24,6 @@ export const copyTradingApi = {
   },
 
   stopCopying: async (subscriptionId: number | string) => {
-    // FIX: Updated to DELETE method and correct route
     return apiClient<{ success: boolean; message: string }>(`/copy/subscriptions/${subscriptionId}`, {
       method: 'DELETE', 
     });
@@ -35,6 +32,41 @@ export const copyTradingApi = {
   getMySubscriptions: async () => {
     return apiClient<{ success: boolean; data: any[] }>('/copy/subscriptions', {
       method: 'GET',
+    });
+  },
+
+  createAdminTrader: async (traderData: any) => {
+    return apiClient<{ success: boolean; message: string; data?: any }>('/copy/admin/traders', {
+      method: 'POST',
+      body: JSON.stringify(traderData),
+    });
+  },
+
+  updateAdminTrader: async (traderId: string | number, traderData: any) => {
+    return apiClient<{ success: boolean; message: string; data?: any }>(`/copy/admin/traders/${traderId}`, {
+      method: 'PUT',
+      body: JSON.stringify(traderData),
+    });
+  },
+
+  deleteAdminTrader: async (traderId: string | number) => {
+    return apiClient<{ success: boolean; message: string }>(`/copy/admin/traders/${traderId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // 🔥 Added to fetch all subscriptions
+  getAllSubscriptions: async () => {
+    return apiClient<{ success: boolean; data?: any[] }>('/copy/admin/subscriptions', {
+      method: 'GET',
+    });
+  },
+
+  // 🔥 Added to boost subscriptions
+  updateSubscriptionAdmin: async (subId: number, data: any) => {
+    return apiClient<{ success: boolean; message: string; data?: any }>(`/copy/admin/subscriptions/${subId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
     });
   }
 };

@@ -24,7 +24,8 @@ import { AdminSettingsTab } from '../admin/tabs/AdminSettingsTab';
 import { AdminSecurityTab } from '../admin/tabs/AdminSecurityTab';
 import { AdminSystemLogsTab } from '../admin/tabs/AdminSystemLogsTab';
 import { AdminAuditLogTab } from '../admin/tabs/AdminAuditLogTab';
-import { AdminKycTab } from '../admin/tabs/AdminKycTab'; // Added KYC Tab Import
+import { AdminKycTab } from '../admin/tabs/AdminKycTab'; 
+import { AdminLeadTradersTab } from '../admin/tabs/AdminLeadTradersTab'; // 🔥 Added Lead Traders Tab
 
 interface AdminPortalViewProps {
   onExitToPlatform?: () => void;
@@ -47,7 +48,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatfo
   });
 
   // --- STRICT SECURITY GUARD ---
-  // This prevents anyone from bypassing the login by relying on stale local storage
   useEffect(() => {
     const token = localStorage.getItem('oriviant_token') || sessionStorage.getItem('oriviant_token');
     
@@ -119,11 +119,12 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({ onExitToPlatfo
         <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto space-y-6">
           {activeTab === 'dashboard' && <AdminDashboardTab />}
           {activeTab === 'users' && <AdminUsersTab />}
-          {activeTab === 'kyc' && <AdminKycTab />} {/* Added KYC Tab Switch */}
+          {activeTab === 'kyc' && <AdminKycTab />} 
           {activeTab === 'markets' && <AdminMarketsTab />}
           {activeTab === 'market-feeds' && <MarketFeedsManagementView />}
           {activeTab === 'practice' && <AdminPracticeTab />}
           {activeTab === 'copy-trading' && <AdminCopyTradingTab />}
+          {activeTab === 'lead-traders' && <AdminLeadTradersTab />} {/* 🔥 Added Lead Traders View */}
           {activeTab === 'deposits' && <AdminDepositsTab />}
           {activeTab === 'withdrawals' && <AdminWithdrawalsTab />}
           {activeTab === 'reviews' && <AdminReviewsTab />}

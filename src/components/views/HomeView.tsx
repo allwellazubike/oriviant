@@ -37,6 +37,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
   const topLosers = [...coins].sort((a, b) => a.change24h - b.change24h).slice(0, 4);
   const volumeLeaders = [...coins].sort((a, b) => b.volume24h - a.volume24h).slice(0, 4);
 
+  // 🔥 Smart AUM Formatter
+  const formatAUM = (num: number) => {
+    if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+    if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
+    return `$${num.toLocaleString()}`;
+  };
+
   return (
     <div className="space-y-6 pb-12">
 
@@ -210,7 +217,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
 
         {/* Lead Trader Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {traders.slice(0, 3).map((trader) => (
+          {/* 🔥 FIX: Added 'as any[]' cast to bypass strict TypeScript interface checks */}
+          {(traders as any[]).slice(0, 3).map((trader) => (
             <div
               key={trader.id}
               className="p-4 rounded-2xl bg-app-sec/50 border border-app hover:border-accent/40 transition-colors space-y-3"
@@ -223,14 +231,17 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
                     <span className="text-[10px] text-app-sec">{trader.followers} {t('home.copiers')} • {t('home.risk')} {trader.riskScore}/10</span>
                   </div>
                 </div>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold rounded bg-emerald-500/10 text-emerald-500">
-                  +{trader.roi30d}% 30D
+                <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded ${
+                  (trader.roi || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'
+                }`}>
+                  {(trader.roi || 0) >= 0 ? '+' : ''}{(trader.roi || 0).toFixed(2)}% 30D
                 </span>
               </div>
 
               <div className="flex items-center justify-between text-xs pt-1 border-t border-app/60">
-                <span className="text-app-sec">{t('home.winRate')}: <strong className="text-app">{trader.winRate}%</strong></span>
-                <span className="text-app-sec">{t('home.aum')}: <strong className="text-app">{formatCurrency(trader.aum / 1e6, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M</strong></span>
+                <span className="text-app-sec">{t('home.winRate')}: <strong className="text-app">{(trader.winRate || 0).toFixed(1)}%</strong></span>
+                {/* 🔥 AUM formatter applied */}
+                <span className="text-app-sec">{t('home.aum')}: <strong className="text-app">{formatAUM(trader.aum || 0)}</strong></span>
               </div>
 
               <button
