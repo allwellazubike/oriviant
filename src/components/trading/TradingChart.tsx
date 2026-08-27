@@ -9,9 +9,23 @@ interface TradingChartProps {
 
 // 🔥 Professional Symbol Resolver for Multi-Asset TradingView Support
 const resolveTVSymbol = (symbol: string) => {
-  // Forex Pairs
-  if (['EUR/USD', 'GBP/USD', 'USD/JPY', 'GBP/JPY', 'AUD/USD', 'USD/CAD', 'EUR/JPY', 'USD/CHF', 'EUR/GBP', 'NZD/USD', 'AUD/JPY'].includes(symbol)) {
-    return `FX:${symbol.replace('/', '')}`;
+  // Forex Pairs - direct mapping to OANDA or FXCM for better reliability
+  const forexMap: Record<string, string> = {
+    'EUR/USD': 'OANDA:EURUSD',
+    'GBP/USD': 'OANDA:GBPUSD',
+    'USD/JPY': 'OANDA:USDJPY',
+    'GBP/JPY': 'OANDA:GBPJPY',
+    'AUD/USD': 'OANDA:AUDUSD',
+    'USD/CAD': 'OANDA:USDCAD',
+    'EUR/JPY': 'OANDA:EURJPY',
+    'USD/CHF': 'OANDA:USDCHF',
+    'EUR/GBP': 'OANDA:EURGBP',
+    'NZD/USD': 'OANDA:NZDUSD',
+    'AUD/JPY': 'OANDA:AUDJPY'
+  };
+
+  if (forexMap[symbol]) {
+    return forexMap[symbol];
   }
   
   // Indices, Commodities, ETFs, and Stocks

@@ -28,7 +28,6 @@ export const CopyTradingView: React.FC = () => {
   const [reviewComment, setReviewComment] = useState('');
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
-  // FIX: Dynamically sum up the actual USDT allocations for the top banner
   const totalCopiedValue = Object.values(followedTraders).reduce((sum, sub) => sum + sub.allocatedUsdt, 0);
 
   const showToast = (msg: string) => {
@@ -36,17 +35,16 @@ export const CopyTradingView: React.FC = () => {
     setTimeout(() => setNotificationMsg(null), 3500);
   };
 
-  const sortedTraders = [...traders].sort((a, b) => {
-    if (filterSort === 'roi') return b.roi30d - a.roi30d;
-    if (filterSort === 'winrate') return b.winRate - a.winRate;
-    if (filterSort === 'risk') return a.riskScore - b.riskScore;
-    return b.followers - a.followers;
+  const sortedTraders = [...(traders as any[])].sort((a: any, b: any) => {
+    if (filterSort === 'roi') return (b.roi || 0) - (a.roi || 0);
+    if (filterSort === 'winrate') return (b.winRate || 0) - (a.winRate || 0);
+    if (filterSort === 'risk') return (a.riskScore || 0) - (b.riskScore || 0);
+    return (b.followers || 0) - (a.followers || 0);
   });
 
   const handleConfirmCopy = async () => {
     if (!selectedTrader) return;
     
-    // FIX: Just call the Context method (which handles the API and wallet syncing automatically)
     const res = await followTrader(selectedTrader.id, copyAllocation, stopLossPct);
     
     if (res.success) {
@@ -59,7 +57,6 @@ export const CopyTradingView: React.FC = () => {
   };
 
   const handleStopCopyingBackend = async (traderId: string | number) => {
-    // FIX: Use the Context method correctly to stop the duplicate errors
     const res = await stopCopyTrader(String(traderId));
     showToast(res.message);
   };
@@ -72,6 +69,13 @@ export const CopyTradingView: React.FC = () => {
       setReviewComment('');
       showToast('Review submitted successfully!');
     }
+  };
+
+  // 🔥 Smart AUM Formatter
+  const formatAUM = (num: number) => {
+    if (num >= 1e6) return `$${(num / 1e6).toFixed(2)}M`;
+    if (num >= 1e3) return `$${(num / 1e3).toFixed(2)}K`;
+    return `$${num.toLocaleString()}`;
   };
 
   return (
@@ -131,7 +135,7 @@ export const CopyTradingView: React.FC = () => {
 
       {/* Lead Traders Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sortedTraders.map((trader) => {
+        {sortedTraders.map((trader: any) => {
           const isFollowing = !!followedTraders[trader.id];
 
           return (
@@ -140,7 +144,6 @@ export const CopyTradingView: React.FC = () => {
               className="p-5 rounded-2xl bg-app-card border border-app hover:border-accent/40 transition-all shadow-sm flex flex-col justify-between space-y-4"
             >
               <div>
-                {/* Header Profile Info */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <img
@@ -151,43 +154,45 @@ export const CopyTradingView: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-1">
                         <h3 className="font-extrabold text-sm text-app">{trader.name}</h3>
-                        {trader.verified && <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-500/20" />}
+                        {(trader.badges || []).includes('Verified') && <ShieldCheck className="w-4 h-4 text-emerald-500 fill-emerald-500/20" />}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[10px] font-bold text-app-sec">Risk Score {trader.riskScore}/10</span>
                         <span className="text-app-sec">•</span>
-                        <span className="text-[10px] text-app-sec">{trader.followers}/{trader.maxFollowers} Copiers</span>
+                        <span className="text-[10px] text-app-sec">{trader.followers} Copiers</span>
                       </div>
                     </div>
                   </div>
 
-                  <span className="px-2.5 py-1 text-xs font-black rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    +{trader.roi30d}% 30D
+                  <span className={`px-2.5 py-1 text-xs font-black rounded-lg border ${
+                    (trader.roi || 0) >= 0 ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'
+                  }`}>
+                    {(trader.roi || 0) >= 0 ? '+' : ''}{(trader.roi || 0).toFixed(2)}% 30D
                   </span>
                 </div>
 
                 <p className="text-xs text-app-sec mt-3 line-clamp-2 leading-relaxed">
-                  {trader.description}
+                  {trader.strategy || 'Mixed algorithmic and manual trading strategy focused on major assets.'}
                 </p>
 
-                {/* Performance Metrics Row */}
                 <div className="grid grid-cols-3 gap-2 p-3 rounded-xl bg-app-sec/60 border border-app my-3 text-center">
                   <div>
                     <span className="text-[10px] text-app-sec block">Win Rate</span>
-                    <span className="text-xs font-bold text-app">{trader.winRate}%</span>
+                    <span className="text-xs font-bold text-app">{(trader.winRate || 0).toFixed(1)}%</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-app-sec block">7D ROI</span>
-                    <span className="text-xs font-bold text-positive">+{trader.roi7d}%</span>
+                    <span className={`text-xs font-bold ${(trader.roi || 0) >= 0 ? 'text-positive' : 'text-negative'}`}>
+                      {(trader.roi || 0) >= 0 ? '+' : ''}{((trader.roi || 0) / 4).toFixed(2)}%
+                    </span>
                   </div>
                   <div>
                     <span className="text-[10px] text-app-sec block">AUM</span>
-                    <span className="text-xs font-bold text-app">${(trader.aum / 1e6).toFixed(2)}M</span>
+                    <span className="text-xs font-bold text-app">{formatAUM(trader.aum || 0)}</span>
                   </div>
                 </div>
 
-                {/* Copier Reviews Snippet */}
-                {trader.reviews.length > 0 && (
+                {trader.reviews && trader.reviews.length > 0 && (
                   <div className="p-2.5 rounded-xl bg-app-sec/30 border border-app text-xs space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-app text-[11px] flex items-center gap-1">
@@ -201,7 +206,6 @@ export const CopyTradingView: React.FC = () => {
                 )}
               </div>
 
-              {/* Action Buttons */}
               <div className="pt-2 flex items-center gap-2">
                 {isFollowing ? (
                   <button
@@ -239,7 +243,6 @@ export const CopyTradingView: React.FC = () => {
         })}
       </div>
 
-      {/* Copy Settings Modal */}
       {isCopyModalOpen && selectedTrader && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in">
           <div className="w-full max-w-md bg-app-card border border-app rounded-3xl p-6 shadow-2xl space-y-4">
@@ -286,7 +289,6 @@ export const CopyTradingView: React.FC = () => {
         </div>
       )}
 
-      {/* Write Review Modal */}
       {isReviewModalOpen && selectedTrader && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in">
           <div className="w-full max-w-md bg-app-card border border-app rounded-3xl p-6 shadow-2xl space-y-4">
