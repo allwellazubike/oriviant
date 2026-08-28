@@ -563,44 +563,6 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 <button
                   onClick={() => {
                     setIsAccountDrawerOpen(false);
-                    onNavigate('settings');
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-app-sec/40 border border-app hover:bg-app-sec transition-colors text-app text-xs cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-500">
-                      <Settings className="w-4 h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold">{t('drawer.settings')}</p>
-                      <p className="text-[10px] text-app-sec">{t('drawer.settingsDesc')}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-app-sec" />
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsAccountDrawerOpen(false);
-                    onNavigate('settings');
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-2xl bg-app-sec/40 border border-app hover:bg-app-sec transition-colors text-app text-xs cursor-pointer"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-bold">{t('drawer.security')}</p>
-                      <p className="text-[10px] text-app-sec">{t('drawer.securityDesc')}</p>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-app-sec" />
-                </button>
-
-                <button
-                  onClick={() => {
-                    setIsAccountDrawerOpen(false);
                     openDrawer();
                   }}
                   className="w-full flex items-center justify-between p-3 rounded-2xl bg-app-sec/40 border border-app hover:bg-app-sec transition-colors text-app text-xs cursor-pointer"
@@ -950,18 +912,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
 
-                <button
-                  onClick={() => handleMobileNavigate('settings')}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-medium transition-colors min-h-[44px] ${
-                    activeTab === 'settings' ? 'bg-accent/10 text-accent font-bold border border-accent/20' : 'text-app hover:bg-app-sec'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="w-4 h-4 text-app-sec" />
-                    <span>{t('mobileDrawer.securitySettings')}</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
-                </button>
+                {/* Removed Security & Settings from here */}
 
                 <button
                   onClick={() => handleMobileNavigate('help')}
@@ -971,7 +922,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                 >
                   <div className="flex items-center gap-3">
                     <HelpCircle className="w-4 h-4 text-app-sec" />
-                    <span>{t('mobileDrawer.helpFaq')}</span>
+                    <span>{t('drawer.helpCenter')}</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-app-sec opacity-60" />
                 </button>
