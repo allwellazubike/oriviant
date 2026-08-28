@@ -428,52 +428,6 @@ export const ProfileSettingsView: React.FC<ProfileSettingsViewProps> = ({ onNavi
         </div>
       </div>
 
-      {/* Recent Login Audit History */}
-      <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-4">
-        <div>
-          <h2 className="text-base font-black text-app flex items-center gap-2">
-            <Clock className="w-5 h-5 text-accent" />
-            <span>{t('profile.loginActivityTitle')}</span>
-          </h2>
-          <p className="text-xs text-app-sec">{t('profile.loginActivityDesc')}</p>
-        </div>
-
-        {securityState.loginHistory.length === 0 ? (
-          <div className="text-center py-10 text-app-sec text-xs font-bold">{t('profile.noLoginHistory')}</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-app text-[10px] font-bold text-app-sec uppercase">
-                  <th className="py-2.5 px-4">{t('profile.dateTime')}</th>
-                  <th className="py-2.5 px-4">{t('profile.deviceBrowser')}</th>
-                  <th className="py-2.5 px-4">{t('profile.location')}</th>
-                  <th className="py-2.5 px-4">{t('profile.ipAddress')}</th>
-                  <th className="py-2.5 px-4 text-right">{t('profile.status')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-app/50 text-xs font-mono">
-                {securityState.loginHistory.map((log) => (
-                  <tr key={log.id} className="hover:bg-app-sub/30 transition-colors">
-                    <td className="py-3 px-4 text-app font-bold">{log.loginTime}</td>
-                    <td className="py-3 px-4 text-app-sec">{log.device} - {log.browser} ({log.os})</td>
-                    <td className="py-3 px-4 text-app-sec">{log.location}</td>
-                    <td className="py-3 px-4 text-accent">{log.ip}</td>
-                    <td className="py-3 px-4 text-right font-sans">
-                      <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
-                        log.status === 'Success' ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'
-                      }`}>
-                        {log.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {/* Preferences Settings */}
       <div className="p-6 rounded-3xl bg-app-card border border-app shadow-md space-y-4">
         <h3 className="text-sm font-bold text-app flex items-center gap-2">

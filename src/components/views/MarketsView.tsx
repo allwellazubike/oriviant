@@ -325,10 +325,13 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                           >
                             {t('markets.spot')}
                           </button>
+                          
+                          {/* 🔥 FIX: Added localStorage update to correctly route the Futures symbol! */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setActiveCoinSymbol(coin.symbol);
+                              localStorage.setItem('oriviant_futures_symbol', coin.symbol);
                               onNavigate('futures');
                             }}
                             className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 transition-colors"
