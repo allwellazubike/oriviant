@@ -6,16 +6,30 @@ let io: Server | null = null;
 
 export const websocketService = {
   init: (server: HttpServer) => {
+    
+    // 🔥 FIX: Define explicitly allowed base URLs
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'https://oriviant-mu.vercel.app',
+      'https://oriviant-one.vercel.app',
+      'https://oriviant-delta.vercel.app', // Added your new live frontend URL
+      process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app'
+    ];
+
     io = new Server(server, {
       cors: {
-        // 🔥 FIX: Added the specific live URL here to prevent connection drops
-        origin: [
-          'http://localhost:5173',
-          'http://localhost:3000',
-          'https://oriviant-mu.vercel.app',
-          'https://oriviant-one.vercel.app', // <--- Added your new live frontend URL here
-          process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app'
-        ],
+        // 🔥 FIX: Dynamic CORS check to match index.ts and allow ALL Vercel previews
+        origin: (origin, callback) => {
+          // Allow requests with no origin (like mobile apps, curl)
+          if (!origin) return callback(null, true);
+
+          if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+            return callback(null, true);
+          }
+          
+          return callback(new Error(`WebSocket CORS blocked for origin: ${origin}`));
+        },
         methods: ['GET', 'POST'],
         credentials: true
       },
