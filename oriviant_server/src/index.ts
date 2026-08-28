@@ -36,21 +36,23 @@ const httpServer = createServer(app);
 // Initialize WebSockets
 websocketService.init(httpServer);
 
-// 🔥 FIX: Explicitly added oriviant-mu.vercel.app to allowed origins
+// 🔥 FIX: Placed CORS at the very top before rate limiters so preflight OPTIONS requests are handled properly
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://oriviant-mu.vercel.app', 
   'https://oriviant-one.vercel.app',
+  'https://oriviant-delta.vercel.app',
   process.env.FRONTEND_URL || 'https://oriviant-trades-website.vercel.app'
 ];
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   credentials: true
