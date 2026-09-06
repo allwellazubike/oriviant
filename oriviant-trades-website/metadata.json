@@ -1,0 +1,8 @@
+{
+  "name": "ORIVIANT Website",
+  "description": "Official public marketing, onboarding, and information website for the ORIVIANT multi-asset trading ecosystem.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

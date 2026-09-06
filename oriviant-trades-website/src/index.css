@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-primary: #F7F9FC;
+    --bg-secondary: #FFFFFF;
+    --bg-card: #FFFFFF;
+    --bg-input: #F1F5F9;
+    --border-color: #E4E7EC;
+    --border-subtle: #F1F5F9;
+    --text-primary: #101828;
+    --text-secondary: #667085;
+    --color-positive: #16a34a;
+    --color-negative: #dc2626;
+    --color-warning: #d97706;
+    --color-accent: #1677FF;
+    --color-cyan: #00C2FF;
+    --shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
+    --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08);
+  }
+
+  .dark {
+    --bg-primary: #000000;
+    --bg-secondary: #12161C;
+    --bg-card: #1B1F27;
+    --bg-input: #12161C;
+    --border-color: #2b313a;
+    --border-subtle: #1e293b;
+    --text-primary: #ffffff;
+    --text-secondary: #94A3B8;
+    --color-positive: #00c853;
+    --color-negative: #ff4d4f;
+    --color-warning: #ffb300;
+    --color-accent: #3b82f6;
+    --color-cyan: #22d3ee;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Color Schemes (Data Accent Attributes) */
+  [data-accent="emerald"] {
+    --color-accent: #059669;
+    --color-cyan: #0d9488;
+  }
+  .dark[data-accent="emerald"] {
+    --color-accent: #10b981;
+    --color-cyan: #2dd4bf;
+  }
+
+  [data-accent="purple"] {
+    --color-accent: #7c3aed;
+    --color-cyan: #c026d3;
+  }
+  .dark[data-accent="purple"] {
+    --color-accent: #8b5cf6;
+    --color-cyan: #e879f9;
+  }
+
+  [data-accent="amber"] {
+    --color-accent: #d97706;
+    --color-cyan: #ea580c;
+  }
+  .dark[data-accent="amber"] {
+    --color-accent: #f59e0b;
+    --color-cyan: #fb923c;
+  }
+
+  [data-accent="rose"] {
+    --color-accent: #e11d48;
+    --color-cyan: #db2777;
+  }
+  .dark[data-accent="rose"] {
+    --color-accent: #f43f5e;
+    --color-cyan: #f472b6;
+  }
+
+  [data-accent="cyan"] {
+    --color-accent: #0891b2;
+    --color-cyan: #0284c7;
+  }
+  .dark[data-accent="cyan"] {
+    --color-accent: #06b6d4;
+    --color-cyan: #38bdf8;
+  }
+
+  /* Candle Colors (Green/Red vs Red/Green) */
+  [data-candles="red-green"] {
+    --color-positive: #dc2626;
+    --color-negative: #16a34a;
+  }
+  .dark[data-candles="red-green"] {
+    --color-positive: #ff4d4f;
+    --color-negative: #00c853;
+  }
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Custom utility theme classes */
+.bg-app { background-color: var(--bg-primary); }
+.bg-app-sec { background-color: var(--bg-secondary); }
+.bg-app-card { background-color: var(--bg-card); }
+.bg-app-input { background-color: var(--bg-input); }
+.border-app { border-color: var(--border-color); }
+.text-app { color: var(--text-primary); }
+.text-app-sec { color: var(--text-secondary); }
+.text-positive { color: var(--color-positive); }
+.text-negative { color: var(--color-negative); }
+.text-accent { color: var(--color-accent); }
+.bg-positive { background-color: var(--color-positive); }
+.bg-negative { background-color: var(--color-negative); }
+.bg-accent { background-color: var(--color-accent); }
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* Pulse animations for price changes */
+@keyframes flash-green {
+  0% { background-color: rgba(0, 200, 83, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-red {
+  0% { background-color: rgba(255, 77, 79, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-3px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.flash-up {
+  animation: flash-green 0.6s ease-out;
+}
+
+.flash-down {
+  animation: flash-red 0.6s ease-out;
+}
+
+/* Safe areas for mobile devices */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+/* Hide all TradingView logos, watermarks, links, and attribution elements */
+a[href*="tradingview.com"],
+a[title*="TradingView"],
+aria-label*="TradingView",
+[class*="tv-attr"],
+[class*="tradingview"],
+[id*="tv-attr"],
+[id*="tradingview"],
+.tv-watermark,
+#tv-attr-logo {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+}
