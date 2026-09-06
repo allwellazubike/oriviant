@@ -1,0 +1,752 @@
+import { Request, Response } from 'express';
+import pool from '../config/db.js';
+import { applyMovement } from '../services/ledgerService.js';
+import { sendDepositApproved, sendDepositDenied } from '../services/emailService.js';
+import { marketDataService } from '../services/marketDataService.js'; 
+import { adminService, logAudit } from '../services/adminService.js';
+import { notifyDepositCompleted, notifyDepositRejected } from '../services/notificationService.js';
+import { createBroadcast, listBroadcasts, BroadcastAudience } from '../services/notificationService.js';
+
+// 🔥 DATABASE AUTO-HEALER
+// Automatically creates any missing columns so the admin dashboard never crashes again!
+const autoHealDatabase = async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE users 
+      ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Active',
+      ADD COLUMN IF NOT EXISTS is_suspended BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS kyc_level VARCHAR(50) DEFAULT 'Level 1 Basic',
+      ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT false,
+      ADD COLUMN IF NOT EXISTS demo_balance NUMERIC DEFAULT 10000.00,
+      ADD COLUMN IF NOT EXISTS last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS last_ip VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS referred_by INTEGER,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+    `);
+  } catch (err) {
+    console.error('Auto-heal skipped:', err);
+  }
+};
+
+export const getPendingDeposits = async (req: Request, res: Response) => {
+  try {
+    const requested = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'PENDING';
+    const allowed = ['PENDING', 'APPROVED', 'DENIED', 'COMPLETED'];
+
+    const filterByStatus = allowed.includes(requested);
+    if (!filterByStatus && requested !== 'ALL') {
+      return res.status(400).json({ success: false, error: 'Invalid status filter' });
+    }
+
+    const query = `
+      SELECT dr.*, u.email, u.nickname
+      FROM deposit_requests dr
+      JOIN users u ON dr.user_id = u.id
+      ${filterByStatus ? 'WHERE dr.status = $1' : ''}
+      ORDER BY dr.created_at DESC
+      LIMIT 200;
+    `;
+    const result = await pool.query(query, filterByStatus ? [requested] : []);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching deposits:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getPendingWithdrawals = async (req: Request, res: Response) => {
+  try {
+    const requested = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : 'PENDING';
+    const allowed = ['PENDING', 'APPROVED', 'DENIED', 'COMPLETED', 'REJECTED'];
+
+    const filterByStatus = allowed.includes(requested);
+    if (!filterByStatus && requested !== 'ALL') {
+      return res.status(400).json({ success: false, error: 'Invalid status filter' });
+    }
+
+    const query = `
+      SELECT w.*, u.email, u.nickname
+      FROM withdrawals w
+      JOIN users u ON w.user_id = u.id
+      ${filterByStatus ? 'WHERE w.status = $1' : ''}
+      ORDER BY w.created_at DESC
+      LIMIT 200;
+    `;
+    const result = await pool.query(query, filterByStatus ? [requested] : []);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching withdrawals:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getUsers = async (req: Request, res: Response) => {
+  try {
+    // Run the auto-healer to ensure the database is perfectly structured
+    await autoHealDatabase();
+
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+
+    const query = `
+      SELECT
+        u.id,
+        u.email,
+        u.nickname,
+        u.role,
+        u.status,
+        u.is_suspended,
+        u.kyc_level,
+        u.is_verified,
+        u.demo_balance,
+        u.last_login,
+        u.last_ip,
+        u.created_at,
+        (SELECT COUNT(*) FROM users r WHERE r.referred_by = u.id) as referrals_count,
+        COALESCE(w.asset_count, 0)        AS asset_count,
+        COALESCE(w.holdings, '[]'::json)  AS holdings,
+        COALESCE(d.deposit_count, 0)      AS deposit_count,
+        COALESCE(d.pending_count, 0)      AS pending_count,
+        d.last_deposit_at
+      FROM users u
+      LEFT JOIN (
+        SELECT
+          user_id,
+          COUNT(*) FILTER (WHERE balance > 0) AS asset_count,
+          json_agg(
+            json_build_object('asset', asset_symbol, 'balance', balance)
+            ORDER BY balance DESC
+          ) FILTER (WHERE balance > 0) AS holdings
+        FROM wallets
+        GROUP BY user_id
+      ) w ON w.user_id = u.id
+      LEFT JOIN (
+        SELECT
+          user_id,
+          COUNT(*)                                                    AS deposit_count,
+          COUNT(*) FILTER (WHERE status = 'PENDING')                  AS pending_count,
+          MAX(created_at)                                         AS last_deposit_at
+        FROM deposit_requests
+        GROUP BY user_id
+      ) d ON d.user_id = u.id
+      ${search ? 'WHERE u.email ILIKE $1 OR u.nickname ILIKE $1' : ''}
+      ORDER BY u.created_at DESC
+      LIMIT 200;
+    `;
+
+    const result = await pool.query(query, search ? [`%${search}%`] : []);
+    res.status(200).json({ success: true, count: result.rows.length, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getAdminStats = async (req: Request, res: Response) => {
+  try {
+    const aggregations = await adminService.getDashboardAggregations();
+    
+    res.status(200).json({
+      success: true,
+      stats: aggregations,
+      data: aggregations
+    });
+  } catch (error) {
+    console.error('Error fetching admin stats:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const approveDeposit = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const depositId = req.params.id;
+    const amountReceived = Number(req.body?.amount_received);
+
+    if (!Number.isFinite(amountReceived) || amountReceived <= 0) {
+      return res.status(400).json({ success: false, error: 'A positive amount_received is required to approve.' });
+    }
+
+    await client.query('BEGIN');
+
+    const depositQuery = `SELECT * FROM deposit_requests WHERE id = $1 AND status = 'PENDING' FOR UPDATE;`;
+    const depositResult = await client.query(depositQuery, [depositId]);
+
+    if (depositResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Pending deposit request not found.' });
+    }
+
+    const deposit = depositResult.rows[0];
+
+    await client.query(
+      `UPDATE deposit_requests
+       SET status = 'APPROVED', amount_credited = $1, reviewed_by = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [amountReceived, req.user?.id ?? null, depositId]
+    );
+
+    const balanceAfter = await applyMovement({
+      client,
+      userId: deposit.user_id,
+      asset: deposit.asset,
+      delta: amountReceived,
+      reason: 'DEPOSIT_APPROVED',
+      refType: 'deposit',
+      refId: depositId,
+      metadata: { approvedBy: req.user?.email, claimed: deposit.amount_expected },
+    });
+
+    await client.query('COMMIT');
+
+    const depositor = await pool.query('SELECT email FROM users WHERE id = $1', [deposit.user_id]);
+    if (depositor.rows[0]?.email) {
+      void sendDepositApproved(depositor.rows[0].email, amountReceived, deposit.asset);
+    }
+    void notifyDepositCompleted(deposit.user_id, deposit.asset, amountReceived);
+    void logAudit(req.user!.id, 'APPROVE_DEPOSIT', 'deposit', depositId.toString(), {
+      asset: deposit.asset, amountClaimed: deposit.amount_expected, amountCredited: amountReceived, userId: deposit.user_id
+    }, req.ip);
+
+    res.status(200).json({
+      success: true,
+      message: `Credited ${amountReceived} ${deposit.asset}.`,
+      data: { user_id: deposit.user_id, asset_symbol: deposit.asset, balance: balanceAfter },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error approving deposit:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+export const denyDeposit = async (req: Request, res: Response) => {
+  try {
+    const depositId = req.params.id;
+
+    const query = `
+      UPDATE deposit_requests
+      SET status = 'DENIED', reviewed_by = $2, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1 AND status = 'PENDING'
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [depositId, req.user?.id ?? null]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Pending deposit request not found.' });
+    }
+
+    const denied = result.rows[0];
+    const depositor = await pool.query('SELECT email FROM users WHERE id = $1', [denied.user_id]);
+    if (depositor.rows[0]?.email) {
+      void sendDepositDenied(depositor.rows[0].email, denied.asset);
+    }
+    void notifyDepositRejected(denied.user_id, denied.asset);
+    void logAudit(req.user!.id, 'DENY_DEPOSIT', 'deposit', depositId.toString(), {
+      asset: denied.asset, amountClaimed: denied.amount_expected, userId: denied.user_id
+    }, req.ip);
+
+    res.status(200).json({ success: true, message: 'Deposit denied.' });
+  } catch (error) {
+    console.error('Error denying deposit:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const approveWithdrawal = async (req: Request, res: Response) => {
+  try {
+    const withdrawalId = req.params.id;
+    const txHash = typeof req.body?.tx_hash === 'string' ? req.body.tx_hash.trim() : null;
+
+    const query = `
+      UPDATE withdrawals
+      SET status = 'APPROVED',
+          tx_hash = COALESCE($1, tx_hash),
+          reviewed_by = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3 AND status = 'PENDING'
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [txHash, req.user?.id ?? null, withdrawalId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Pending withdrawal request not found.' });
+    }
+
+    const approved = result.rows[0];
+    res.status(200).json({
+      success: true,
+      message: `Withdrawal of ${approved.amount} ${approved.asset} approved.`,
+      data: approved,
+    });
+  } catch (error) {
+    console.error('Error approving withdrawal:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const denyWithdrawal = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    const withdrawalId = req.params.id;
+
+    await client.query('BEGIN');
+
+    const wthQuery = `SELECT * FROM withdrawals WHERE id = $1 AND status = 'PENDING' FOR UPDATE;`;
+    const wthResult = await client.query(wthQuery, [withdrawalId]);
+
+    if (wthResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'Pending withdrawal request not found.' });
+    }
+
+    const withdrawal = wthResult.rows[0];
+
+    await client.query(
+      `UPDATE withdrawals
+       SET status = 'DENIED', reviewed_by = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [req.user?.id ?? null, withdrawalId]
+    );
+
+    const refundAmount = Number(withdrawal.amount);
+    const balanceAfter = await applyMovement({
+      client,
+      userId: withdrawal.user_id,
+      asset: withdrawal.asset,
+      delta: refundAmount,
+      reason: 'WITHDRAWAL_DENIED_REFUND' as any,
+      refType: 'withdrawal',
+      refId: withdrawalId,
+      metadata: { deniedBy: req.user?.email, reason: req.body?.reason || 'Administrative rejection' },
+    });
+
+    await client.query('COMMIT');
+
+    res.status(200).json({
+      success: true,
+      message: `Withdrawal denied and ${refundAmount} ${withdrawal.asset} refunded.`,
+      data: { user_id: withdrawal.user_id, asset_symbol: withdrawal.asset, balance: balanceAfter },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error denying withdrawal:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const targetUserId = parseInt(req.params.id, 10);
+    const { vip_level, role } = req.body;
+
+    const updatedUser = await adminService.updateUserStatus(adminId, targetUserId, {
+      vip_level, role
+    });
+
+    return res.status(200).json({ success: true, message: 'User updated', user: updatedUser });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+export const getAuditLogs = async (req: Request, res: Response) => {
+  try {
+    const logs = await adminService.getAuditLogs();
+    return res.status(200).json({ success: true, logs });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getLedgerLogs = async (req: Request, res: Response) => {
+  try {
+    const logs = await adminService.getSystemLedgerLogs();
+    return res.status(200).json({ success: true, logs });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const getSettings = async (req: Request, res: Response) => {
+  try {
+    const settings = await adminService.getPlatformSettings();
+    return res.status(200).json({ success: true, settings });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+export const updateSettings = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+    const { key, value } = req.body;
+    if (!key || !value) {
+      return res.status(400).json({ success: false, error: 'Missing key or value' });
+    }
+    const updated = await adminService.updatePlatformSetting(adminId, key, value);
+    return res.status(200).json({ success: true, message: 'Setting updated', setting: updated });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+const ALLOWED_AUDIENCES: BroadcastAudience[] = ['all', 'active_traders'];
+
+export const sendBroadcast = async (req: Request, res: Response) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { title, message, severity, audience } = req.body ?? {};
+
+    if (typeof title !== 'string' || !title.trim() || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ success: false, error: 'Title and message are required.' });
+    }
+
+    const resolvedAudience: BroadcastAudience = ALLOWED_AUDIENCES.includes(audience) ? audience : 'all';
+
+    const broadcast = await createBroadcast({
+      title: title.trim(),
+      message: message.trim(),
+      severity: typeof severity === 'string' ? severity : 'info',
+      audience: resolvedAudience,
+      sentBy: adminId
+    });
+
+    await pool.query(
+      `INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details)
+       VALUES ($1, 'SEND_BROADCAST', 'broadcast', $2, $3)`,
+      [adminId, broadcast.id.toString(), JSON.stringify({ title, audience: resolvedAudience, recipientCount: broadcast.recipient_count })]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Broadcast sent to ${broadcast.recipient_count} user(s).`,
+      data: broadcast
+    });
+  } catch (err: any) {
+    console.error('Error sending broadcast:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getBroadcasts = async (req: Request, res: Response) => {
+  try {
+    const broadcasts = await listBroadcasts();
+    return res.status(200).json({ success: true, data: broadcasts });
+  } catch (err: any) {
+    console.error('Error fetching broadcasts:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getAnalyticsOverview = async (req: Request, res: Response) => {
+  try {
+    const analytics = await adminService.getAnalyticsOverview();
+    return res.status(200).json({ success: true, data: analytics });
+  } catch (err: any) {
+    console.error('Error fetching analytics overview:', err);
+    return res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getSystemTelemetry = async (req: Request, res: Response) => {
+  try {
+    const telemetry = marketDataService.getTelemetry();
+    return res.status(200).json({ success: true, telemetry });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// --- USER MANAGEMENT SUITE ACTIONS ---
+
+export const updateUserStatus = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+    const { status } = req.body;
+    
+    if (!['Active', 'Suspended', 'Banned'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status provided.' });
+    }
+
+    const isSuspended = status !== 'Active';
+
+    const query = `UPDATE users SET status = $1, is_suspended = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, status, is_suspended`;
+    const result = await pool.query(query, [status, isSuspended, targetUserId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    await logAudit(adminId, 'UPDATE_USER_STATUS', 'user', targetUserId, { newStatus: status, isSuspended }, req.ip);
+
+    res.status(200).json({ success: true, message: `User status updated to ${status}` });
+  } catch (error: any) {
+    console.error('Error updating user status:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const updateUserKyc = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+    const { kycLevel } = req.body;
+
+    const isVerified = kycLevel === 'Level 2 Verified';
+
+    const query = `UPDATE users SET kyc_level = $1, is_verified = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING id, kyc_level`;
+    const result = await pool.query(query, [kycLevel, isVerified, targetUserId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    await logAudit(adminId, 'UPDATE_USER_KYC', 'user', targetUserId, { newKycLevel: kycLevel }, req.ip);
+
+    res.status(200).json({ success: true, message: `KYC updated to ${kycLevel}` });
+  } catch (error: any) {
+    console.error('Error updating user KYC:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const updateUserBalance = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+    const { realBalance, demoBalance } = req.body;
+
+    await client.query('BEGIN');
+
+    // 1. Update demo balance on the user profile
+    await client.query(`UPDATE users SET demo_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [demoBalance, targetUserId]);
+
+    // 2. Safe Upsert for the Real USDT Wallet
+    const checkWallet = await client.query(`SELECT balance FROM wallets WHERE user_id = $1 AND asset_symbol = 'USDT'`, [targetUserId]);
+
+    let oldBalance = 0;
+    if (checkWallet.rows.length > 0) {
+      oldBalance = Number(checkWallet.rows[0].balance);
+      await client.query(`UPDATE wallets SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 AND asset_symbol = 'USDT'`, [realBalance, targetUserId]);
+    } else {
+      await client.query(`INSERT INTO wallets (user_id, asset_symbol, balance, updated_at) VALUES ($1, 'USDT', $2, CURRENT_TIMESTAMP)`, [targetUserId, realBalance]);
+    }
+
+    // 3. Inject a Ledger Entry so the user ACTUALLY SEES the change in their history!
+    const delta = Number(realBalance) - oldBalance;
+    if (delta !== 0) {
+       await client.query(
+          `INSERT INTO ledger_entries (user_id, asset_symbol, delta, balance_after, reason, ref_type, ref_id)
+           VALUES ($1, 'USDT', $2, $3, 'ADMIN_ADJUSTMENT', 'admin', $4)`,
+          [targetUserId, delta, realBalance, adminId]
+       );
+    }
+
+    await logAudit(adminId, 'UPDATE_USER_BALANCE', 'user', targetUserId, { oldReal: oldBalance, newReal: realBalance, newDemo: demoBalance }, req.ip);
+    
+    await client.query('COMMIT');
+    res.status(200).json({ success: true, message: 'Balances successfully adjusted.' });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('Error updating user balance:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+export const deleteUserAccount = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const adminId = req.user?.id;
+    if (!adminId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    
+    const targetUserId = req.params.id;
+
+    const result = await pool.query(`DELETE FROM users WHERE id = $1 RETURNING email`, [targetUserId]);
+
+    if (result.rows.length === 0) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    await logAudit(adminId, 'DELETE_USER', 'user', targetUserId, { deletedEmail: result.rows[0].email }, req.ip);
+
+    res.status(200).json({ success: true, message: 'User permanently deleted.' });
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getUserLedger = async (req: Request, res: Response) => {
+  try {
+    const targetUserId = req.params.id;
+    const query = `
+      SELECT id, asset_symbol, delta, balance_after, reason, created_at 
+      FROM ledger_entries 
+      WHERE user_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT 15
+    `;
+    const result = await pool.query(query, [targetUserId]);
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error: any) {
+    console.error('Error fetching user ledger:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const getUserReferrals = async (req: Request, res: Response) => {
+  try {
+    await autoHealDatabase();
+    
+    const targetUserId = req.params.id;
+    const result = await pool.query(`SELECT COUNT(*) as count FROM users WHERE referred_by = $1`, [targetUserId]);
+    
+    res.status(200).json({ 
+      success: true, 
+      data: { 
+        activeTraders: parseInt(result.rows[0].count, 10), 
+        earnedUsdt: 0
+      } 
+    });
+  } catch (error: any) {
+    console.error('Error fetching user referrals:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// --- NEW KYC REVIEW ACTIONS ---
+
+export const getKycApplications = async (req: Request, res: Response) => {
+  try {
+    const status = req.query.status as string || 'PENDING';
+    const query = `
+      SELECT k.*, u.email, u.nickname 
+      FROM kyc_applications k
+      JOIN users u ON k.user_id = u.id
+      ${status !== 'ALL' ? 'WHERE k.status = $1' : ''}
+      ORDER BY k.created_at DESC
+      LIMIT 200;
+    `;
+    const params = status !== 'ALL' ? [status.toUpperCase()] : [];
+    const result = await pool.query(query, params);
+    
+    res.status(200).json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching KYC applications:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+export const approveKycApplication = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const kycId = req.params.id;
+    const adminId = req.user?.id;
+
+    // Lock the KYC application row
+    const kycResult = await client.query(`SELECT * FROM kyc_applications WHERE id = $1 FOR UPDATE`, [kycId]);
+    if (kycResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'KYC application not found.' });
+    }
+
+    const kyc = kycResult.rows[0];
+    const newLevel = kyc.current_level === 'LEVEL_2' ? 'LEVEL_2_VERIFIED' : 'VERIFIED';
+
+    // 1. Mark Application as Approved
+    await client.query(
+      `UPDATE kyc_applications SET status = 'APPROVED', reviewed_by = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [adminId, kycId]
+    );
+
+    // 2. Upgrade the User Profile
+    await client.query(
+      `UPDATE users SET kyc_level = $1, is_verified = true, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+      [newLevel, kyc.user_id]
+    );
+
+    // 3. Log the Admin Action
+    await logAudit(adminId!, 'APPROVE_KYC', 'user', kyc.user_id.toString(), { kycId, newLevel }, req.ip);
+
+    await client.query('COMMIT');
+    res.status(200).json({ success: true, message: `KYC approved. User is now ${newLevel}.` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error approving KYC:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
+
+export const rejectKycApplication = async (req: Request, res: Response) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const kycId = req.params.id;
+    const adminId = req.user?.id;
+    const { reason } = req.body;
+
+    const kycResult = await client.query(`SELECT * FROM kyc_applications WHERE id = $1 FOR UPDATE`, [kycId]);
+    if (kycResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, error: 'KYC application not found.' });
+    }
+
+    const kyc = kycResult.rows[0];
+
+    // 1. Mark Application as Rejected
+    await client.query(
+      `UPDATE kyc_applications SET status = 'REJECTED', rejection_reason = $1, reviewed_by = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [reason || 'Administrative rejection', adminId, kycId]
+    );
+
+    // 2. Demote the User Profile
+    const fallbackLevel = kyc.current_level === 'LEVEL_2' ? 'LEVEL_1' : 'Unverified';
+    const isVerified = fallbackLevel !== 'Unverified';
+
+    await client.query(
+      `UPDATE users SET kyc_level = $1, is_verified = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3`,
+      [fallbackLevel, isVerified, kyc.user_id]
+    );
+
+    // 3. Log the Admin Action
+    await logAudit(adminId!, 'REJECT_KYC', 'user', kyc.user_id.toString(), { kycId, reason }, req.ip);
+
+    await client.query('COMMIT');
+    res.status(200).json({ success: true, message: `KYC application rejected.` });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error rejecting KYC:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+};
