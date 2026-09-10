@@ -40,6 +40,9 @@ websocketService.init(httpServer);
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+  'http://localhost',
+  'https://localhost',
+  'capacitor://localhost',
   'https://oriviant-mu.vercel.app', 
   'https://oriviant-one.vercel.app',
   'https://oriviant-delta.vercel.app',
