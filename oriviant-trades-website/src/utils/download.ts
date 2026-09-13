@@ -1,5 +1,5 @@
-export const APK_FILE_PATH = '/oriviant-official-v2.4.0.apk';
-export const APK_FILE_NAME = 'oriviant-official-v2.4.0.apk';
+export const APK_FILE_PATH = '/oriviant-v1.apk';
+export const APK_FILE_NAME = 'Oriviant-App.apk';
 
 export const triggerApkDownload = (e?: { preventDefault?: () => void; stopPropagation?: () => void }) => {
   if (e) {

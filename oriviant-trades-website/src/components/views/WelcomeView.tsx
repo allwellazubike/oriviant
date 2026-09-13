@@ -15,14 +15,11 @@ import {
   Lock, 
   ExternalLink,
   BarChart2,
-  Activity,
   X,
-  HelpCircle,
-  ChevronRight
+  HelpCircle
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
 import { NavigationTab } from '../../types';
-import { triggerApkDownload } from '../../utils/download';
 
 interface WelcomeViewProps {
   onNavigate?: (tab: NavigationTab) => void;
@@ -49,22 +46,10 @@ const MARKET_PREVIEWS: MarketAsset[] = [
 
 export const WelcomeView: React.FC<WelcomeViewProps> = () => {
   const { openAuthModal } = useUser();
-  const [downloading, setDownloading] = useState(false);
-  const [downloadComplete, setDownloadComplete] = useState(false);
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] = useState(false);
   const [attemptedFeature, setAttemptedFeature] = useState<string>('');
 
   useOverlayRegistration('welcome-login-modal', isLoginRequiredModalOpen, () => setIsLoginRequiredModalOpen(false));
-
-  const handleDownloadApk = () => {
-    setDownloading(true);
-    triggerApkDownload();
-    setTimeout(() => {
-      setDownloading(false);
-      setDownloadComplete(true);
-      setTimeout(() => setDownloadComplete(false), 4000);
-    }, 1200);
-  };
 
   const triggerLoginPrompt = (featureName: string) => {
     setAttemptedFeature(featureName);
@@ -203,26 +188,12 @@ export const WelcomeView: React.FC<WelcomeViewProps> = () => {
             <span>Support</span>
           </button>
 
-          <button
-            onClick={handleDownloadApk}
-            disabled={downloading}
-            className="px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold border border-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {downloadComplete ? (
-              <span>APK Downloaded! (v2.4.1)</span>
-            ) : downloading ? (
-              <>
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-                <span>Downloading APK...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                <span>Download Latest APK</span>
-                <span className="px-1.5 py-0.5 text-[9px] bg-emerald-500/20 font-mono rounded">v2.4.1</span>
-              </>
-            )}
-          </button>
+          <a href="/oriviant-v1.apk" download="Oriviant-App.apk">
+            <button className="px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold border border-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer">
+              <Download className="w-4 h-4" />
+              <span>Download Latest APK</span>
+            </button>
+          </a>
         </div>
 
       </div>
