@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Smartphone, 
   Download, 
@@ -13,16 +13,8 @@ import {
   ExternalLink,
   Laptop
 } from 'lucide-react';
-import { triggerApkDownload } from '../../utils/download';
 
 export const DownloadAppView: React.FC = () => {
-  const [downloadStarted, setDownloadStarted] = useState(false);
-
-  const handleDownloadApk = () => {
-    setDownloadStarted(true);
-    triggerApkDownload();
-  };
-
   return (
     <div className="space-y-10 pb-16 animate-in fade-in duration-300">
       
@@ -47,13 +39,14 @@ export const DownloadAppView: React.FC = () => {
 
             {/* Action Buttons */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={handleDownloadApk}
-                className="px-6 py-3.5 rounded-2xl bg-accent hover:bg-accent/90 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-accent/30 transition-all flex items-center gap-2.5 cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>Android APK Download (v2.4.0)</span>
-              </button>
+              <a href="/oriviant-v1.apk" download="Oriviant-App.apk">
+                <button
+                  className="px-6 py-3.5 rounded-2xl bg-accent hover:bg-accent/90 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-accent/30 transition-all flex items-center gap-2.5 cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Android APK Download (v2.4.0)</span>
+                </button>
+              </a>
 
               <button
                 disabled
@@ -190,13 +183,14 @@ export const DownloadAppView: React.FC = () => {
           <p className="text-xs text-app-sec">100% VirusTotal scanned & verified build. SHA-256 hash checksum available upon download.</p>
         </div>
 
-        <button
-          onClick={handleDownloadApk}
-          className="px-6 py-3 rounded-xl bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          <span>Download Direct APK</span>
-        </button>
+        <a href="/oriviant-v1.apk" download="Oriviant-App.apk">
+          <button
+            className="px-6 py-3 rounded-xl bg-emerald-500 text-white font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download Direct APK</span>
+          </button>
+        </a>
       </div>
 
     </div>
