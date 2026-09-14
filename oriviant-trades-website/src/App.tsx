@@ -12,6 +12,7 @@ import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { TickerMarquee } from './components/home/TickerMarquee';
 import { StickyAppDownloadBar } from './components/common/StickyAppDownloadBar';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
 import { HomeView } from './components/views/HomeView';
 import { MarketsView } from './components/views/MarketsView';
@@ -100,6 +101,9 @@ function AppContent() {
 
       {/* Fixed Sticky Download Bar at Bottom */}
       <StickyAppDownloadBar onNavigate={handleNavigate} />
+
+      {/* Global PWA Install Prompt */}
+      <PwaInstallPrompt />
     </div>
   );
 }
@@ -125,4 +129,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-
