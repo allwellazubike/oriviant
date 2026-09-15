@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Star, ArrowUpDown, Zap, ArrowUpRight, ArrowDownRight, Layers, Download } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Search, Star, ArrowUpDown, Zap, ArrowUpRight, ArrowDownRight, Layers, Download, RefreshCw } from 'lucide-react';
 import { useTrading } from '../../contexts/TradingContext';
 import { NavigationTab } from '../../types';
 
@@ -7,13 +7,33 @@ interface MarketsViewProps {
   onNavigate: (tab: NavigationTab) => void;
 }
 
+const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'https://oriviant-server.onrender.com';
+
 export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
-  const { coins, setActiveCoinSymbol, favorites, toggleFavorite, priceFlashes, feedStatus, manualRefreshFeed } = useTrading();
+  const { 
+    coins: defaultCoins, 
+    favorites, 
+    toggleFavorite, 
+    feedStatus: defaultFeedStatus 
+  } = useTrading();
   
+  const [coins, setCoins] = useState(defaultCoins);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortField, setSortField] = useState<'name' | 'price' | 'change24h' | 'volume24h'>('volume24h');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
+  // Real-time telemetry state
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [priceFlashes, setPriceFlashes] = useState<Record<string, 'up' | 'down'>>({});
+  const [feedTelemetry, setFeedTelemetry] = useState({
+    latencyMs: defaultFeedStatus?.latencyMs || 120,
+    activeFeedsCount: defaultCoins.length || 0,
+    lastUpdated: defaultFeedStatus?.lastUpdated || new Date().toLocaleTimeString(),
+    isConnected: true
+  });
+
+  const previousPricesRef = useRef<Record<string, number>>({});
 
   const categories = [
     { id: 'all', label: 'All Markets' },
@@ -33,6 +53,75 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
     { id: 'new', label: '✨ New Listings' },
     { id: 'traded', label: '⚡ Most Traded' },
   ];
+
+  // Fetch live market data from Render Backend
+  const fetchLiveMarkets = useCallback(async () => {
+    const startTime = performance.now();
+    try {
+      setIsSyncing(true);
+      // 🔥 UPDATED URL TO MATCH BACKEND ROUTE EXACTLY
+      const response = await fetch(`${API_BASE_URL}/api/markets/prices`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const rawData = Array.isArray(payload) ? payload : payload.data || payload.markets || [];
+
+      if (Array.isArray(rawData) && rawData.length > 0) {
+        const flashes: Record<string, 'up' | 'down'> = {};
+
+        const sanitizedData = rawData.map((item: any) => {
+          const prevPrice = previousPricesRef.current[item.symbol];
+          const currentPrice = Number(item.price) || 0;
+
+          if (prevPrice !== undefined && prevPrice !== currentPrice) {
+            flashes[item.symbol] = currentPrice > prevPrice ? 'up' : 'down';
+          }
+          previousPricesRef.current[item.symbol] = currentPrice;
+
+          return {
+            ...item,
+            price: currentPrice,
+            change24h: Number(item.change24h) || 0,
+            volume24h: Number(item.volume24h) || 0,
+            precision: item.precision ?? (currentPrice < 1 ? 4 : 2),
+            sparkline: Array.isArray(item.sparkline) && item.sparkline.length > 0 
+              ? item.sparkline 
+              : [currentPrice * 0.98, currentPrice * 0.99, currentPrice * 1.01, currentPrice]
+          };
+        });
+
+        setCoins(sanitizedData);
+        setPriceFlashes(flashes);
+
+        setTimeout(() => {
+          setPriceFlashes({});
+        }, 1200);
+
+        const latency = Math.round(performance.now() - startTime);
+        setFeedTelemetry({
+          latencyMs: latency,
+          activeFeedsCount: sanitizedData.length,
+          lastUpdated: new Date().toLocaleTimeString(),
+          isConnected: true
+        });
+      }
+    } catch (err) {
+      console.warn('Backend market feed unavailable, holding local state:', err);
+      setFeedTelemetry(prev => ({ ...prev, isConnected: false }));
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  // Polling stream every 4 seconds
+  useEffect(() => {
+    fetchLiveMarkets();
+    const intervalId = setInterval(fetchLiveMarkets, 4000);
+    return () => clearInterval(intervalId);
+  }, [fetchLiveMarkets]);
 
   const handleSort = (field: 'name' | 'price' | 'change24h' | 'volume24h') => {
     if (sortField === field) {
@@ -79,7 +168,6 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
 
   return (
     <div className="space-y-6 pb-12">
-      
       {/* Markets Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -105,23 +193,29 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
       {/* Live Market Data Feed Status Banner */}
       <div className="p-3.5 rounded-2xl bg-app-card border border-app shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-bold text-[11px]">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>LIVE DATA FEED CONNECTED</span>
+          <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border text-[11px] font-bold ${
+            feedTelemetry.isConnected 
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' 
+              : 'bg-amber-500/10 border-amber-500/20 text-amber-500'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${feedTelemetry.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            <span>{feedTelemetry.isConnected ? 'LIVE BACKEND FEED CONNECTED' : 'STANDBY FEED'}</span>
           </div>
 
           <div className="flex items-center gap-4 text-app-sec text-[11px] font-medium">
-            <span>Latency: <strong className="text-app font-bold">{feedStatus.latencyMs}ms</strong></span>
-            <span>Streaming: <strong className="text-app font-bold">{feedStatus.activeFeedsCount} Markets</strong></span>
-            <span>Sync Engine: <strong className="text-emerald-500 font-bold">{feedStatus.isWsConnected ? 'Binance WS + FX Stream' : 'REST Stream'}</strong></span>
-            <span>Last Sync: <strong className="text-app font-bold">{feedStatus.lastUpdated}</strong></span>
+            <span>Latency: <strong className="text-app font-bold">{feedTelemetry.latencyMs}ms</strong></span>
+            <span>Streaming: <strong className="text-app font-bold">{feedTelemetry.activeFeedsCount} Markets</strong></span>
+            <span>Sync Engine: <strong className="text-emerald-500 font-bold">Render REST + Live Ticker</strong></span>
+            <span>Last Sync: <strong className="text-app font-bold">{feedTelemetry.lastUpdated}</strong></span>
           </div>
         </div>
 
         <button
-          onClick={manualRefreshFeed}
-          className="px-3 py-1.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app text-xs font-semibold border border-app transition-colors flex items-center gap-1.5 cursor-pointer ml-auto"
+          onClick={fetchLiveMarkets}
+          disabled={isSyncing}
+          className="px-3 py-1.5 rounded-xl bg-app-sec hover:bg-app-sec/80 text-app text-xs font-semibold border border-app transition-colors flex items-center gap-1.5 cursor-pointer ml-auto disabled:opacity-50"
         >
+          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
           <span>Sync Feed Now</span>
         </button>
       </div>
@@ -189,11 +283,11 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                 sortedCoins.map((coin) => {
                   const isFav = favorites.includes(coin.symbol);
                   const flash = priceFlashes[coin.symbol];
-                  const flashClass = flash === 'up' ? 'flash-up' : flash === 'down' ? 'flash-down' : '';
+                  const flashClass = flash === 'up' ? 'bg-emerald-500/20' : flash === 'down' ? 'bg-red-500/20' : '';
 
                   return (
                     <tr
-                      key={coin.id}
+                      key={coin.id || coin.symbol}
                       className={`hover:bg-app-sec/50 transition-colors ${flashClass}`}
                     >
                       <td className="py-3.5 px-4">
@@ -218,7 +312,10 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
                       </td>
 
                       <td className="py-3.5 px-4 text-right font-extrabold text-xs text-app">
-                        ${coin.price.toLocaleString(undefined, { minimumFractionDigits: coin.precision, maximumFractionDigits: coin.precision })}
+                        ${coin.price.toLocaleString(undefined, { 
+                          minimumFractionDigits: coin.precision ?? 2, 
+                          maximumFractionDigits: coin.precision ?? 2 
+                        })}
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
@@ -236,7 +333,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
 
                       <td className="py-3.5 px-4 hidden lg:table-cell">
                         <div className="flex items-center justify-center gap-1 h-6">
-                          {coin.sparkline.map((val, idx) => {
+                          {Array.isArray(coin.sparkline) && coin.sparkline.map((val: number, idx: number) => {
                             const min = Math.min(...coin.sparkline);
                             const max = Math.max(...coin.sparkline);
                             const heightPercent = Math.max(20, ((val - min) / (max - min || 1)) * 100);
@@ -268,7 +365,6 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
           </table>
         </div>
       </div>
-
     </div>
   );
 };
