@@ -32,6 +32,7 @@ import { HelpCenterView } from './components/views/HelpCenterView';
 import { ReviewsView } from './components/views/ReviewsView';
 import { ProfileSettingsView } from './components/views/ProfileSettingsView';
 import { AdminPortalView } from './components/views/AdminPortalView';
+import { PwaInstallPrompt } from './components/common/PwaInstallPrompt';
 
 import { NavigationTab } from './types';
 
@@ -154,6 +155,9 @@ function AppContent() {
 
       {/* Mobile Sticky Bottom Navigation (Hidden in Admin Mode or Welcome View) */}
       {!isStandaloneAdmin && activeTab !== 'welcome' && <BottomNav activeTab={activeTab} onNavigate={handleNavigate} />}
+
+      {/* Global PWA Install Prompt */}
+      <PwaInstallPrompt />
     </div>
   );
 }

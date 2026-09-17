@@ -4,7 +4,6 @@ import {
   Sparkles, 
   ArrowRight, 
   Globe, 
-  Download, 
   Layers, 
   Zap, 
   Users, 
@@ -57,21 +56,10 @@ const ASSET_CLASS_KEYS: Record<MarketAsset['type'], 'assetClass.crypto' | 'asset
 export const WelcomeView: React.FC<WelcomeViewProps> = () => {
   const { openAuthModal } = useUser();
   const { t } = useLocalization();
-  const [downloading, setDownloading] = useState(false);
-  const [downloadComplete, setDownloadComplete] = useState(false);
   const [isLoginRequiredModalOpen, setIsLoginRequiredModalOpen] = useState(false);
   const [attemptedFeature, setAttemptedFeature] = useState<string>('');
 
   useOverlayRegistration('welcome-login-modal', isLoginRequiredModalOpen, () => setIsLoginRequiredModalOpen(false));
-
-  const handleDownloadApk = () => {
-    setDownloading(true);
-    setTimeout(() => {
-      setDownloading(false);
-      setDownloadComplete(true);
-      setTimeout(() => setDownloadComplete(false), 4000);
-    }, 1800);
-  };
 
   const triggerLoginPrompt = (featureName: string) => {
     setAttemptedFeature(featureName);
@@ -208,27 +196,6 @@ export const WelcomeView: React.FC<WelcomeViewProps> = () => {
           >
             <HelpCircle className="w-4 h-4 text-teal-400" />
             <span>{t('welcome.support')}</span>
-          </button>
-
-          <button
-            onClick={handleDownloadApk}
-            disabled={downloading}
-            className="px-4 py-2.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 text-xs font-bold border border-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {downloadComplete ? (
-              <span>{t('welcome.apkDownloaded')}</span>
-            ) : downloading ? (
-              <>
-                <div className="w-3.5 h-3.5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-                <span>{t('welcome.downloadingApk')}</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                <span>{t('welcome.downloadLatestApk')}</span>
-                <span className="px-1.5 py-0.5 text-[9px] bg-emerald-500/20 font-mono rounded">v2.4.1</span>
-              </>
-            )}
           </button>
         </div>
 
