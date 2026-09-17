@@ -122,4 +122,3 @@ export const HomeFeaturesSection: React.FC<HomeFeaturesSectionProps> = ({ onNavi
     </div>
   );
 };
-
