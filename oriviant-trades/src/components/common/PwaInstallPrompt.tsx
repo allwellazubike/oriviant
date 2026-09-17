@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { X, Share, PlusSquare, Download } from "lucide-react";
 
+const DISMISSED_KEY = "oriviant_install_prompt_dismissed";
+const REMEMBER_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const PwaInstallPrompt = () => {
   const [isIos, setIsIos] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -26,11 +29,30 @@ export const PwaInstallPrompt = () => {
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
-    // 4. Check URL for the Landing Page Redirect Trigger
+    // 4. Offer the app to everyone who opens it in a browser, not only to
+    // people arriving from the website's install link. Anyone reading this in a
+    // tab has not installed it yet, which is exactly who the prompt is for.
     const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("prompt") === "install" && !standalone) {
-      // Delay slightly to let the heavy trading dashboard render first
-      setTimeout(() => setIsVisible(true), 800);
+    const askedForByLink = urlParams.get("prompt") === "install";
+
+    let dismissedAt = 0;
+    try {
+      dismissedAt = Number(localStorage.getItem(DISMISSED_KEY) || 0);
+    } catch {
+      // Private browsing can refuse storage — treat it as never dismissed.
+    }
+    // A link that explicitly asks for the prompt overrides an earlier "not now":
+    // they just clicked Install on the website.
+    const recentlyDismissed = !askedForByLink && dismissedAt > 0 && Date.now() - dismissedAt < REMEMBER_MS;
+
+    if (!standalone && !recentlyDismissed) {
+      // Longer for a cold visit than for a deliberate click, so the heavy
+      // trading dashboard is on screen before anything covers it.
+      const timer = setTimeout(() => setIsVisible(true), askedForByLink ? 800 : 3000);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      };
     }
 
     return () => {
@@ -43,7 +65,14 @@ export const PwaInstallPrompt = () => {
 
   const closePrompt = () => {
     setIsVisible(false);
-    // 🔥 CLEANUP: Remove the prompt from the URL so it doesn't re-trigger
+    // Remembered so a browsing session is not interrupted on every visit, but
+    // only for a week — someone who declines today may well install next month.
+    try {
+      localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+    } catch {
+      /* nothing to remember it with — it will ask again next visit */
+    }
+    // CLEANUP: Remove the prompt from the URL so it doesn't re-trigger
     const url = new URL(window.location.href);
     url.searchParams.delete('prompt');
     window.history.replaceState({}, '', url);

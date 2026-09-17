@@ -12,6 +12,7 @@ import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { TickerMarquee } from './components/home/TickerMarquee';
 import { StickyAppDownloadBar } from './components/common/StickyAppDownloadBar';
+import { GetTheAppPrompt } from './components/common/GetTheAppPrompt';
 
 import { HomeView } from './components/views/HomeView';
 import { MarketsView } from './components/views/MarketsView';
@@ -100,6 +101,9 @@ function AppContent() {
 
       {/* Fixed Sticky Download Bar at Bottom */}
       <StickyAppDownloadBar onNavigate={handleNavigate} />
+
+      {/* Offers the app to every visitor, once a week per browser */}
+      <GetTheAppPrompt />
     </div>
   );
 }

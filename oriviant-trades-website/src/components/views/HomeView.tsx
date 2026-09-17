@@ -296,7 +296,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
 
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Android APK Ready</span>
-            <span className="px-2.5 py-1 rounded-lg bg-white/10 text-slate-300 border border-white/10">iOS (Coming Soon)</span>
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">iOS Web App Ready</span>
             <span className="px-2.5 py-1 rounded-lg bg-white/10 text-slate-300 border border-white/10">Windows & Mac (Coming Soon)</span>
           </div>
         </div>

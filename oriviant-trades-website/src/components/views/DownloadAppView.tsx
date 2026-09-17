@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_INSTALL_URL } from '../../utils/appLinks';
 import { 
   Smartphone, 
   Download, 
@@ -48,14 +49,15 @@ export const DownloadAppView: React.FC = () => {
                 </button>
               </a>
 
-              <button
-                disabled
-                className="px-6 py-3.5 rounded-2xl bg-white/10 text-slate-400 font-extrabold text-xs sm:text-sm border border-white/15 cursor-not-allowed flex items-center gap-2"
-                title="iOS App Store release coming soon!"
-              >
-                <AppleLogo className="w-4 h-4 fill-slate-400" />
-                <span>iOS (Coming Soon)</span>
-              </button>
+              <a href={APP_INSTALL_URL}>
+                <button
+                  className="px-6 py-3.5 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-extrabold text-xs sm:text-sm border border-white/15 transition-all flex items-center gap-2 cursor-pointer"
+                  title="Install Oriviant on your iPhone or iPad"
+                >
+                  <AppleLogo className="w-4 h-4 fill-white" />
+                  <span>iOS — Add to Home Screen</span>
+                </button>
+              </a>
             </div>
 
             {/* Version Specs */}
@@ -65,6 +67,8 @@ export const DownloadAppView: React.FC = () => {
               <span>Package Size: <strong className="text-white">48.2 MB</strong></span>
               <span>•</span>
               <span>Requires: <strong className="text-white">Android 8.0+</strong></span>
+              <span>•</span>
+              <span>iOS: <strong className="text-white">Installs from Safari, no App Store needed</strong></span>
             </div>
           </div>
 
