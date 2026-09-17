@@ -25,12 +25,21 @@ import { FaqContactView } from './components/views/FaqContactView';
 
 import { NavigationTab } from './types';
 import { triggerApkDownload } from './utils/download';
+import { isIos } from './utils/appLinks';
 
 function AppContent() {
   const { activeTab, navigate } = useNavigation();
 
   const handleNavigate = (tab: NavigationTab) => {
     if (tab === 'download') {
+      // Every "Download" link used to fire the APK straight away, which hands
+      // an iPhone a file it cannot open. iOS visitors get the download page
+      // instead, where the install route for their device is spelled out.
+      if (isIos()) {
+        navigate('download');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       triggerApkDownload();
       return;
     }

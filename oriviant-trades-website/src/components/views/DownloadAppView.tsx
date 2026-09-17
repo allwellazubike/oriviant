@@ -45,7 +45,7 @@ export const DownloadAppView: React.FC = () => {
                   className="px-6 py-3.5 rounded-2xl bg-accent hover:bg-accent/90 text-white font-extrabold text-xs sm:text-sm shadow-xl shadow-accent/30 transition-all flex items-center gap-2.5 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>Android APK Download (v2.4.0)</span>
+                  <span>Android APK (v2.4.0)</span>
                 </button>
               </a>
 
@@ -55,7 +55,7 @@ export const DownloadAppView: React.FC = () => {
                   title="Install Oriviant on your iPhone or iPad"
                 >
                   <AppleLogo className="w-4 h-4 fill-white" />
-                  <span>iOS — Add to Home Screen</span>
+                  <span>iPhone &amp; iPad — Install</span>
                 </button>
               </a>
             </div>

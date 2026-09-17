@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Download, Smartphone, X } from 'lucide-react';
-import { APP_INSTALL_URL, isStandalone } from '../../utils/appLinks';
+import { Download, Share, Smartphone, X } from 'lucide-react';
+import { APK_FILE_NAME, APK_PATH, APP_INSTALL_URL, isAndroid, isIos, isStandalone } from '../../utils/appLinks';
 
 const DISMISSED_KEY = 'oriviant_app_prompt_dismissed';
 
@@ -19,10 +19,13 @@ const REMEMBER_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const GetTheAppPrompt: React.FC = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const [platform, setPlatform] = useState<'ios' | 'android' | 'other'>('other');
 
   useEffect(() => {
     // Someone already running the installed app does not need to be sold it.
     if (isStandalone()) return;
+
+    setPlatform(isIos() ? 'ios' : isAndroid() ? 'android' : 'other');
 
     let dismissedAt = 0;
     try {
@@ -65,19 +68,34 @@ export const GetTheAppPrompt: React.FC = () => {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-black">Get the ORIVIANT app</p>
             <p className="mt-0.5 text-xs leading-relaxed text-slate-300">
-              Install it on your phone or desktop for faster execution, price
-              alerts and a full-screen trading view. Works on iPhone and Android.
+              {platform === 'ios'
+                ? 'Install it from Safari in two taps — no App Store needed — for a full-screen trading view and price alerts.'
+                : platform === 'android'
+                  ? 'Get the Android app for faster execution, price alerts and a full-screen trading view.'
+                  : 'Install it on your phone or desktop for faster execution, price alerts and a full-screen trading view. Works on iPhone and Android.'}
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <a
-                href={APP_INSTALL_URL}
-                onClick={dismiss}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#1677FF] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-white shadow-lg transition-all hover:bg-[#1677FF]/90"
-              >
-                <Download className="h-4 w-4" />
-                Install the app
-              </a>
+              {platform === 'android' ? (
+                <a
+                  href={APK_PATH}
+                  download={APK_FILE_NAME}
+                  onClick={dismiss}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#1677FF] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-white shadow-lg transition-all hover:bg-[#1677FF]/90"
+                >
+                  <Download className="h-4 w-4" />
+                  Download APK
+                </a>
+              ) : (
+                <a
+                  href={APP_INSTALL_URL}
+                  onClick={dismiss}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#1677FF] px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-white shadow-lg transition-all hover:bg-[#1677FF]/90"
+                >
+                  {platform === 'ios' ? <Share className="h-4 w-4" /> : <Download className="h-4 w-4" />}
+                  {platform === 'ios' ? 'Install for iPhone' : 'Install the app'}
+                </a>
+              )}
               <button
                 onClick={dismiss}
                 className="rounded-xl px-3 py-2.5 text-xs font-bold text-slate-300 transition-colors hover:bg-white/10 hover:text-white"

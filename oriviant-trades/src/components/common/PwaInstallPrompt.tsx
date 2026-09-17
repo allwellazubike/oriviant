@@ -11,9 +11,13 @@ export const PwaInstallPrompt = () => {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // 1. Check if device is iOS
+    // 1. Check if device is iOS. iPadOS 13+ reports itself as a Mac, so an
+    // iPad would otherwise be shown the Android button — which never arms,
+    // because Safari has no install prompt to hand over.
     const userAgent = window.navigator.userAgent.toLowerCase();
-    const ios = /iphone|ipad|ipod/.test(userAgent);
+    const ios =
+      /iphone|ipad|ipod/.test(userAgent) ||
+      (/macintosh/.test(userAgent) && navigator.maxTouchPoints > 1);
     setIsIos(ios);
 
     // 2. Check if already installed (standalone mode)
@@ -151,13 +155,20 @@ export const PwaInstallPrompt = () => {
               Install our native web application for faster execution and
               offline support.
             </p>
-            <button
-              onClick={handleInstallClick}
-              disabled={!deferredPrompt}
-              className="w-full py-3 rounded-xl bg-accent text-white font-bold text-sm shadow-md hover:bg-accent/90 disabled:opacity-50 transition-colors cursor-pointer"
-            >
-              {deferredPrompt ? "Add to Home Screen" : "Ready to Install..."}
-            </button>
+            {deferredPrompt ? (
+              <button
+                onClick={handleInstallClick}
+                className="w-full py-3 rounded-xl bg-accent text-white font-bold text-sm shadow-md hover:bg-accent/90 transition-colors cursor-pointer"
+              >
+                Add to Home Screen
+              </button>
+            ) : (
+              <div className="bg-app rounded-xl p-4 text-xs text-app-sec border border-app">
+                Open your browser menu and choose{" "}
+                <span className="font-bold text-app">Install app</span> or{" "}
+                <span className="font-bold text-app">Add to Home Screen</span>.
+              </div>
+            )}
           </div>
         )}
       </div>
