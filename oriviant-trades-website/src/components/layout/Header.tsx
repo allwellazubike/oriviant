@@ -127,7 +127,13 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
               return (
                 <button
                   key={link.id}
-                  onClick={() => onNavigate(link.id)}
+                  onClick={() => {
+                    if (link.id === 'download') {
+                      window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install';
+                    } else {
+                      onNavigate(link.id);
+                    }
+                  }}
                   className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-blue-600 text-white shadow-sm'
@@ -271,8 +277,12 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   <button
                     key={`${item.id}-${idx}`}
                     onClick={() => {
-                      onNavigate(item.id);
-                      setIsMenuOpen(false);
+                      if (item.id === 'download') {
+                        window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install';
+                      } else {
+                        onNavigate(item.id);
+                        setIsMenuOpen(false);
+                      }
                     }}
                     className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl font-bold transition-all cursor-pointer ${
                       isActive 
