@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   key={link.id}
                   onClick={() => {
                     if (link.id === 'download') {
-                      window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install';
+                      window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install';
                     } else {
                       onNavigate(link.id);
                     }
@@ -278,7 +278,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     key={`${item.id}-${idx}`}
                     onClick={() => {
                       if (item.id === 'download') {
-                        window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install';
+                        window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install';
                       } else {
                         onNavigate(item.id);
                         setIsMenuOpen(false);
