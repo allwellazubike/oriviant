@@ -33,6 +33,11 @@ export const PwaInstallPrompt = () => {
     };
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
+    // Asked for by hand, from the Install App button. This ignores an earlier
+    // dismissal and any timer: somebody who taps Install wants it now.
+    const handleAsk = () => setIsVisible(true);
+    window.addEventListener("oriviant:show-install", handleAsk);
+
     // 4. Offer the app to everyone who opens it in a browser, not only to
     // people arriving from the website's install link. Anyone reading this in a
     // tab has not installed it yet, which is exactly who the prompt is for.
@@ -56,11 +61,13 @@ export const PwaInstallPrompt = () => {
       return () => {
         clearTimeout(timer);
         window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+        window.removeEventListener("oriviant:show-install", handleAsk);
       };
     }
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.removeEventListener("oriviant:show-install", handleAsk);
     };
   }, []);
 

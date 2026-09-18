@@ -17,7 +17,8 @@ import {
   Activity,
   X,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Download,
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
 import { useLocalization } from '../../contexts/LocalizationContext';
@@ -180,7 +181,7 @@ export const WelcomeView: React.FC<WelcomeViewProps> = () => {
         {/* Secondary Buttons: Visit Website & Support */}
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
           <a
-            href="https://oriviant.io"
+            href="https://oriviant.com"
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 py-2.5 rounded-xl bg-app-sec/60 hover:bg-app-sec text-app-sec hover:text-app text-xs font-bold border border-app transition-colors flex items-center gap-2 cursor-pointer"
@@ -196,6 +197,17 @@ export const WelcomeView: React.FC<WelcomeViewProps> = () => {
           >
             <HelpCircle className="w-4 h-4 text-teal-400" />
             <span>{t('welcome.support')}</span>
+          </button>
+
+          {/* A timed pop-up is easy to miss and impossible to ask for again.
+              This is the way in that is always there, and being a tap it suits
+              iOS, where installing is a manual Share-menu step anyway. */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('oriviant:show-install'))}
+            className="px-4 py-2.5 rounded-xl bg-accent/15 hover:bg-accent/25 text-accent text-xs font-bold border border-accent/30 transition-colors flex items-center gap-2 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Install App</span>
           </button>
         </div>
 
