@@ -171,7 +171,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onNavigate }) => {
             {/* Right Button: Download */}
             <div className="flex-1">
               <button
-                onClick={() => window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install'}
+                onClick={() => window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install'}
                 className="w-full h-11 sm:h-12 px-4 sm:px-6 rounded-2xl bg-white hover:bg-slate-100 text-black font-black text-xs sm:text-sm shadow-xl transition-all duration-200 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 border border-slate-200 dark:border-transparent"
               >
                 <Download className="w-4 h-4 text-black shrink-0" />

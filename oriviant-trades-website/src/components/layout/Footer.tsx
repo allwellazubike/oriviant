@@ -43,7 +43,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
           <div className="flex items-center gap-3 shrink-0">
             <button
-              onClick={() => window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install'}
+              onClick={() => window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install'}
               className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer"
             >
               <Download className="w-4 h-4" />
@@ -145,7 +145,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               </span>
             </button>
             <ul className={`mt-3 space-y-2 text-xs text-app-sec font-medium ${openAccordion === 'support' ? 'block' : 'hidden md:block'}`}>
-              <li><button onClick={() => window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install'} className="hover:text-cyan-500 transition-colors cursor-pointer">Download Android APK</button></li>
+              <li><button onClick={() => window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install'} className="hover:text-cyan-500 transition-colors cursor-pointer">Download Android APK</button></li>
               <li><button onClick={() => onNavigate('faq')} className="hover:text-cyan-500 transition-colors cursor-pointer">Help Center & FAQ</button></li>
               <li><button onClick={() => onNavigate('contact')} className="hover:text-cyan-500 transition-colors cursor-pointer">24/7 VIP Support</button></li>
               <li><button onClick={() => onNavigate('terms')} className="hover:text-cyan-500 transition-colors cursor-pointer">Terms of Service</button></li>

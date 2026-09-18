@@ -301,13 +301,24 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate }) => {
           </div>
         </div>
 
-        <button
-          onClick={() => onNavigate('download')}
-          className="px-8 py-4 rounded-2xl bg-[#1677FF] hover:bg-[#1677FF]/90 text-white font-extrabold text-sm shadow-xl shadow-blue-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer uppercase tracking-wider"
-        >
-          <Download className="w-5 h-5" />
-          <span>Download App Now</span>
-        </button>
+        {/* Stacked Button Layout for Android and iOS */}
+        <div className="flex flex-col gap-3 shrink-0 w-full md:w-auto">
+          <button
+            onClick={() => window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install'}
+            className="px-8 py-4 rounded-2xl bg-[#1677FF] hover:bg-[#1677FF]/90 text-white font-extrabold text-sm shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider w-full"
+          >
+            <Download className="w-5 h-5" />
+            <span>Download App Now</span>
+          </button>
+
+          <button
+            onClick={() => window.open('https://oriviant-delta.vercel.app/?prompt=install', '_blank')}
+            className="px-8 py-2.5 rounded-xl bg-transparent hover:bg-white/5 text-slate-300 font-bold text-xs border border-slate-700 hover:border-slate-500 transition-all flex items-center justify-center gap-2 cursor-pointer uppercase tracking-wider w-full"
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>Download for iOS</span>
+          </button>
+        </div>
       </div>
 
       {/* Auth Modal */}
