@@ -32,3 +32,5 @@ export const isStandalone = (): boolean =>
   typeof window !== "undefined" &&
   (("standalone" in window.navigator && (window.navigator as any).standalone) ||
     window.matchMedia("(display-mode: standalone)").matches);
+
+// Deploy check: 2026-09-18 06:17 UTC
