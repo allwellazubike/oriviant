@@ -1,4 +1,7 @@
 {
+  "buildCommand": "cd oriviant-trades-website && npm install && npm run build",
+  "outputDirectory": "oriviant-trades-website/dist",
+  "installCommand": "echo \"deps are installed by the build command\"",
   "rewrites": [
     {
       "source": "/(.*)",
