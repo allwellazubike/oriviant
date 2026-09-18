@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
   return (
     <>
       <header 
-        className={`sticky top-0 z-40 h-16 transition-all duration-300 backdrop-blur-md ${
+        className={`fixed top-0 left-0 right-0 w-full z-40 h-16 transition-all duration-300 backdrop-blur-md ${
           isScrolled 
             ? 'bg-app-card/90 dark:bg-app-card/95 border-b border-app/60 shadow-md' 
             : 'bg-transparent border-b border-transparent'
@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                   key={link.id}
                   onClick={() => {
                     if (link.id === 'download') {
-                      window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install';
+                      window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install';
                     } else {
                       onNavigate(link.id);
                     }
@@ -211,6 +211,9 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
         </div>
       </header>
 
+      {/* Invisible spacer prevents page content from jumping under the fixed header */}
+      <div className="w-full h-16 pointer-events-none shrink-0" aria-hidden="true" />
+
       {/* PREMIUM SLIDE-OUT NAVIGATION DRAWER */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -278,7 +281,7 @@ export const Header: React.FC<HeaderProps> = ({ activeTab, onNavigate }) => {
                     key={`${item.id}-${idx}`}
                     onClick={() => {
                       if (item.id === 'download') {
-                        window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install';
+                        window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install';
                       } else {
                         onNavigate(item.id);
                         setIsMenuOpen(false);

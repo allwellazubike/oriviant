@@ -350,7 +350,7 @@ export const MarketsView: React.FC<MarketsViewProps> = ({ onNavigate }) => {
 
                       <td className="py-3.5 px-4 text-right">
                         <button
-                          onClick={() => window.location.href = 'https://oriviant-mu.vercel.app/?prompt=install'}
+                          onClick={() => window.location.href = 'https://oriviant-delta.vercel.app/?prompt=install'}
                           className="px-3 py-1.5 text-xs font-bold rounded-xl bg-accent hover:bg-accent/90 text-white shadow-sm transition-all flex items-center justify-end gap-1.5 ml-auto cursor-pointer"
                         >
                           <Download className="w-3.5 h-3.5" />
